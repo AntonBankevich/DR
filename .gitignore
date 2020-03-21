@@ -1,0 +1,6 @@
+# Project exclude paths
+/alignment/CMakeFiles/
+/cmake-build-release/
+/CMakeFiles/
+/minimap2/CMakeFiles/
+/tests/CMakeFiles/
