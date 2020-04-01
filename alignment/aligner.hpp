@@ -39,7 +39,7 @@ public:
     const std::vector<T *> & reference;
 
     AlignmentIndex(const std::vector<T *> &_reference, std::vector<string> &&_seqs, std::vector<mm_idx_t *> &&_index)
-            : SimpleAlignmentIndex(std::move(_index), std::move(_seqs)), reference(reference) {
+            : SimpleAlignmentIndex(std::move(_index), std::move(_seqs)), reference(_reference) {
     }
 };
 
@@ -91,7 +91,7 @@ public:
         final.reserve(res.size());
         for(AlignmentRecord &rec: res) {
             final.emplace_back(Segment<U>(*reads[rec.from.id], rec.from.left, rec.from.right),
-                               Segment<U>(*reads[rec.to.id], rec.to.left, rec.to.right),
+                               Segment<U>(*(index.reference[rec.to.id]), rec.to.left, rec.to.right),
                                std::move(rec.pos_from), std::move(rec.pos_to));
         }
         return final;

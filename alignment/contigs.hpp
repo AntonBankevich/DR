@@ -59,11 +59,24 @@ public:
     }
 };
 
+template <class T>
+inline std::ostream& operator<<(std::ostream& os, const Segment<T>& seg)
+{
+    os << seg.contig.id << "[" << seg.left << ":";
+    if (seg.right > seg.contig.size() * 3 / 4)
+        os << seg.contig.size() << "-" << (seg.contig.size() - seg.right);
+    else
+        os << seg.right;
+    os << "]";
+    return os;
+}
+
 template<class T>
 class NamedSequence {
+public:
+    const string id;
 protected:
     Sequence seq;
-    const string id;
     T * _rc;
 public:
     NamedSequence(const Sequence &_seq, string _id, T *_rc) : seq(_seq), id(std::move(_id)), _rc(_rc){

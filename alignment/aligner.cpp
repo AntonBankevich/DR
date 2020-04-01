@@ -51,7 +51,7 @@ void *minimap_worker(void *_shared) {
                 }
             }
             shared->hits[t].push_back(AlignmentRecord(RawSegment(res.seg_from.id, from[0], from[from.size() - 1] + 1),
-                                                      RawSegment(res.seg_from.id, to[0], to[to.size() - 1] + 1),
+                                                      RawSegment(res.seg_to.id, to[0], to[to.size() - 1] + 1),
                                                       FTree<size_t>(from), FTree<size_t>(to)));
 
         }

@@ -4,3 +4,10 @@
 /CMakeFiles/
 /minimap2/CMakeFiles/
 /tests/CMakeFiles/
+CMakeCache.txt
+Makefile
+alignment/Makefile
+alignment/libalignment.a
+minimap2/Makefile
+tests/Makefile
+tests/run_tests
