@@ -4,9 +4,41 @@
 
 #pragma once
 
-#include "contigs.hpp"
+#include <omp.h>
+#include "../sequences/contigs.hpp"
 #include "ftree.hpp"
+#include "../minimap2/cigar.hpp"
+#include "../minimap2/minimap_interface.hpp"
 
+template<class U, class V>
+struct CigarAlignment {
+    Segment<U> seg_from;
+    Segment<V> seg_to;
+    mm_extra_t *cigar_container; //For compatibility with minimap
+
+    CigarAlignment(RawAlignment &&other, const U &contig_from, const V &contig_to):
+                        seg_from(contig_from, other.seg_from.left, other.seg_from.right),
+                        seg_to(contig_to, other.seg_to.left, other.seg_to.right), cigar_container(other.cigar_container) {
+//        cout << "CigarAlignment From moved raw: " << cigar_container << endl;
+        other.cigar_container = nullptr;
+    }
+
+    CigarAlignment(const Segment<U> &segFrom, const Segment<V> &segTo, mm_extra_t *cigarContainer) :
+                        seg_from(segFrom), seg_to(segTo), cigar_container(cigarContainer) {}
+
+    CigarAlignment(const CigarAlignment &other) = delete;
+
+    CigarAlignment(CigarAlignment &&other) : seg_from(other.seg_from), seg_to(other.seg_to), cigar_container(other.cigar_container) {
+        other.cigar_container = nullptr;
+    }
+
+    ~CigarAlignment() {
+        if (cigar_container != nullptr) {
+//            cout << "CigarAlignment destructor" << cigar_container << endl;
+            free(cigar_container);
+        }
+    }
+};
 
 struct AlignmentView {
     string sfrom;
@@ -53,7 +85,6 @@ private:
     FTree<size_t> ftree_to;
     friend std::ostream& operator<< <U, V>(std::ostream& os, const AlignmentPiece<U, V>& al);
 public:
-
     AlignmentPiece(const Segment<U> & seg_from_, const Segment<V> & seg_to_, std::vector<size_t> &&positions_from, std::vector<size_t> &&positions_to):
             seg_from(seg_from_), seg_to(seg_to_), ftree_from(positions_from), ftree_to(positions_to){}
 
@@ -95,3 +126,59 @@ inline std::ostream& operator<<(std::ostream& os, const AlignmentPiece<U, V>& al
     os << "(" << al.seg_from << "->" <<al.seg_to << ")";
     return os;
 }
+
+template<class U, class V>
+class FTreeTranslator {
+public:
+    AlignmentPiece<U, V> translate(CigarAlignment<U, V> &al) {
+        size_t cur_from = al.seg_from.left;
+        size_t cur_to = al.seg_to.left;
+        const Sequence &contig_from = al.seg_from.contig.seq;
+        const Sequence &contig_to = al.seg_to.contig.seq;
+        const mm_extra_t * cigar_container = al.cigar_container;
+        std::vector<size_t> from;
+        std::vector<size_t> to;
+        for(size_t i = 0; i < cigar_container->n_cigar; i++){
+            size_t block_len = cigar_container->cigar[i] >> 4u;
+            if ((cigar_container->cigar[i] & 15u) == 1) {
+                cur_from += block_len;
+            } else if ((cigar_container->cigar[i] & 15u) == 2) {
+                cur_to += block_len;
+            } else {
+                for(size_t j = 0; j < block_len; j++) {
+                    if (contig_from[cur_from + j] == contig_to[cur_to + j]) {
+                        from.push_back(cur_from + j);
+                        to.push_back(cur_to + j);
+                    }
+                }
+                cur_from += block_len;
+                cur_to += block_len;
+            }
+        }
+        return AlignmentPiece<U, V>(al.seg_from, al.seg_to, FTree<size_t>(from), FTree<size_t>(to));
+    }
+
+    std::vector<AlignmentPiece<U, V>> translate(std::vector<CigarAlignment<U, V>> &als) {
+        std::vector<AlignmentPiece<U, V>> res;
+        for(CigarAlignment<U, V> &al: als) {
+            res.emplace_back(std::move(translate(al)));
+        }
+        return std::move(res);
+    }
+
+    std::vector<std::vector<AlignmentPiece<U, V>>> translate(std::vector<std::vector<CigarAlignment<U, V>>> &als, size_t threads_num = 1) {
+        std::vector<std::vector<AlignmentPiece<U, V>>> res;
+        res.resize(als.size());
+        omp_set_dynamic(0);
+        omp_set_num_threads(threads_num);
+#pragma omp parallel
+        {
+#pragma omp parallel for default(none) shared(als, res)
+            for(size_t i = 0; i < als.size(); i++) {
+                res[i] = translate(als[i]);
+            }
+        };
+        return std::move(res);
+    }
+};
+

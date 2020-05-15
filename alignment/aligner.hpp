@@ -5,106 +5,90 @@
 #pragma once
 
 
-#include <pthread.h>
 #include "../minimap2/minimap_interface.hpp"
-#include "contigs.hpp"
+#include "../sequences/contigs.hpp"
 #include "alignment_piece.hpp"
+#include <omp.h>
 
-//class NoTranslator {
-//public:
-//    typedef RawAlignment AType;
-//    static AType translate(RawAlignment &&alignment);
-//};
-
-//class EqualTranslator {
-//public:
-//    typedef RawAlignment AType;
-//    static AType translate(RawAlignment &&alignment) {
-//
-//    }
-//};
-
-
-class SimpleAlignmentIndex {
+template <class R>
+class RawAligner {
 public:
-    std::vector<mm_idx_t *> index;
-    std::vector<string> seqs;
-    explicit SimpleAlignmentIndex(std::vector<mm_idx_t *> &&_index, std::vector<string> &&_seqs): index(_index), seqs(_seqs) {
-    }
-};
-
-template <class T>
-class AlignmentIndex: public SimpleAlignmentIndex {
-public:
-    const std::vector<T *> & reference;
-
-    AlignmentIndex(const std::vector<T *> &_reference, std::vector<string> &&_seqs, std::vector<mm_idx_t *> &&_index)
-            : SimpleAlignmentIndex(std::move(_index), std::move(_seqs)), reference(_reference) {
-    }
-};
-
-class AlignmentRecord {
-public:
-    RawSegment from;
-    RawSegment to;
-    FTree<size_t> pos_from;
-    FTree<size_t> pos_to;
-    AlignmentRecord(RawSegment from, RawSegment to, FTree<size_t> &&posFrom, FTree<size_t> &&posTo)
-            : from(from), to(to), pos_from(posFrom), pos_to(posTo) {
-    }
-};
-
-class Aligner {
-private:
     size_t default_threads;
+    std::vector<mm_idx_t *> index;
+    std::vector<string> ref_seqs;
+    const std::vector<R *> reference;
 public:
-    explicit Aligner(size_t _default_threads = 1);
-
-    std::vector<AlignmentRecord> doTheWork(const std::vector<string> &read_seqs, SimpleAlignmentIndex &ref_index, size_t thread_num) const;
+    explicit RawAligner(const std::vector<R *> & ref, size_t _default_threads = 1): default_threads(_default_threads), reference(ref) {
+        destroyIndex(index);
+        ref_seqs.reserve(ref.size());
+        for(R *s: ref) {
+            ref_seqs.emplace_back(s->str());
+        }
+        index = constructIndex(ref_seqs, default_threads);
+    }
+    ~RawAligner() {
+        destroyIndex(index);
+    }
 
     template <class T>
-    AlignmentIndex<T> prepareIndex(const std::vector<T *> & ref, size_t threads = size_t(-1)) {
-        std::vector<mm_idx_t *> index;
-        destroyIndex(index);
-        if (threads == size_t(-1))
-            threads = default_threads;
-        std::vector<string> seqs;
-        seqs.reserve(ref.size());
-        for(T *s: ref) {
-            seqs.emplace_back(s->str());
-        }
-        index = constructIndex(seqs, threads);
-        return AlignmentIndex<T>(ref, std::move(seqs), std::move(index));
-    }
-
-    template <class U, class V>
-    std::vector<AlignmentPiece<U, V>> alignAndTranslate(const std::vector<U *> & reads, AlignmentIndex<V> & index, size_t thread_num = size_t(-1)) const {
+    std::vector<std::vector<CigarAlignment<T, R>>> align(const std::vector<T *> & reads, size_t thread_num = size_t(-1)) {
         if (thread_num == size_t(-1))
             thread_num = default_threads;
         std::vector<string> read_seqs;
         read_seqs.reserve(reads.size());
-        for(U * read: reads) {
+        for(T * read: reads) {
             read_seqs.push_back(read->str());
         }
-        std::vector<AlignmentRecord> res = doTheWork(read_seqs, index, thread_num);
-        std::vector<AlignmentPiece<U, V>> final;
-        final.reserve(res.size());
-        for(AlignmentRecord &rec: res) {
-            final.emplace_back(Segment<U>(*reads[rec.from.id], rec.from.left, rec.from.right),
-                               Segment<U>(*(index.reference[rec.to.id]), rec.to.left, rec.to.right),
-                               std::move(rec.pos_from), std::move(rec.pos_to));
+        std::vector<std::vector<CigarAlignment<T, R>>> hits;
+        hits.resize(reads.size());
+        const size_t step = std::max<size_t>(reads.size() / (thread_num * 5), 1u);
+        omp_set_dynamic(0);
+        omp_set_num_threads(thread_num);
+//        cout << "oppa7" << endl;
+#pragma omp parallel for default(none) shared(hits, reads, read_seqs)
+        for(size_t i = 0; i < (reads.size() + step - 1) / step; i++) {
+            size_t from = i * step;
+            size_t to = std::min(from + step, reads.size());
+            VERIFY(to > from)
+            std::stringstream ss;
+//            cout << omp_get_thread_num() << " oppa1 " << from << " " << to << endl;
+            std::vector<std::vector<RawAlignment>> results = run_minimap(read_seqs.data() + from, read_seqs.data() + to, from, index);
+            for(size_t j = 0; j < results.size(); j++) {
+//                cout << omp_get_thread_num() << " oppa2 " << i << " " << results[i].size() << endl;
+                std::vector<CigarAlignment<T, R>> & dump = hits[j];
+                for(RawAlignment & rawAlignment: results[j]) {
+//                    cout << omp_get_thread_num() << " oppa3 " << i << " " << j << endl;
+                    dump.emplace_back(std::move(rawAlignment), *reads[j], *(reference[rawAlignment.seg_to.id]));
+//                    cout << omp_get_thread_num() << " oppa4 " << i << " " << j << endl;
+                }
+//                cout << omp_get_thread_num() << " oppa5 " << i << " " << results[i].size() << endl;
+            }
         }
-        return final;
+//        cout << "oppa8" << endl;
+        return std::move(hits);
     }// Should be const method but need to modify minimap for that
 };
 
-struct WorkerData {
-    size_t index;
-    size_t worker_cnt;
-    const std::vector<string> &read_seqs;
-    SimpleAlignmentIndex &ref_index;
-    size_t step;
-    std::vector<std::vector<AlignmentRecord>> hits;
-    WorkerData(const std::vector<string> &read_seqs, SimpleAlignmentIndex &_index, size_t _step);
-};
+namespace alignment_recipes {
+    template<class U, class V>
+    std::vector<std::vector<AlignmentPiece<U, V>>> SimpleAlign(const std::vector<U *> & reads, const std::vector<V *> & ref, size_t thread_num = 1) {
+        RawAligner<U> aligner(ref, thread_num);
+        SimpleAlign(reads, aligner, thread_num);
+    }
+
+    template<class U, class V>
+    std::vector<std::vector<AlignmentPiece<U, V>>> SimpleAlign(const std::vector<U *> & reads, RawAligner<V> &aligner, size_t thread_num = size_t(-1)) {
+        std::vector<std::vector<AlignmentPiece<U, V>>> res;
+        {
+            if (thread_num == size_t(-1)) {
+                thread_num = aligner.default_threads;
+            }
+            std::vector<std::vector<CigarAlignment<U, V>>> raw_alignments = aligner.align(reads, thread_num);
+            FTreeTranslator<U, V> translator;
+            res = translator.translate(raw_alignments, thread_num);
+        }
+        return std::move(res);
+    }
+
+}
 

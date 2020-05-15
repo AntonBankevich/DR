@@ -33,10 +33,10 @@ public:
     bool rc;
     mm_extra_t *cigar_container; //For compatibility with minimap
     RawAlignment(RawSegment seg_from_, RawSegment seg_to_, bool _rc);
-    RawAlignment(RawAlignment &&other);
+    RawAlignment(RawAlignment &&other) noexcept ;
     RawAlignment(const RawAlignment &other) = delete;
     ~RawAlignment();
 };
 
-std::vector<RawAlignment> run_minimap(const std::string * reads_from, const std::string * reads_to, size_t read_id, std::vector<mm_idx_t *> & ref);
+std::vector<std::vector<RawAlignment>> run_minimap(const std::string * reads_from, const std::string * reads_to, size_t read_id, std::vector<mm_idx_t *> & ref);
 std::vector<mm_idx_t *> constructIndex(std::vector<std::string> &ref, size_t threads);

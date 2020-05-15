@@ -35,25 +35,28 @@ RawAlignment::RawAlignment(RawSegment seg_from_, RawSegment seg_to_, bool _rc) :
     cigar_container = nullptr;
 }
 
-RawAlignment::RawAlignment(RawAlignment &&other) : seg_from(std::move(other.seg_from)), seg_to(std::move(other.seg_to)), rc(other.rc), cigar_container(other.cigar_container) {
+RawAlignment::RawAlignment(RawAlignment &&other) noexcept : seg_from(other.seg_from), seg_to(other.seg_to), rc(other.rc), cigar_container(other.cigar_container) {
+//    std::cout << "RawAlignment move: " << cigar_container << std::endl;
     other.cigar_container = nullptr;
 }
 
 RawAlignment::~RawAlignment() {
     if (cigar_container != nullptr) {
+//        std::cout << "RawAlignment destructor: " << cigar_container << std::endl;
         free(cigar_container);
     }
 }
 
 
-std::vector<RawAlignment> run_minimap(const std::string * reads_from, const std::string * reads_to, size_t read_id, std::vector<mm_idx_t *> & ref)
+std::vector<std::vector<RawAlignment>> run_minimap(const std::string * reads_from, const std::string * reads_to, size_t read_id, std::vector<mm_idx_t *> & ref)
 {
     mm_idxopt_t iopt;
     mm_mapopt_t mopt;
     mm_verbose = 2; // disable message output to stderr
     mm_set_opt(0, &iopt, &mopt);
     mopt.flag |= MM_F_CIGAR; // perform alignment
-    std::vector<RawAlignment> result;
+    std::vector<std::vector<RawAlignment>> result;
+    result.resize(reads_to - reads_from);
     size_t total = 0;
     for (mm_idx_t * mi: ref) {
         mm_mapopt_update(&mopt, mi); // this sets the maximum minimizer occurrence; TODO: set a better default in mm_mapopt_init()!
@@ -62,10 +65,10 @@ std::vector<RawAlignment> run_minimap(const std::string * reads_from, const std:
 //		kseq_rewind(ks);
 		size_t cnt = read_id;
 //		while (kseq_read(ks) >= 0) { // each kseq_read() call reads one query sequence
-        for (;reads_from != reads_to; reads_from++) { // each kseq_read() call reads one query sequence
+        for (size_t i = 0; i < reads_to - reads_from; i++) {
             mm_reg1_t *reg;
             int j, n_reg;
-            const std::string &read = *reads_from;
+            const std::string &read = *(reads_from + i);
             char * read_seq = strdup(read.c_str());
             reg = mm_map(mi, read.size(), read_seq, &n_reg, tbuf, &mopt, nullptr); // get all hits for the query
             for (j = 0; j < n_reg; ++j) {
@@ -76,14 +79,15 @@ std::vector<RawAlignment> run_minimap(const std::string * reads_from, const std:
                 RawSegment seg_from(cnt, hit->qs, hit->qe);
                 RawSegment seg_to(hit->rid, hit->rs, hit->re);
                 RawAlignment al(seg_from, seg_to, bool(hit->rev));
-                result.emplace_back(seg_from, seg_to, bool(hit->rev));
-                result.back().cigar_container = hit->p;
+                result[i].emplace_back(seg_from, seg_to, bool(hit->rev));
+                result[i].back().cigar_container = hit->p;
 			}
 			free(reg);
             cnt += 1;
 		}
         mm_tbuf_destroy(tbuf);
     }
+//    Control over this memory is transferred to RawSequence objects in the result container
 //	kseq_destroy(ks); // close the query file
 //	gzclose(f);
 //    for (size_t i = 0; i < ref.size(); i++) {

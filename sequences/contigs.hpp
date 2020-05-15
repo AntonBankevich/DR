@@ -75,8 +75,8 @@ template<class T>
 class NamedSequence {
 public:
     const string id;
+    const Sequence seq;
 protected:
-    Sequence seq;
     T * _rc;
 public:
     NamedSequence(const Sequence &_seq, string _id, T *_rc) : seq(_seq), id(std::move(_id)), _rc(_rc){

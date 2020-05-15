@@ -73,24 +73,25 @@ TEST(FTreeTests, Add) {
 
 TEST(FTreeTests, Time) {
     std::vector<size_t> val({0});
-    for(size_t i = 0; i < 100000; i++)
+    size_t val_size = 1000000;
+    for(size_t i = 0; i < val_size; i++)
         for(size_t j = 0; j < 10; j++) {
             val.push_back(val.back() + j);
         }
     clock_t t = clock();
-    FTree<size_t> tree(val);
+    FTree<size_t> tree(std::move(val));
     double work_time = double(clock() - t) / double(CLOCKS_PER_SEC);
     cout << "Testing size " << 1000000 << endl;
     cout << "Construction: " << work_time << endl;
-    ASSERT_TRUE(work_time <= 0.006);
+    ASSERT_TRUE(work_time <= 0.3);
     t = clock();
     size_t sum = 0;
-    for(size_t i = 0; i < val.size(); i++) {
+    for(size_t i = 0; i < val_size; i++) {
         sum += tree.get(i);
     }
     work_time = double(clock() - t) / double(CLOCKS_PER_SEC);
     cout << "Random access: " << work_time << endl;
-    ASSERT_TRUE(work_time <= 0.01);
+    ASSERT_TRUE(work_time <= 0.2);
     t = clock();
     sum = 0;
     for(auto it = tree.iterator(); it.hasNext();) {
@@ -98,12 +99,12 @@ TEST(FTreeTests, Time) {
     }
     work_time = double(clock() - t) / double(CLOCKS_PER_SEC);
     cout << "Sequential access: " << work_time << endl;
-    ASSERT_TRUE(work_time <= 0.003);
+    ASSERT_TRUE(work_time <= 0.05);
     t = clock();
-    for(size_t i = 0; i < val.size(); i++) {
+    for(size_t i = 0; i < val_size; i++) {
         tree.addToSuffix(i, 1);
     }
     work_time = double(clock() - t) / double(CLOCKS_PER_SEC);
     cout << "Random edit: " << work_time << endl;
-    ASSERT_TRUE(work_time <= 0.015);
+    ASSERT_TRUE(work_time <= 0.15);
 }

@@ -5,7 +5,7 @@
 		<Option title="gmock"/>
 		<Option makefile_is_custom="1"/>
 		<Option compiler="gcc"/>
-		<Option virtualFolders="CMake Files\;CMake Files\tests\;CMake Files\tests\googletest-master\;CMake Files\tests\googletest-master\googlemock\;CMake Files\tests\googletest-master\googlemock\cmake\;CMake Files\tests\googletest-master\googletest\;CMake Files\tests\googletest-master\googletest\cmake\;CMake Files\alignment\;CMake Files\minimap2\;"/>
+		<Option virtualFolders="CMake Files\;CMake Files\tests\;CMake Files\tests\googletest-master\;CMake Files\tests\googletest-master\googlemock\;CMake Files\tests\googletest-master\googlemock\cmake\;CMake Files\tests\googletest-master\googletest\;CMake Files\tests\googletest-master\googletest\cmake\;CMake Files\alignment\;CMake Files\sequences\;CMake Files\minimap2\;"/>
 		<Build>
 			<Target title="all">
 				<Option working_dir="/home/anton/CLionProjects/DR/tests/googletest-master/googlemock"/>
@@ -209,6 +209,9 @@
 		</Unit>
 		<Unit filename="/home/anton/CLionProjects/DR/alignment/CMakeLists.txt">
 			<Option virtualFolder="CMake Files\alignment\"/>
+		</Unit>
+		<Unit filename="/home/anton/CLionProjects/DR/sequences/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\sequences\"/>
 		</Unit>
 		<Unit filename="/home/anton/CLionProjects/DR/minimap2/CMakeLists.txt">
 			<Option virtualFolder="CMake Files\minimap2\"/>
