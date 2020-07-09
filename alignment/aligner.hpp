@@ -5,10 +5,13 @@
 #pragma once
 
 
-#include "../minimap2/minimap_interface.hpp"
-#include "../sequences/contigs.hpp"
+#include "minimap2/minimap_interface.hpp"
+#include "sequences/contigs.hpp"
 #include "alignment_piece.hpp"
+#include "cigar_alignment.hpp"
+#include "marked_alignment.hpp"
 #include <omp.h>
+#include <fstream>
 
 template <class R>
 class RawAligner {
@@ -17,17 +20,23 @@ public:
     std::vector<mm_idx_t *> index;
     std::vector<string> ref_seqs;
     const std::vector<R *> reference;
-public:
+
     explicit RawAligner(const std::vector<R *> & ref, size_t _default_threads = 1): default_threads(_default_threads), reference(ref) {
         destroyIndex(index);
         ref_seqs.reserve(ref.size());
-        for(R *s: ref) {
+        for(R * s: ref) {
             ref_seqs.emplace_back(s->str());
         }
         index = constructIndex(ref_seqs, default_threads);
     }
     ~RawAligner() {
         destroyIndex(index);
+    }
+
+    std::string itoa(size_t i) {
+        std::stringstream ss;
+        ss << i;
+        return ss.str();
     }
 
     template <class T>
@@ -44,36 +53,74 @@ public:
         const size_t step = std::max<size_t>(reads.size() / (thread_num * 5), 1u);
         omp_set_dynamic(0);
         omp_set_num_threads(thread_num);
-//        cout << "oppa7" << endl;
 #pragma omp parallel for default(none) shared(hits, reads, read_seqs)
         for(size_t i = 0; i < (reads.size() + step - 1) / step; i++) {
             size_t from = i * step;
             size_t to = std::min(from + step, reads.size());
             VERIFY(to > from)
             std::stringstream ss;
-//            cout << omp_get_thread_num() << " oppa1 " << from << " " << to << endl;
             std::vector<std::vector<RawAlignment>> results = run_minimap(read_seqs.data() + from, read_seqs.data() + to, from, index);
             for(size_t j = 0; j < results.size(); j++) {
-//                cout << omp_get_thread_num() << " oppa2 " << i << " " << results[i].size() << endl;
-                std::vector<CigarAlignment<T, R>> & dump = hits[j];
+                std::vector<CigarAlignment<T, R>> & dump = hits[from + j];
                 for(RawAlignment & rawAlignment: results[j]) {
-//                    cout << omp_get_thread_num() << " oppa3 " << i << " " << j << endl;
                     dump.emplace_back(std::move(rawAlignment), *reads[j], *(reference[rawAlignment.seg_to.id]));
-//                    cout << omp_get_thread_num() << " oppa4 " << i << " " << j << endl;
                 }
-//                cout << omp_get_thread_num() << " oppa5 " << i << " " << results[i].size() << endl;
             }
         }
-//        cout << "oppa8" << endl;
         return std::move(hits);
     }// Should be const method but need to modify minimap for that
 };
 
 namespace alignment_recipes {
     template<class U, class V>
+    std::vector<std::vector<MarkedAlignment<U, V>>> MarkAlign(const std::vector<U> & reads, const std::vector<V> & ref, size_t thread_num = 1) {
+        std::vector<U*> readlinks;
+        for(auto &read : reads)
+            readlinks.push_back(&read);
+        std::vector<U*> reflinks;
+        for(auto &r : ref)
+            reflinks.push_back(&r);
+        return MarkAlign(readlinks, reflinks, thread_num);
+    }
+
+    template<class U, class V>
+    std::vector<std::vector<MarkedAlignment<U, V>>> MarkAlign(const std::vector<U *> & reads, const std::vector<V *> & ref, const HMM &hmm, size_t thread_num = 1) {
+        RawAligner<U> aligner(ref, thread_num);
+        std::vector<std::vector<AlignmentPiece<U, V>>> res;
+        if (thread_num == size_t(-1)) {
+            thread_num = aligner.default_threads;
+        }
+        std::vector<std::vector<CigarAlignment<U, V>>> raw_alignments = aligner.align(reads, thread_num);
+        MarkingTranslator<U, V> translator(hmm);
+        return translator.translate(raw_alignments, thread_num);
+    }
+
+    template<class U, class V>
+    std::vector<std::vector<CigarAlignment<U, V>>> CigarAlign(const std::vector<U *> & reads, const std::vector<V *> & ref, size_t thread_num = 1) {
+        RawAligner<U> aligner(ref, thread_num);
+        std::vector<std::vector<AlignmentPiece<U, V>>> res;
+        if (thread_num == size_t(-1)) {
+            thread_num = aligner.default_threads;
+        }
+        return aligner.align(reads, thread_num);
+    }
+
+    template<class U, class V>
     std::vector<std::vector<AlignmentPiece<U, V>>> SimpleAlign(const std::vector<U *> & reads, const std::vector<V *> & ref, size_t thread_num = 1) {
         RawAligner<U> aligner(ref, thread_num);
         SimpleAlign(reads, aligner, thread_num);
+    }
+
+    template<class U, class V>
+    std::vector<std::vector<AlignmentPiece<U, V>>> SimpleAlign(const std::vector<U> & reads, const std::vector<V> & ref, size_t thread_num = 1) {
+        std::vector<U*> readlinks;
+        for(auto &read : reads)
+            readlinks.push_back(&read);
+        std::vector<U*> reflinks;
+        for(auto &r : ref)
+            reflinks.push_back(&r);
+        RawAligner<U> aligner(reflinks, thread_num);
+        SimpleAlign(readlinks, aligner, thread_num);
     }
 
     template<class U, class V>

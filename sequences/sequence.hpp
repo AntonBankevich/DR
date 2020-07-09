@@ -183,6 +183,22 @@ public:
         }
     }
 
+    size_t asNumber() const {
+        size_t res = 0;
+        const ST *bytes = data_->data();
+        if (rtl_) {
+            for(size_t i = from_ + size_ - 1; i + 1 >= from_ + 1; i++) {
+                res = (res << 2u) + (complement((bytes[i >> STNBits] >> ((i & (STN - 1u)) << 1u)) & 3u));
+            }
+        } else {
+            for(size_t i = from_; i < from_ + size_; i++) {
+                res = (res<< 2u) + ((bytes[i >> STNBits] >> ((i & (STN - 1u)) << 1u)) & 3u);
+            }
+        }
+        return res;
+    }
+
+
     bool operator==(const Sequence &that) const {
         if (size_ != that.size_)
             return false;

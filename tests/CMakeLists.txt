@@ -7,5 +7,5 @@ add_subdirectory(googletest-master)
 set(gtest_SOURCE_DIR googletest-master/googletest)
 include_directories(${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 
-add_executable(run_tests test_alignment.cpp test_minimap.cpp)
+add_executable(run_tests test_alignment.cpp test_minimap.cpp test_io.cpp test_hmm.cpp)
 target_link_libraries(run_tests gtest gtest_main minimap alignment)

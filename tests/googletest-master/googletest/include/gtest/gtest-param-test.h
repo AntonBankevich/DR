@@ -492,7 +492,7 @@ internal::CartesianProductHolder<Generator...> Combine(const Generator&... g) {
                   __FILE__, __LINE__)
 
 
-// Allow Marking a Parameterized test class as not needing to be instantiated.
+// Allow MarkedAlignment a Parameterized test class as not needing to be instantiated.
 #define GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(T)                   \
   namespace gtest_do_not_use_outside_namespace_scope {}                   \
   static const ::testing::internal::MarkAsIgnored gtest_allow_ignore_##T( \

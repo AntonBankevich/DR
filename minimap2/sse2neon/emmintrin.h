@@ -3,7 +3,7 @@
 // This header file provides a simple API translation layer
 // between SSE intrinsics to their corresponding ARM NEON versions
 //
-// This header file does not (yet) translate *all* of the SSE intrinsics.
+// This header file does not (yet) mark *all* of the SSE intrinsics.
 // Since this is in support of a specific porting effort, I have only
 // included the intrinsics I needed to get my port to work.
 //

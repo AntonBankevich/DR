@@ -39,7 +39,7 @@ TEST(MinimapTests, Time) {
         clock_gettime(CLOCK_MONOTONIC, &finish);
         worktime = double(finish.tv_sec - start.tv_sec) + double(finish.tv_nsec - start.tv_nsec) / 1000000000.0;
         std::cout << "Index reloaded " << worktime << std::endl;
-        ASSERT_TRUE(worktime <= 8);
+        ASSERT_TRUE(worktime <= 2);
     }
     {
         clock_gettime(CLOCK_MONOTONIC, &start);
@@ -50,9 +50,8 @@ TEST(MinimapTests, Time) {
         clock_gettime(CLOCK_MONOTONIC, &finish);
         worktime = double(finish.tv_sec - start.tv_sec) + double(finish.tv_nsec - start.tv_nsec) / 1000000000.0;
         std::cout << "Default " << worktime << std::endl;
-        ASSERT_TRUE(worktime <= 8);
+        ASSERT_TRUE(worktime <= 1.5);
     }
-    omp_set_num_threads(8);
     {
         std::vector<Contig *> many_reads;
         for (size_t i = 0; i < 1000; i++) {
@@ -65,7 +64,7 @@ TEST(MinimapTests, Time) {
         clock_gettime(CLOCK_MONOTONIC, &finish);
         worktime = double(finish.tv_sec - start.tv_sec) + double(finish.tv_nsec - start.tv_nsec) / 1000000000.0;
         std::cout << "8 threads " << worktime << std::endl;
-        ASSERT_TRUE(worktime <= 8);
+        ASSERT_TRUE(worktime <= 2);
     }
 
     for(Contig *seq: reads)
