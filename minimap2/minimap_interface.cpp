@@ -31,7 +31,7 @@ void destroyIndex(std::vector<mm_idx_t *> & ref) {
     }
 }
 
-RawAlignment::RawAlignment(RawSegment seg_from_, RawSegment seg_to_, bool _rc) : seg_from(std::move(seg_from_)), seg_to(std::move(seg_to_)), rc(_rc) {
+RawAlignment::RawAlignment(RawSegment seg_from_, RawSegment seg_to_, bool _rc) : seg_from(seg_from_), seg_to(seg_to_), rc(_rc) {
     cigar_container = nullptr;
 }
 
@@ -44,6 +44,7 @@ RawAlignment::~RawAlignment() {
     if (cigar_container != nullptr) {
 //        std::cout << "RawAlignment destructor: " << cigar_container << std::endl;
         free(cigar_container);
+//        std::cout << "RawAlignment destructor done: " << cigar_container << std::endl;
     }
 }
 
@@ -119,7 +120,7 @@ std::vector<mm_idx_t *> constructIndex(std::vector<std::string> &ref, size_t thr
     rs.size = ref.size();
     mm_idx_reader_t *r = mm_idx_reader_open(nullptr, &rs, &iopt, 0);
     std::vector<mm_idx_t *> res;
-    mm_idx_t *mi;
+    mm_idx_t *mi = nullptr;
     while ((mi = mm_idx_reader_read(r, int(threads))) != nullptr) {
         res.push_back(mi);
     }

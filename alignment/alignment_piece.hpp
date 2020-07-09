@@ -5,40 +5,97 @@
 #pragma once
 
 #include <omp.h>
-#include "../sequences/contigs.hpp"
+#include "sequences/contigs.hpp"
 #include "ftree.hpp"
-#include "../minimap2/cigar.hpp"
-#include "../minimap2/minimap_interface.hpp"
+#include "minimap2/cigar.hpp"
+#include "minimap2/minimap_interface.hpp"
+#include "cigar_alignment.hpp"
 
 template<class U, class V>
-struct CigarAlignment {
+struct PositionalAlignment {
     Segment<U> seg_from;
     Segment<V> seg_to;
-    mm_extra_t *cigar_container; //For compatibility with minimap
+    std::vector<size_t> positions_from;
+    std::vector<size_t> positions_to;
 
-    CigarAlignment(RawAlignment &&other, const U &contig_from, const V &contig_to):
-                        seg_from(contig_from, other.seg_from.left, other.seg_from.right),
-                        seg_to(contig_to, other.seg_to.left, other.seg_to.right), cigar_container(other.cigar_container) {
-//        cout << "CigarAlignment From moved raw: " << cigar_container << endl;
-        other.cigar_container = nullptr;
+    PositionalAlignment(const Segment<U> & seg_from_, const Segment<V> & seg_to_, std::vector<size_t> &&_positions_from, std::vector<size_t> &&_positions_to):
+            seg_from(seg_from_), seg_to(seg_to_), positions_from(_positions_from), positions_to(_positions_to){}
+
+    PositionalAlignment(const U & contig_from, const V contig_to, std::vector<size_t> &&_positions_from, std::vector<size_t> &&_positions_to):
+            seg_from(Segment<U>(contig_from, positions_from.front(), positions_from.back())),
+            seg_to(Segment<V>(contig_to, positions_to.front(), positions_to.back())),
+            positions_from(_positions_from), positions_to(_positions_to){}
+
+
+    PositionalAlignment(const PositionalAlignment &other) = delete;
+
+    PositionalAlignment(PositionalAlignment<U, V> &&other)  noexcept :
+            seg_from(other.seg_from), seg_to(other.seg_to), positions_from(other.positions_from), positions_to(other.positions_to) {
     }
 
-    CigarAlignment(const Segment<U> &segFrom, const Segment<V> &segTo, mm_extra_t *cigarContainer) :
-                        seg_from(segFrom), seg_to(segTo), cigar_container(cigarContainer) {}
-
-    CigarAlignment(const CigarAlignment &other) = delete;
-
-    CigarAlignment(CigarAlignment &&other) : seg_from(other.seg_from), seg_to(other.seg_to), cigar_container(other.cigar_container) {
-        other.cigar_container = nullptr;
-    }
-
-    ~CigarAlignment() {
-        if (cigar_container != nullptr) {
-//            cout << "CigarAlignment destructor" << cigar_container << endl;
-            free(cigar_container);
+    explicit PositionalAlignment(const CigarAlignment<U, V> &other): seg_from(other.seg_from), seg_to(other.seg_to) {
+        size_t cur_from = other.seg_from.left;
+        size_t cur_to = other.seg_to.left;
+        const Sequence &contig_from = other.seg_from.contig.seq;
+        const Sequence &contig_to = other.seg_to.contig.seq;
+        const mm_extra_t * cigar_container = other.cigar_container;
+        for(size_t i = 0; i < cigar_container->n_cigar; i++){
+            size_t block_len = cigar_container->cigar[i] >> 4u;
+            if ((cigar_container->cigar[i] & 15u) == 1) {
+                cur_from += block_len;
+            } else if ((cigar_container->cigar[i] & 15u) == 2) {
+                cur_to += block_len;
+            } else {
+                for(size_t j = 0; j < block_len; j++) {
+                    if (contig_from[cur_from + j] == contig_to[cur_to + j]) {
+                        positions_from.push_back(cur_from + j);
+                        positions_to.push_back(cur_to + j);
+                    }
+                }
+                cur_from += block_len;
+                cur_to += block_len;
+            }
         }
     }
+
+    PositionalAlignment<U, V> subalignment(size_t from, size_t to) const {
+        return PositionalAlignment<U, V>(seg_from.contig, seg_to.contig(),
+                                  std::vector<size_t>(positions_from.begin() + from, positions_from.begin() + to + 1),
+                                  std::vector<size_t>(positions_to.begin() + from, positions_to.begin() + to + 1));
+    }
+
+    std::vector<string> treestringForm() const {
+        std::vector<char> l1;
+        std::vector<char> l2;
+        std::vector<char> diff;
+        for(size_t i = 0; i + 1 < positions_from.size(); i++) {
+            const size_t len1 = positions_from[i + 1] - positions_from[i] - 1;
+            const size_t len2 = positions_to[i + 1] - positions_to[i] - 1;
+            for(size_t j = 0; j < std::min(len1, len2) + 1; j++) {
+                l1.push_back(seg_from.contig[positions_from[i + j]]);
+                l2.push_back(seg_to.contig[positions_to[i + j]]);
+            }
+            for(size_t j = std::min(len1, len2) + 1; j <= len1; j++) {
+                l1.push_back(seg_from.contig[positions_from[i + j]]);
+                l2.push_back('-');
+            }
+            for(size_t j = std::min(len1, len2) + 1; j <= len2; j++) {
+                l1.push_back('-');
+                l2.push_back(seg_to.contig[positions_to[i + j]]);
+            }
+        }
+        l1.push_back(seg_from.contig[positions_from.back()]);
+        l2.push_back(seg_to.contig[positions_to.back()]);
+        for(size_t i = 0; i < l1.size(); i++) {
+            if(l1[i] == l2[i])
+                diff.push_back('|');
+            else
+                diff.push_back('-');
+        }
+        return {std::string(l1.begin(), l1.end()), std::string(diff.begin(), diff.end()), std::string(l2.begin(), l2.end())};
+    }
 };
+
 
 struct AlignmentView {
     string sfrom;
@@ -64,7 +121,7 @@ struct AlignmentView {
 inline std::ostream& operator<<(std::ostream& os, const AlignmentView& view)
 {
     os << view.sfrom << std::endl;
-    if (view.scomp != "")
+    if (!view.scomp.empty())
         os << view.scomp << std::endl;
     os << view.sto << std::endl;
     return os;
@@ -87,6 +144,9 @@ private:
 public:
     AlignmentPiece(const Segment<U> & seg_from_, const Segment<V> & seg_to_, std::vector<size_t> &&positions_from, std::vector<size_t> &&positions_to):
             seg_from(seg_from_), seg_to(seg_to_), ftree_from(positions_from), ftree_to(positions_to){}
+
+    explicit  AlignmentPiece(PositionalAlignment<U, V> &&other):
+            seg_from(other.seg_from), seg_to(other.seg_to), ftree_from(other.positions_from), ftree_to(other.positions_to){}
 
     AlignmentPiece(const Segment<U> & seg_from_, const Segment<V> & seg_to_, FTree<size_t> &&positions_from, FTree<size_t> &&positions_to):
             seg_from(seg_from_), seg_to(seg_to_), ftree_from(positions_from), ftree_to(positions_to){}
@@ -127,58 +187,18 @@ inline std::ostream& operator<<(std::ostream& os, const AlignmentPiece<U, V>& al
     return os;
 }
 
+
+
 template<class U, class V>
-class FTreeTranslator {
+class FTreeTranslator: public AlignmentTranslator<U, V, AlignmentPiece<U, V>> {
 public:
-    AlignmentPiece<U, V> translate(CigarAlignment<U, V> &al) {
-        size_t cur_from = al.seg_from.left;
-        size_t cur_to = al.seg_to.left;
-        const Sequence &contig_from = al.seg_from.contig.seq;
-        const Sequence &contig_to = al.seg_to.contig.seq;
-        const mm_extra_t * cigar_container = al.cigar_container;
-        std::vector<size_t> from;
-        std::vector<size_t> to;
-        for(size_t i = 0; i < cigar_container->n_cigar; i++){
-            size_t block_len = cigar_container->cigar[i] >> 4u;
-            if ((cigar_container->cigar[i] & 15u) == 1) {
-                cur_from += block_len;
-            } else if ((cigar_container->cigar[i] & 15u) == 2) {
-                cur_to += block_len;
-            } else {
-                for(size_t j = 0; j < block_len; j++) {
-                    if (contig_from[cur_from + j] == contig_to[cur_to + j]) {
-                        from.push_back(cur_from + j);
-                        to.push_back(cur_to + j);
-                    }
-                }
-                cur_from += block_len;
-                cur_to += block_len;
-            }
-        }
-        return AlignmentPiece<U, V>(al.seg_from, al.seg_to, FTree<size_t>(from), FTree<size_t>(to));
+    FTreeTranslator() = default;
+
+    virtual AlignmentPiece<U, V> translateOne(CigarAlignment<U, V> &&al) const {
+        return AlignmentPiece<U, V>(PositionalAlignment<U, V>(al));
     }
 
-    std::vector<AlignmentPiece<U, V>> translate(std::vector<CigarAlignment<U, V>> &als) {
-        std::vector<AlignmentPiece<U, V>> res;
-        for(CigarAlignment<U, V> &al: als) {
-            res.emplace_back(std::move(translate(al)));
-        }
-        return std::move(res);
-    }
-
-    std::vector<std::vector<AlignmentPiece<U, V>>> translate(std::vector<std::vector<CigarAlignment<U, V>>> &als, size_t threads_num = 1) {
-        std::vector<std::vector<AlignmentPiece<U, V>>> res;
-        res.resize(als.size());
-        omp_set_dynamic(0);
-        omp_set_num_threads(threads_num);
-#pragma omp parallel
-        {
-#pragma omp parallel for default(none) shared(als, res)
-            for(size_t i = 0; i < als.size(); i++) {
-                res[i] = translate(als[i]);
-            }
-        };
-        return std::move(res);
-    }
+    virtual ~FTreeTranslator()  = default;
 };
+
 

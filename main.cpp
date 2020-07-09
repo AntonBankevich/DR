@@ -3,6 +3,7 @@
 #include "minimap2/minimap_interface.hpp"
 #include "sequences/contigs.hpp"
 #include "alignment/aligner.hpp"
+#include "alignment/hmm.hpp"
 
 int main() {
     timespec start, finish;

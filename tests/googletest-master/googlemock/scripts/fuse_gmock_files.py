@@ -140,7 +140,7 @@ def FuseGMockH(gmock_root, output_dir):
       else:
         m = gtest.INCLUDE_GTEST_FILE_REGEX.match(line)
         if m:
-          # It's '#include "gtest/foo.h"'.  We translate it to
+          # It's '#include "gtest/foo.h"'.  We mark it to
           # "gtest/gtest.h", regardless of what foo is, since all
           # gtest headers are fused into gtest/gtest.h.
 
