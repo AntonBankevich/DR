@@ -7,3 +7,5 @@ add_library(alignment STATIC
 
 find_package(OpenMP)
 target_link_libraries (alignment common sequence minimap ${CMAKE_THREAD_LIBS_INIT} ${ZLIB_LIBRARIES} m OpenMP::OpenMP_CXX)
+add_executable(align simple_alignment.cpp)
+target_link_libraries(align alignment common sequence)

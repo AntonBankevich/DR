@@ -74,8 +74,8 @@ inline std::ostream& operator<<(std::ostream& os, const Segment<T>& seg)
 template<class T>
 class NamedSequence {
 public:
-    const string id;
-    const Sequence seq;
+    string id;
+    Sequence seq;
 protected:
     T * _rc;
 public:
@@ -128,20 +128,27 @@ public:
     string str() const {
         return seq.str();
     }
+
+    bool isNull() const {
+        return seq.empty();
+    }
 };
 
 class Contig: public NamedSequence<Contig> {
 public:
-    Contig(const Sequence &_seq, string _id): NamedSequence(_seq, _id) {
+    Contig(): NamedSequence(Sequence(), ""){
     }
 
-    Contig(const Sequence &_seq, string _id, Contig *_rc): NamedSequence(_seq, _id, _rc) {
+    Contig(const Sequence &_seq, const string &_id): NamedSequence(_seq, _id) {
     }
 
-    Contig(const string &_seq, string _id): NamedSequence(Sequence(_seq), _id) {
+    Contig(const Sequence &_seq, const string &_id, Contig *_rc): NamedSequence(_seq, _id, _rc) {
     }
 
-    Contig(const string &_seq, string _id, Contig *_rc): NamedSequence(Sequence(_seq), _id, _rc) {
+    Contig(const string &_seq, const string &_id): NamedSequence(Sequence(_seq), _id) {
+    }
+
+    Contig(const string &_seq, const string &_id, Contig *_rc): NamedSequence(Sequence(_seq), _id, _rc) {
     }
 };
 

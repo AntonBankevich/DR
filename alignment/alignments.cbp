@@ -51,6 +51,40 @@
 					<DistClean command="/usr/bin/make -f &quot;/home/anton/CLionProjects/DR/alignment/Makefile&quot;  VERBOSE=1 clean"/>
 				</MakeCommands>
 			</Target>
+			<Target title="align">
+				<Option output="/home/anton/CLionProjects/DR/alignment/align" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/anton/CLionProjects/DR/alignment"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/home/anton/CLionProjects/DR"/>
+					<Add directory="/home/anton/CLionProjects/DR/alignment/."/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -f &quot;/home/anton/CLionProjects/DR/alignment/Makefile&quot;  VERBOSE=1 align"/>
+					<CompileFile command="/usr/bin/make -f &quot;/home/anton/CLionProjects/DR/alignment/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -f &quot;/home/anton/CLionProjects/DR/alignment/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -f &quot;/home/anton/CLionProjects/DR/alignment/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="align/fast">
+				<Option output="/home/anton/CLionProjects/DR/alignment/align" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/anton/CLionProjects/DR/alignment"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/home/anton/CLionProjects/DR"/>
+					<Add directory="/home/anton/CLionProjects/DR/alignment/."/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -f &quot;/home/anton/CLionProjects/DR/alignment/Makefile&quot;  VERBOSE=1 align/fast"/>
+					<CompileFile command="/usr/bin/make -f &quot;/home/anton/CLionProjects/DR/alignment/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -f &quot;/home/anton/CLionProjects/DR/alignment/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -f &quot;/home/anton/CLionProjects/DR/alignment/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
 		</Build>
 		<Unit filename="/home/anton/CLionProjects/DR/alignment/aligner.cpp">
 			<Option target="alignment"/>
@@ -64,14 +98,15 @@
 		<Unit filename="/home/anton/CLionProjects/DR/alignment/alignment_piece.hpp">
 			<Option target="alignment"/>
 		</Unit>
-		<Unit filename="/home/anton/CLionProjects/DR/alignment/scoring.cpp">
+		<Unit filename="/home/anton/CLionProjects/DR/alignment/hmm.cpp">
 			<Option target="alignment"/>
 		</Unit>
-		<Unit filename="/home/anton/CLionProjects/DR/alignment/scoring.hpp">
+		<Unit filename="/home/anton/CLionProjects/DR/alignment/hmm.hpp">
 			<Option target="alignment"/>
 		</Unit>
 		<Unit filename="/home/anton/CLionProjects/DR/alignment/simple_alignment.cpp">
 			<Option target="alignment"/>
+			<Option target="align"/>
 		</Unit>
 		<Unit filename="/home/anton/CLionProjects/DR/CMakeLists.txt">
 			<Option virtualFolder="CMake Files\"/>

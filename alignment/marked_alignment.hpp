@@ -10,11 +10,11 @@
 template<class U, class V>
 class MarkedAlignment {
 private:
-    const PositionalAlignment<U, V> al;
+    PositionalAlignment<U, V> al;
     std::vector<size_t> region_types;
     std::vector<size_t> bound_index;
 public:
-    explicit MarkedAlignment(PositionalAlignment<U, V> _al, std::vector<size_t> &&states, std::vector<size_t> &&matches): al(std::move(_al)) {
+    explicit MarkedAlignment(PositionalAlignment<U, V> &&_al, std::vector<size_t> &&states, std::vector<size_t> &&matches): al(std::move(_al)) {
         bound_index.push_back(0);
         size_t cur = 1;
         size_t cur_state = states[0];
@@ -73,13 +73,14 @@ public:
         return res;
     }
 
-    friend std::ostream& operator<<(std::ostream&, const MarkedAlignment<U, V> &);
+    template<class U1, class V1>
+    friend std::ostream& operator<<(std::ostream&, const MarkedAlignment<U1, V1> &);
 };
 
 template<class U, class V>
 class MarkingTranslator : public AlignmentTranslator<U, V, MarkedAlignment<U, V>> {
     void mark(const PositionalAlignment<U, V> &al, std::vector<size_t> & observed, std::vector<size_t> & matches) const {
-        for(size_t t = 0; t < al.positions_from.size(); t++) {
+        for(size_t t = 0; t + 1 < al.positions_from.size(); t++) {
             matches.push_back(observed.size());
             observed.push_back(alignment_event::match);
             Sequence from = al.seg_from.contig.seq.Subseq(al.positions_from[t], al.positions_from[t + 1] + 1);
@@ -131,12 +132,13 @@ public:
         return hmm.states(events, start_penalties, end_penalties);
     }
 
-    MarkedAlignment<U, V> translateOne(PositionalAlignment<U, V> &&al) const {
+    MarkedAlignment<U, V> translateOne(CigarAlignment<U, V> &&al) const override {
         std::vector<size_t> observed;
         std::vector<size_t> matches;
-        mark(al, observed, matches);
+        PositionalAlignment<U, V> pos_al(al);
+        mark(pos_al, observed, matches);
         std::vector<size_t> states(this->predict(observed));
-        return MarkedAlignment<U, V>(al, std::move(states), std::move(matches));
+        return MarkedAlignment<U, V>(std::move(pos_al), std::move(states), std::move(matches));
     }
 };
 
@@ -144,7 +146,7 @@ template<class U, class V>
 std::ostream &operator<< (std::ostream & os, const MarkedAlignment<U, V> &marking) {
     os << "(";
     for(size_t i = 0; i < marking.region_types.size(); i++) {
-        os << marking.region_types[i] << "[" << marking.bound_index[i] << ", " << marking.bound_index[i + 1] << "]";
+        os << marking.region_types[i] << "[" << marking.al.positions_from[marking.bound_index[i]] << ", " << marking.al.positions_from[marking.bound_index[i + 1]] << "]";
         if (i + 1 < marking.region_types.size()) {
             os << ", ";
         }

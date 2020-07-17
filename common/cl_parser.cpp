@@ -1,7 +1,10 @@
 //
 // Created by anton on 08.07.2020.
 //
+#include <iostream>
 #include "cl_parser.hpp"
+
+const std::string CLParser::emptystring;
 
 void CLParser::parseCL(const std::vector <std::string> &args) {
     std::stringstream ss;
@@ -13,7 +16,7 @@ void CLParser::parseCL(const std::vector <std::string> &args) {
     bool isstart = true;
     std::string name;
     for(const std::string &s : args) {
-        if (name.empty()) {
+        if (!name.empty()) {
             values[name] = s;
             name = "";
         } else if(s[0] == '-') {

@@ -46,7 +46,7 @@ class AlignmentTranslator {
 public:
     AlignmentTranslator() = default;
 
-    virtual A translateOne(const CigarAlignment<U, V> &&al) const = 0;
+    virtual A translateOne(CigarAlignment<U, V> &&al) const = 0;
 
     std::vector<A> translate(std::vector<CigarAlignment<U, V>> &als) {
         std::vector<A> res;
@@ -60,7 +60,7 @@ public:
         std::vector<std::vector<A>> res;
         res.resize(als.size());
         omp_set_dynamic(0);
-        omp_set_num_threads(threads_num);
+        omp_set_num_threads(1);
 #pragma omp parallel for default(none) shared(als, res)
         for(size_t i = 0; i < als.size(); i++) {
             res[i] = translate(als[i]);

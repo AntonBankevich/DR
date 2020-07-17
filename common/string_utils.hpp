@@ -4,6 +4,8 @@
 
 #pragma once
 #include <string>
+#include <algorithm>
+
 static bool endsWith(const std::string& str, const std::string& suffix)
 {
     return str.size() >= suffix.size() && 0 == str.compare(str.size()-suffix.size(), suffix.size(), suffix);
@@ -25,7 +27,7 @@ static inline void rtrim_inplace(std::string &s) {
 }
 
 static inline string trim(std::string s) {
-    ltrim(s);
-    rtrim(s);
+    ltrim_inplace(s);
+    rtrim_inplace(s);
     return s;
 }

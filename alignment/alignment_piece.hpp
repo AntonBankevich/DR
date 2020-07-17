@@ -30,7 +30,7 @@ struct PositionalAlignment {
     PositionalAlignment(const PositionalAlignment &other) = delete;
 
     PositionalAlignment(PositionalAlignment<U, V> &&other)  noexcept :
-            seg_from(other.seg_from), seg_to(other.seg_to), positions_from(other.positions_from), positions_to(other.positions_to) {
+            seg_from(other.seg_from), seg_to(other.seg_to), positions_from(std::move(other.positions_from)), positions_to(std::move(other.positions_to)) {
     }
 
     explicit PositionalAlignment(const CigarAlignment<U, V> &other): seg_from(other.seg_from), seg_to(other.seg_to) {
