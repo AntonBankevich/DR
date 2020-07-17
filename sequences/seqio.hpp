@@ -10,70 +10,58 @@ namespace io {
 //    TODO: Deal with corrupted files, comments in read names
     class SeqReader {
     private:
-        class Reader {
-        public:
-            virtual Contig read(std::istream &s) = 0;
-        };
-
-        class FastaReader: public Reader {
-            Contig read(std::istream &s) override {
-                string id, seq;
-                std::getline(s, id);
-                std::getline(s, seq);
-                return Contig(Sequence(trim(seq)), trim(id.substr(1, id.size() - 1)));
+        void inner_read() {
+            std::string id, seq;
+            std::getline(*stream, id);
+            std::getline(*stream, seq);
+            if (!id.empty() and !seq.empty())
+                next = Contig(Sequence(trim(seq)), trim(id.substr(1, id.size() - 1)));
+            else {
+                next = Contig();
+                return;
             }
-        };
-
-        class FastqReader: public Reader {
-            Contig read(std::istream &s) override {
-                std::string id, seq;
-                std::getline(s, id);
-                std::getline(s, seq);
-                Contig res(Sequence(trim(seq)), trim(id.substr(1, id.size() - 1)));
-                std::getline(s, id);
-                std::getline(s, seq);
-                return res;
+            if(fastq) {
+                std::getline(*stream, id);
+                std::getline(*stream, seq);
             }
-        };
+        }
 
         std::istream * stream;
-        Reader * reader;
+        Contig next;
+        bool fastq;
     public:
         explicit SeqReader(const std::string & file_name) {
             if (endsWith(file_name, ".gz")) {
                 stream = new gzstream::igzstream(file_name.c_str());
-                if (endsWith(file_name, "fastq.gz") or endsWith(file_name, "fq.gz"))
-                    reader = new FastqReader();
-                else
-                    reader = new FastaReader();
+                fastq = endsWith(file_name, "fastq.gz") or endsWith(file_name, "fq.gz");
             } else {
                 stream = new std::ifstream(file_name);
-                if (endsWith(file_name, "fastq") or endsWith(file_name, "fq"))
-                    reader = new FastqReader();
-                else
-                    reader = new FastaReader();
+                fastq = endsWith(file_name, "fastq") or endsWith(file_name, "fq");
             }
+            inner_read();
         }
 
         Contig read() {
-            return reader->read(*stream);
+            Contig tmp = std::move(next);
+            inner_read();
+            return std::move(tmp);
         }
 
         std::vector<Contig> readAll() {
             std::vector<Contig> res;
             while(!eof()) {
-                res.emplace_back(reader->read(*stream));
+                res.emplace_back(next);
+                inner_read();
             }
             return res;
         }
 
         bool eof() {
-            return stream->eof();
+            return next.isNull();
         }
 
         ~SeqReader() {
             free(stream);
-            free(reader);
         }
     };
 }

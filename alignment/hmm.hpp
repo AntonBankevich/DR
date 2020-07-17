@@ -5,7 +5,7 @@
 #include <istream>
 #include "alignment_piece.hpp"
 
-size_t logp(double val) {
+inline size_t logp(double val) {
     if (val == 0)
         return 1000000000;
     else
@@ -40,9 +40,8 @@ private:
     size_t state_num;
 
 public:
-    HMM(size_t _event_num, size_t _state_num, std::vector<std::vector<size_t>> &&_transitions,
-            std::vector<std::vector<size_t>> &&_observations):
-                event_num(_event_num), state_num(_state_num), transitions(_transitions), observations(_observations) {
+    HMM(std::vector<std::vector<size_t>> &&_transitions, std::vector<std::vector<size_t>> &&_observations):
+                event_num(_observations[0].size()), state_num(_transitions.size()), transitions(_transitions), observations(_observations) {
     }
 
     HMM(const HMM &) = default;
@@ -50,5 +49,5 @@ public:
 //    Given observed text and penalties for start and end states this method returns the sequence of hidden states with the lowest penalty.
     std::vector<size_t> states(const std::vector<size_t> &events, const std::vector<size_t> &start_penalties, const std::vector<size_t> &end_penalties) const;
 
-    static HMM load(std::istream stream);
+    static HMM load(std::istream & stream);
 };

@@ -8,7 +8,7 @@ std::vector<size_t> HMM::states(const std::vector<size_t> &events, const std::ve
     std::vector<Record> res;
     res.reserve(state_num * events.size());
     for(size_t st = 0; st < state_num; st++) {
-        res[st] = Record(st, start_penalties[st] + observations[st][events[0]]);
+        res.emplace_back(st, start_penalties[st] + observations[st][events[0]]);
     }
     size_t rec_pos = 0;
     for(size_t state_pos = 1; state_pos < events.size(); state_pos++) {
@@ -35,7 +35,7 @@ std::vector<size_t> HMM::states(const std::vector<size_t> &events, const std::ve
             cost = endcost;
         }
     }
-    rec_pos = events.size() - state_num;
+    rec_pos = res.size() - state_num;
     for(size_t i = events.size() - 1; i > 0; i--) {
         states[i - 1] = res[rec_pos + states[i]].prev;
         rec_pos -= state_num;
@@ -43,7 +43,7 @@ std::vector<size_t> HMM::states(const std::vector<size_t> &events, const std::ve
     return states;
 }
 
-HMM HMM::load(std::istream stream) {
+HMM HMM::load(std::istream &stream) {
     size_t n = 0, m = 0;
     double val = 0;
     stream >> n;
@@ -60,5 +60,5 @@ HMM HMM::load(std::istream stream) {
             stream >> val;
             observations[i].push_back(logp(val));
         }
-    return HMM(n, m, std::move(transitions), std::move(observations));
+    return HMM(std::move(transitions), std::move(observations));
 }

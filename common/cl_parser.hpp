@@ -30,13 +30,13 @@ public:
 
     void parseCL(int argc, char **argv);
 
-    bool check() {
-        for(auto const& key : values) {
-            if (values[key] == "") {
-                return false;
+    std::string check() {
+        for(const auto & key : values) {
+            if (key.second.empty()) {
+                return key.first + " missing";
             }
         }
-        return true;
+        return "";
     }
 
     const std::string & getValue(const std::string &s) const;
@@ -53,5 +53,9 @@ public:
 
     const std::vector<std::string> &getErrors() const {
         return errors;
+    }
+
+    const std::string &getCL() const {
+        return command_line;
     }
 };
