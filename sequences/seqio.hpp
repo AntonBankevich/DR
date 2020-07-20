@@ -4,6 +4,7 @@
 #include "../common/string_utils.hpp"
 #include "stream.hpp"
 #include "contigs.hpp"
+#include <iterator>
 
 namespace io {
 
@@ -14,9 +15,9 @@ namespace io {
             std::string id, seq;
             std::getline(*stream, id);
             std::getline(*stream, seq);
-            if (!id.empty() and !seq.empty())
+            if (!id.empty() and !seq.empty()) {
                 next = Contig(Sequence(trim(seq)), trim(id.substr(1, id.size() - 1)));
-            else {
+            }else {
                 next = Contig();
                 return;
             }
@@ -30,6 +31,63 @@ namespace io {
         Contig next;
         bool fastq;
     public:
+        class Iterator : public std::iterator<std::forward_iterator_tag, Contig, size_t, Contig *, Contig&> {
+        private:
+            SeqReader &reader;
+            bool isend;
+        public:
+            Iterator(SeqReader &_reader, bool _isend) :reader(_reader), isend(_isend) {
+                if(reader.eof()) {
+                    isend = true;
+                }
+            }
+
+            void operator++() {
+                reader.inner_read();
+                if(reader.eof()) {
+                    isend = true;
+                }
+            }
+            const Contig &operator*() const {
+                return reader.next;
+            }
+
+            bool operator==(const Iterator &other) const {
+                return isend == other.isend;
+            }
+            bool operator!=(const Iterator &other) const {
+                return isend != other.isend;
+            }
+        };
+
+        class SeqIterator : public std::iterator<std::forward_iterator_tag, Sequence, size_t, Sequence *, Sequence&> {
+        private:
+            SeqReader &reader;
+            bool isend;
+        public:
+            SeqIterator(SeqReader &_reader, bool _isend) :reader(_reader), isend(_isend) {
+                if(reader.eof()) {
+                    isend = true;
+                }
+            }
+
+            void operator++() {
+                reader.inner_read();
+                if(reader.eof()) {
+                    isend = true;
+                }
+            }
+            const Sequence &operator*() const {
+                return reader.next.seq;
+            }
+            bool operator==(const SeqIterator &other) const {
+                return isend == other.isend;
+            }
+            bool operator!=(const SeqIterator &other) const {
+                return isend != other.isend;
+            }
+        };
+
         explicit SeqReader(const std::string & file_name) {
             if (endsWith(file_name, ".gz")) {
                 stream = new gzstream::igzstream(file_name.c_str());
@@ -39,6 +97,22 @@ namespace io {
                 fastq = endsWith(file_name, "fastq") or endsWith(file_name, "fq");
             }
             inner_read();
+        }
+
+        Iterator begin() {
+            return {*this, false};
+        }
+
+        Iterator end() {
+            return {*this, true};
+        }
+
+        SeqIterator seqbegin() {
+            return {*this, false};
+        }
+
+        SeqIterator seqend() {
+            return {*this, true};
         }
 
         Contig read() {

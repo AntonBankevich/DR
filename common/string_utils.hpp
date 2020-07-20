@@ -26,7 +26,7 @@ static inline void rtrim_inplace(std::string &s) {
                          std::not1(std::ptr_fun<int, int>(std::isspace))).base(), s.end());
 }
 
-static inline string trim(std::string s) {
+static inline std::string trim(std::string s) {
     ltrim_inplace(s);
     rtrim_inplace(s);
     return s;

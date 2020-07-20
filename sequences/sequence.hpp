@@ -159,6 +159,14 @@ public:
     Sequence(const Sequence &s)
             : Sequence(s, s.from_, s.size_, s.rtl_) {}
 
+    static Sequence Concat(const std::vector<Sequence> &v) {
+        std::stringstream ss;
+        for(const auto &seq : v) {
+            ss << seq.str();
+        }
+        return Sequence(ss.str());
+    }
+
     Sequence &operator=(const Sequence &rhs) {
         if (&rhs == this)
             return *this;
@@ -171,7 +179,7 @@ public:
         return *this;
     }
 
-    char operator[](const size_t index) const {
+    unsigned char operator[](const size_t index) const {
         VERIFY(index < size_);
         const ST *bytes = data_->data();
         if (rtl_) {
@@ -214,6 +222,21 @@ public:
         return true;
     }
 
+    bool operator<(const Sequence &other) const {
+        for (size_t i = 0; i < size_; ++i) {
+            if (i == other.size())
+                return true;
+            else if (this->operator[](i) != other[i]) {
+                return this->operator[](i) < other[i];
+            }
+        }
+        return false;
+    }
+
+    bool operator<=(const Sequence &other) const {
+        return !(other < *this);
+    }
+
     bool operator!=(const Sequence &that) const {
         return !(operator==(that));
     }
@@ -242,6 +265,14 @@ public:
 
     bool empty() const {
         return size() == 0;
+    }
+
+    bool startsWith(const Sequence & other) const {
+        return (other.size() <= size()) && (Subseq(0, other.size()) == other);
+    }
+
+    bool endsWith(const Sequence & other) const {
+        return (other.size() <= size()) && (Subseq(size() - other.size(), size()) == other);
     }
 
     template<class Seq>
@@ -349,7 +380,7 @@ public:
         return buf_.clear();
     }
 
-    char operator[](const size_t index) const {
+    unsigned char operator[](const size_t index) const {
         return buf_[index];
     }
 

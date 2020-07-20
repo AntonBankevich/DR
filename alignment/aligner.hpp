@@ -53,7 +53,7 @@ public:
         const size_t step = std::max<size_t>(reads.size() / (thread_num * 5), 1u);
         omp_set_dynamic(0);
         omp_set_num_threads(thread_num);
-#pragma omp parallel for default(none) shared(hits, reads, read_seqs)
+#pragma omp parallel for default(none) shared(hits, reads, read_seqs, step)
         for(size_t i = 0; i < (reads.size() + step - 1) / step; i++) {
             size_t from = i * step;
             size_t to = std::min(from + step, reads.size());

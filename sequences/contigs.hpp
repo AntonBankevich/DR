@@ -76,14 +76,14 @@ class NamedSequence {
 public:
     string id;
     Sequence seq;
-protected:
-    T * _rc;
+//protected:
+//    T * _rc;
 public:
-    NamedSequence(const Sequence &_seq, string _id, T *_rc) : seq(_seq), id(std::move(_id)), _rc(_rc){
-    }
+//    NamedSequence(const Sequence &_seq, string _id, T *_rc) : seq(_seq), id(std::move(_id)), _rc(_rc){
+//    }
 
     NamedSequence(const Sequence &_seq, string _id) : seq(_seq), id(std::move(_id)){
-        _rc = new T(!seq, basic::Reverse(id), static_cast<T*>(this));
+//        _rc = new T(!seq, basic::Reverse(id), static_cast<T*>(this));
     }
 
     Segment<T> asSegment() const {
@@ -113,9 +113,9 @@ public:
         return seq.size();
     }
 
-    NamedSequence &rc() const {
-        return *_rc;
-    }
+//    NamedSequence &rc() const {
+//        return *_rc;
+//    }
 
     bool operator==(const NamedSequence &other) const {
         return id == other.id;
@@ -142,14 +142,14 @@ public:
     Contig(const Sequence &_seq, const string &_id): NamedSequence(_seq, _id) {
     }
 
-    Contig(const Sequence &_seq, const string &_id, Contig *_rc): NamedSequence(_seq, _id, _rc) {
-    }
+//    Contig(const Sequence &_seq, const string &_id, Contig *_rc): NamedSequence(_seq, _id, _rc) {
+//    }
 
     Contig(const string &_seq, const string &_id): NamedSequence(Sequence(_seq), _id) {
     }
 
-    Contig(const string &_seq, const string &_id, Contig *_rc): NamedSequence(Sequence(_seq), _id, _rc) {
-    }
+//    Contig(const string &_seq, const string &_id, Contig *_rc): NamedSequence(Sequence(_seq), _id, _rc) {
+//    }
 };
 
 template <class T>
