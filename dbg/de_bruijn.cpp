@@ -17,7 +17,7 @@
 #include "hash_utils.hpp"
 #include "common/omp_utils.hpp"
 #include "common/logging.hpp"
-//#include "common/bloom_filter.hpp"
+#include "common/bloom_filter.hpp"
 
 typedef unsigned __int128 htype128;
 
@@ -140,50 +140,49 @@ size_t total_size(const std::vector<T> &data) {
 
 std::vector<htype128> findJunctions(const Time time, const std::vector<Sequence>& disjointigs,
         const RollingHash<htype128> &hasher, size_t threads) {
-    double a = std::pow(double(threads), 0.5);
-//    bloom_parameters parameters;
-//    parameters.projected_element_count = total_size(disjointigs);
-//    parameters.false_positive_probability = 0.0001;
-//    VERIFY(!!parameters);
-//    parameters.compute_optimal_parameters();
-//    BloomFilter filter(parameters);
-//    const RollingHash<htype128> ehasher = hasher.extensionHash();
-//    std::cout << time.get() << "Filling bloom filter with k+1-mers." << std::endl;
-//#pragma omp parallel for default(none) shared(filter, disjointigs, ehasher)
-//    for(size_t i = 0; i < disjointigs.size(); i++) {
-//        const Sequence &seq = disjointigs[i];
-//        KWH kmer(ehasher, seq, 0);
-//        while(true) {
-//            filter.insert(kmer.hash);
-//            if(!kmer.hasNext())
-//                break;
-//            kmer = kmer.next();
-//        }
-//    }
-//    std::cout << time.get() << "Finished filling bloom filter. Selecting junctions." << std::endl;
-//    ParallelRecordCollector<htype128> junctions(threads);
-//#pragma omp parallel for default(none) shared(filter, disjointigs, hasher, junctions)
-//    for(size_t i = 0; i < disjointigs.size(); i++) {
-//        const Sequence &seq = disjointigs[i];
-//        KWH kmer(hasher, seq, 0);
-//        while(true) {
-//            size_t cnt1 = 0;
-//            size_t cnt2 = 0;
-//            for(char c = 0; c < 4u; c++) {
-//                cnt1 += filter.contains(kmer.extendRight(c));
-//                cnt2 += filter.contains(kmer.extendLeft(c));
-//            }
-//            if(cnt1 != 1 || cnt2 != 1) {
-//                junctions.emplace_back(kmer.hash);
-//            }
-//            if(!kmer.hasNext())
-//                break;
-//            kmer = kmer.next();
-//        }
-//    }
-//
-//    std::cout << time.get() << "Collected " << junctions.size() << " junctions." << std::endl;
-//    return junctions.collect();
+    bloom_parameters parameters;
+    parameters.projected_element_count = total_size(disjointigs);
+    parameters.false_positive_probability = 0.0001;
+    VERIFY(!!parameters);
+    parameters.compute_optimal_parameters();
+    BloomFilter filter(parameters);
+    const RollingHash<htype128> ehasher = hasher.extensionHash();
+    std::cout << time.get() << "Filling bloom filter with k+1-mers." << std::endl;
+#pragma omp parallel for default(none) shared(filter, disjointigs, ehasher)
+    for(size_t i = 0; i < disjointigs.size(); i++) {
+        const Sequence &seq = disjointigs[i];
+        KWH<htype128> kmer(ehasher, seq, 0);
+        while(true) {
+            filter.insert(kmer.hash);
+            if(!kmer.hasNext())
+                break;
+            kmer = kmer.next();
+        }
+    }
+    std::cout << time.get() << "Finished filling bloom filter. Selecting junctions." << std::endl;
+    ParallelRecordCollector<htype128> junctions(threads);
+#pragma omp parallel for default(none) shared(filter, disjointigs, hasher, junctions)
+    for(size_t i = 0; i < disjointigs.size(); i++) {
+        const Sequence &seq = disjointigs[i];
+        KWH<htype128> kmer(hasher, seq, 0);
+        while(true) {
+            size_t cnt1 = 0;
+            size_t cnt2 = 0;
+            for(char c = 0; c < 4u; c++) {
+                cnt1 += filter.contains(kmer.extendRight(c));
+                cnt2 += filter.contains(kmer.extendLeft(c));
+            }
+            if(cnt1 != 1 || cnt2 != 1) {
+                junctions.emplace_back(kmer.hash);
+            }
+            if(!kmer.hasNext())
+                break;
+            kmer = kmer.next();
+        }
+    }
+
+    std::cout << time.get() << "Collected " << junctions.size() << " junctions." << std::endl;
+    return junctions.collect();
 }
 
 std::vector<Sequence> constructDBG(const Time time, const std::vector<htype128> &vertices, const std::vector<Sequence> &disjointigs,
