@@ -51,6 +51,7 @@ class Sequence {
         ST *data() { return _data; }
 
         ~ManagedNuclBuffer() {
+            std::cout << "DELETED!" << std::endl;
             delete[] _data;
         }
 
@@ -158,6 +159,14 @@ public:
 
     Sequence(const Sequence &s)
             : Sequence(s, s.from_, s.size_, s.rtl_) {}
+
+    static Sequence Concat(const std::vector<Sequence> &v) {
+        std::stringstream ss;
+        for(const auto &seq : v) {
+            ss << seq.str();
+        }
+        return Sequence(ss.str());
+    }
 
     Sequence &operator=(const Sequence &rhs) {
         if (&rhs == this)

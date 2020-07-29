@@ -24,7 +24,8 @@
 #include <atomic>
 #include <cassert>
 #include <cstddef>
-
+#include <iostream>
+#include "omp.h"
 namespace llvm {
 
     template <class T>
@@ -74,6 +75,7 @@ namespace llvm {
         virtual ~RefCountedBaseVPTR() {}
 
         void Retain() const { ++ref_cnt; }
+
         void Release() const {
             assert (ref_cnt > 0 && "Reference count is already zero.");
             if (--ref_cnt == 0) delete this;
@@ -109,8 +111,10 @@ namespace llvm {
         void Release() const {
             int NewRefCount = --RefCount;
             // assert(NewRefCount >= 0 && "Reference count was already zero.");
-            if (NewRefCount == 0)
-                delete static_cast<const Derived*>(this);
+//            std::cout << "Release3 " << NewRefCount<< std::endl;
+//            flush(std::cout);
+//            if (NewRefCount == 0)
+//                delete static_cast<const Derived*>(this);
         }
     };
 

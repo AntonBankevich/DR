@@ -3,8 +3,8 @@
 // Created by anton on 7/20/20.
 //
 
-template<typename T>
-T pow(T base, size_t p) {
+template<typename T, typename U>
+T pow(T base, U p) {
     if (p == 0)
         return 1;
     T tmp = pow(base, p / 2);
@@ -14,16 +14,21 @@ T pow(T base, size_t p) {
         return tmp * tmp;
 }
 
-const size_t w = 12000;
-
 template<typename htype>
 class RollingHash {
 public:
     const size_t k;
-    const size_t hbase;
+    const htype hbase;
     const htype kpow;
+    const htype inv;
 
-    RollingHash(size_t _k, htype _hbase) : k(_k), hbase(_hbase), kpow(pow(hbase, k - 1)){
+    RollingHash(size_t _k, htype _hbase) : k(_k), hbase(_hbase),
+            kpow(pow(hbase, k - 1)), inv(pow(hbase, (htype(1u) << (sizeof(htype) * 8u - 1u)) - 1u)){
+        VERIFY(inv * hbase == htype(1));
+    }
+
+    RollingHash extensionHash() const {
+        return RollingHash(k + 1, hbase);
     }
 
     htype hash(const Sequence &seq, size_t pos) const {
@@ -34,16 +39,36 @@ public:
         return hash;
     }
 
+    htype extendRight(const Sequence &seq, size_t pos, htype hash, char c) const {
+        return hash * hbase + c;
+    }
+
+    htype extendLeft(const Sequence &seq, size_t pos, htype hash, char c) const {
+        return hash + c * kpow * hbase;
+    }
+
     htype shiftRight(const Sequence &seq, size_t pos, htype hash, char c) const {
-        return (hash - kpow * dignucl(seq[pos])) * hbase + c;
+        return (hash - kpow * seq[pos]) * hbase + c;
+    }
+
+    htype shiftLeft(const Sequence &seq, size_t pos, htype hash, char c) const {
+        return (hash - seq[pos + k - 1]) * inv + c * kpow;
     }
 
     htype next(const Sequence &seq, size_t pos, htype hash) const {
-        return shiftRight(seq, pos, hash, seq.operator[](pos + k));
+        return shiftRight(seq, pos, hash, seq[pos + k]);
+    }
+
+    htype prev(const Sequence &seq, size_t pos, htype hash) const {
+        return shiftLeft(seq, pos, hash, seq[pos - 1]);
     }
 
     bool hasNext(const Sequence &seq, size_t pos) const {
         return pos + k < seq.size();
+    }
+
+    bool hasPrev(const Sequence &seq, size_t pos) const {
+        return pos > 0;
     }
 };
 
@@ -55,18 +80,36 @@ public:
     size_t pos;
     htype hash;
 
-    KWH(const RollingHash<htype> & _hasher, Sequence _seq, size_t _pos): hasher(_hasher), seq(_seq), pos(_pos), hash(_hasher.hash(_seq, _pos)) {
+    KWH(const RollingHash<htype> & _hasher, const Sequence &_seq, size_t _pos): hasher(_hasher), seq(_seq), pos(_pos), hash(_hasher.hash(_seq, _pos)) {
     }
 
-    KWH(const RollingHash<htype> & _hasher, Sequence _seq, size_t _pos, htype _hash): hasher(_hasher), seq(_seq), pos(_pos), hash(_hash) {
+    KWH(const RollingHash<htype> & _hasher, const Sequence &_seq, size_t _pos, htype _hash): hasher(_hasher), seq(_seq), pos(_pos), hash(_hash) {
+    }
+
+    KWH(const KWH &other) = default;
+
+    htype extendRight(char c) const {
+        return hasher.extendRight(seq, pos, hash, c);
+    }
+
+    htype extendLeft(char c) const {
+        return hasher.extendLeft(seq, pos, hash, c);
     }
 
     KWH next() const {
         return {hasher, seq, pos + 1, hasher.next(seq, pos, hash)};
     }
 
+    KWH prev() const {
+        return {hasher, seq, pos - 1, hasher.prev(seq, pos, hash)};
+    }
+
     bool hasNext() const {
         return hasher.hasNext(seq, pos);
+    }
+
+    bool hasPrev() const {
+        return hasher.hasPrev(seq, pos);
     }
 
     htype operator<<(char c) const {
@@ -91,14 +134,14 @@ public:
     MinQueue() = default;
 
     void push(const KWH<htype> &kwh) {
-        while(!q.empty() && q.back().hash >= kwh.hash) {
+        while(!q.empty() && q.back().hash > kwh.hash) {
             q.pop_back();
         }
         q.push_back(kwh);
     }
 
     void pop(size_t pos) {
-        if(!q.empty() && q.front().pos <= pos) {
+        if(!q.empty() && q.front().pos < pos) {
             q.pop_front();
         }
     }
@@ -122,31 +165,44 @@ private:
     MinQueue<htype> queue;
 public:
     MinimizerCalculator(const Sequence& _seq, const RollingHash<htype> &_hasher, size_t _w) :
-            seq(_seq), w(_w), kwh(_hasher, seq, 0) {
+            seq(_seq), w(_w), kwh(_hasher, seq, 0), pos(-1) {
+        queue.push(kwh);
         for(size_t i = 1; i + 1 < w; i++) {
             kwh = kwh.next();
             queue.push(kwh);
         }
     }
 
-    htype next() {
-        queue.pop(pos);
+    KWH<htype> next() {
         pos += 1;
+        queue.pop(pos);
         kwh = kwh.next();
         queue.push(kwh);
-        return queue.get().hash;
+        return queue.get();
     }
 
     bool hasNext() const {
         return kwh.hasNext();
     }
 
-    std::vector<htype> minimizers() {
+    std::vector<htype> minimizerHashs() {
         std::vector<htype> res;
+        res.push_back(next().hash);
+        while(hasNext()) {
+            htype val = next().hash;
+            if(val != res.back()) {
+                res.push_back(val);
+            }
+        }
+        return std::move(res);
+    }
+
+    std::vector<KWH<htype>> minimizers() {
+        std::vector<KWH<htype>> res;
         res.push_back(next());
         while(hasNext()) {
-            htype val = next();
-            if(val != res.back()) {
+            KWH<htype> val = next();
+            if(val.pos != res.back().pos) {
                 res.push_back(val);
             }
         }
