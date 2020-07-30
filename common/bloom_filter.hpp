@@ -106,29 +106,32 @@ public:
         double min_k  = 0.0;
         double k      = 1.0;
 
-        while (k < 1000.0)
-        {
-            const double numerator   = (- k * projected_element_count);
-            const double denominator = std::log(1.0 - std::pow(false_positive_probability, 1.0 / k));
-
-            const double curr_m = numerator / denominator;
-
-            if (curr_m < min_m)
-            {
-                min_m = curr_m;
-                min_k = k;
-            }
-
-            k += 1.0;
-        }
-
+//        while (k < 1000.0)
+//        {
+//            const double numerator   = (- k * projected_element_count);
+//            const double denominator = std::log(1.0 - std::pow(false_positive_probability, 1.0 / k));
+//
+//            const double curr_m = numerator / denominator;
+//
+//            if (curr_m < min_m)
+//            {
+//                min_m = curr_m;
+//                min_k = k;
+//            }
+//
+//            k += 1.0;
+//        }
+//
         optimal_parameters_t& optp = optimal_parameters;
 
-        optp.number_of_hashes = static_cast<unsigned int>(min_k);
+//        optp.number_of_hashes = static_cast<unsigned int>(min_k);
+        optp.number_of_hashes = 5;
 
-        optp.table_size = static_cast<unsigned long long int>(min_m);
+//        optp.table_size = static_cast<unsigned long long int>(min_m);
+//
+//        optp.table_size += (((optp.table_size % bits_per_char) != 0) ? (bits_per_char - (optp.table_size % bits_per_char)) : 0);
+        optp.table_size = projected_element_count * 30;
 
-        optp.table_size += (((optp.table_size % bits_per_char) != 0) ? (bits_per_char - (optp.table_size % bits_per_char)) : 0);
 
         if (optp.number_of_hashes < minimum_number_of_hashes)
             optp.number_of_hashes = minimum_number_of_hashes;
