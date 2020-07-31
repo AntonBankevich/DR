@@ -39,19 +39,19 @@ public:
         return hash;
     }
 
-    htype extendRight(const Sequence &seq, size_t pos, htype hash, char c) const {
+    htype extendRight(const Sequence &seq, size_t pos, htype hash, unsigned char c) const {
         return hash * hbase + c;
     }
 
-    htype extendLeft(const Sequence &seq, size_t pos, htype hash, char c) const {
+    htype extendLeft(const Sequence &seq, size_t pos, htype hash, unsigned char c) const {
         return hash + c * kpow * hbase;
     }
 
-    htype shiftRight(const Sequence &seq, size_t pos, htype hash, char c) const {
+    htype shiftRight(const Sequence &seq, size_t pos, htype hash, unsigned char c) const {
         return (hash - kpow * seq[pos]) * hbase + c;
     }
 
-    htype shiftLeft(const Sequence &seq, size_t pos, htype hash, char c) const {
+    htype shiftLeft(const Sequence &seq, size_t pos, htype hash, unsigned char c) const {
         return (hash - seq[pos + k - 1]) * inv + c * kpow;
     }
 
@@ -88,11 +88,11 @@ public:
 
     KWH(const KWH &other) = default;
 
-    htype extendRight(char c) const {
+    htype extendRight(unsigned char c) const {
         return hasher.extendRight(seq, pos, hash, c);
     }
 
-    htype extendLeft(char c) const {
+    htype extendLeft(unsigned char c) const {
         return hasher.extendLeft(seq, pos, hash, c);
     }
 

@@ -152,7 +152,7 @@ class BloomFilter
 {
 protected:
 
-    typedef unsigned int bloom_type;
+    typedef size_t bloom_type;
     typedef unsigned char cell_type;
     typedef std::vector<unsigned char> table_type;
 
@@ -304,6 +304,16 @@ public:
         }
 
         return true;
+    }
+
+    std::pair<size_t, size_t> count_bits() const {
+        size_t res = 0;
+        for(const unsigned char & c : bit_table_) {
+            for(size_t i = 0; i < 8; i++) {
+                res += (c >> i) & 1u;
+            }
+        }
+        return {res, bit_table_.size() * 8};
     }
 
     template <typename T>

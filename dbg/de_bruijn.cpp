@@ -20,6 +20,7 @@
 #include "common/bloom_filter.hpp"
 #include "common/output_utils.hpp"
 
+
 typedef unsigned __int128 htype128;
 
 size_t bit_count(unsigned char mask) {
@@ -164,16 +165,18 @@ std::vector<htype128> findJunctions(const Time time, const std::vector<Sequence>
 //                      << kmer1.extendLeft(seq[kmer1.pos - 1]) << " " << kmer.hash << std::endl;
         }
     }
+    std::cout << filter.count_bits() << " " << total_size(disjointigs) << std::endl;
     std::cout << time.get() << "Finished filling bloom filter. Selecting junctions." << std::endl;
     ParallelRecordCollector<htype128> junctions(threads);
-#pragma omp parallel for default(none) shared(filter, disjointigs, hasher, junctions, std::cout)
+    std::vector<size_t> cnt(16);
+#pragma omp parallel for default(none) shared(filter, disjointigs, hasher, junctions, std::cout, cnt)
     for(size_t i = 0; i < disjointigs.size(); i++) {
         const Sequence &seq = disjointigs[i];
         KWH<htype128> kmer(hasher, seq, 0);
         while(true) {
             size_t cnt1 = 0;
             size_t cnt2 = 0;
-            for(char c = 0; c < 4u; c++) {
+            for(unsigned char c = 0; c < 4u; c++) {
                 cnt1 += filter.contains(kmer.extendRight(c));
                 cnt2 += filter.contains(kmer.extendLeft(c));
             }
@@ -181,9 +184,15 @@ std::vector<htype128> findJunctions(const Time time, const std::vector<Sequence>
                 junctions.emplace_back(kmer.hash);
 //                std::cout << kmer.seq.Subseq(kmer.pos, kmer.pos + hasher.k).str() << std::endl;
             }
+            VERIFY(cnt1 < 4 && cnt2 < 4);
+#pragma omp atomic update
+            cnt[cnt1 * 4 + cnt2]++;
             if(!kmer.hasNext())
                 break;
             kmer = kmer.next();
+        }
+        if(i % 1000000 == 0) {
+            std::cout << cnt << std::endl;
         }
     }
 
@@ -230,7 +239,8 @@ std::vector<Sequence> constructDBG(const Time time, const std::vector<htype128> 
 
 int main(int argc, char **argv) {
     Time time;
-    CLParser parser({"reads=", "unique=none", "output-dir=", "threads=8", "k-mer-size=7000", "window=3000", "base=239", "debug"},
+    CLParser parser({"reads=", "unique=none", "output-dir=", "threads=8",
+                     "k-mer-size=7000", "window=3000", "base=239", "debug", "disjointigs=none"},
             {"o=output-dir", "t=threads", "k=k-mer-size","w=window"});
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
@@ -246,29 +256,46 @@ int main(int argc, char **argv) {
     size_t threads = std::stoi(parser.getValue("threads"));
     omp_set_num_threads(threads);
 
-    std::vector<htype128> hash_list;
-    if (parser.getValue("unique") != "none") {
-        std::ifstream is;
-        is.open(parser.getValue("unique"));
-        readHashs(is, hash_list);
-        is.close();
+    std::vector<Sequence> disjointigs;
+    if (parser.getValue("disjointigs") == "none") {
+        std::vector<htype128> hash_list;
+        if (parser.getValue("unique") != "none") {
+            std::ifstream is;
+            is.open(parser.getValue("unique"));
+            readHashs(is, hash_list);
+            is.close();
+        } else {
+            hash_list = constructMinimizers(time, reads_file, threads, hasher, w);
+            std::ofstream os;
+            os.open(std::string(dir.c_str()) + "/unique.save");
+            writeHashs(os, hash_list);
+            os.close();
+        }
+
+        SparseDBG<htype128> sdbg = constructSparseDBGFromReads(time, reads_file, threads, hasher, std::move(hash_list), w);
+        sdbg.printStats();
+    //    sdbg.print();
+
+        tieTips(time, sdbg, w, threads);
+        sdbg.printStats();
+    //    sdbg.print();
+
+        disjointigs = extractDisjointigs(time, sdbg, threads);
+        std::ofstream df;
+        df.open(std::string(dir.c_str()) + "/disjointigs.fasta");
+        for(size_t i = 0; i < disjointigs.size(); i++) {
+            df << ">" << i << std::endl;
+            df << disjointigs[i] << std::endl;
+        }
+        df.close();
     } else {
-        hash_list = constructMinimizers(time, reads_file, threads, hasher, w);
-        std::ofstream os;
-        os.open(std::string(dir.c_str()) + "/unique.save");
-        writeHashs(os, hash_list);
-        os.close();
+        io::SeqReader reader(parser.getValue("disjointigs"));
+        size_t cnt = 0;
+        while(!reader.eof()) {
+            disjointigs.push_back(reader.read().seq);
+            cnt++;
+        }
     }
-
-    SparseDBG<htype128> sdbg = constructSparseDBGFromReads(time, reads_file, threads, hasher, std::move(hash_list), w);
-    sdbg.printStats();
-//    sdbg.print();
-
-    tieTips(time, sdbg, w, threads);
-    sdbg.printStats();
-//    sdbg.print();
-
-    std::vector<Sequence> disjointigs = extractDisjointigs(time, sdbg, threads);
     std::vector<htype128> vertices = findJunctions(time, disjointigs, hasher, threads);
     std::vector<Sequence> dbg = constructDBG(time, vertices, disjointigs, hasher);
 
