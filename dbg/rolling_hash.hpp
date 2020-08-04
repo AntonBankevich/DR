@@ -3,6 +3,9 @@
 // Created by anton on 7/20/20.
 //
 
+#include <sequences/sequence.hpp>
+#include <deque>
+
 template<typename T, typename U>
 T pow(T base, U p) {
     if (p == 0)
@@ -74,34 +77,51 @@ public:
 
 template<typename htype>
 class KWH {
+private:
+    KWH(const RollingHash<htype> & _hasher, const Sequence &_seq, size_t _pos, htype _fhash, htype _rhash):
+            hasher(_hasher), seq(_seq), pos(_pos), fhash(_fhash), rhash(_rhash) {
+    }
+
+    htype fhash;
+    htype rhash;
 public:
     const RollingHash<htype> & hasher;
     Sequence seq;
     size_t pos;
-    htype hash;
 
-    KWH(const RollingHash<htype> & _hasher, const Sequence &_seq, size_t _pos): hasher(_hasher), seq(_seq), pos(_pos), hash(_hasher.hash(_seq, _pos)) {
-    }
-
-    KWH(const RollingHash<htype> & _hasher, const Sequence &_seq, size_t _pos, htype _hash): hasher(_hasher), seq(_seq), pos(_pos), hash(_hash) {
+    KWH(const RollingHash<htype> & _hasher, const Sequence &_seq, size_t _pos):
+            hasher(_hasher), seq(_seq), pos(_pos), fhash(_hasher.hash(_seq, _pos)),
+            rhash(_hasher.hash(!_seq, _seq.size() - _pos - _hasher.k)) {
     }
 
     KWH(const KWH &other) = default;
 
+    Sequence getSeq() const {
+        return seq.Subseq(pos, pos + hasher.k);
+    }
+
+    KWH<htype> operator!() const {
+        return KWH<htype>(hasher, !seq, seq.size() - pos - hasher.k, rhash, fhash);
+    }
+
+    htype hash() const {
+        return std::min(fhash, rhash);
+    }
+
     htype extendRight(unsigned char c) const {
-        return hasher.extendRight(seq, pos, hash, c);
+        return std::min(hasher.extendRight(seq, pos, fhash, c), hasher.extendLeft(!seq, seq.size() - pos - hasher.k, rhash, c ^ 3u));
     }
 
     htype extendLeft(unsigned char c) const {
-        return hasher.extendLeft(seq, pos, hash, c);
+        return std::min(hasher.extendLeft(seq, pos, fhash, c), hasher.extendRight(!seq, seq.size() - pos - hasher.k, rhash, c ^ 3u));
     }
 
     KWH next() const {
-        return {hasher, seq, pos + 1, hasher.next(seq, pos, hash)};
+        return {hasher, seq, pos + 1, hasher.next(seq, pos, fhash), hasher.prev(!seq, seq.size() - pos - hasher.k, rhash)};
     }
 
     KWH prev() const {
-        return {hasher, seq, pos - 1, hasher.prev(seq, pos, hash)};
+        return {hasher, seq, pos - 1, hasher.prev(seq, pos, fhash), hasher.next(!seq, seq.size() - pos - hasher.k, rhash)};
     }
 
     bool hasNext() const {
@@ -112,17 +132,18 @@ public:
         return hasher.hasPrev(seq, pos);
     }
 
-    htype operator<<(char c) const {
-        return hasher.shiftRight(c);
-    }
-
     KWH &operator=(const KWH &other) {
         if(this == &other)
             return *this;
         seq = other.seq;
         pos = other.pos;
-        hash = other.hash;
+        fhash = other.fhash;
+        rhash = other.rhash;
         return *this;
+    }
+
+    bool isCanonical() const {
+        return fhash < rhash;
     }
 };
 
@@ -134,7 +155,7 @@ public:
     MinQueue() = default;
 
     void push(const KWH<htype> &kwh) {
-        while(!q.empty() && q.back().hash > kwh.hash) {
+        while(!q.empty() && q.back().hash() > kwh.hash()) {
             q.pop_back();
         }
         q.push_back(kwh);
@@ -187,9 +208,9 @@ public:
 
     std::vector<htype> minimizerHashs() {
         std::vector<htype> res;
-        res.push_back(next().hash);
+        res.push_back(next().hash());
         while(hasNext()) {
-            htype val = next().hash;
+            htype val = next().hash();
             if(val != res.back()) {
                 res.push_back(val);
             }

@@ -11,11 +11,11 @@ public:
     friend class Iterator;
     class Iterator : public std::iterator<std::forward_iterator_tag, T, size_t,  T*, T&>{
     private:
-        ParallelRecordCollector<T> &data;
+        const ParallelRecordCollector<T> &data;
         size_t row;
         size_t col;
     public:
-        Iterator(ParallelRecordCollector<T> &_data, size_t _row = 0, size_t _col = 0) : data(_data), row(_row), col(_col) {
+        Iterator(const ParallelRecordCollector<T> &_data, size_t _row = 0, size_t _col = 0) : data(_data), row(_row), col(_col) {
             while(row < data.recs.size() && col == data.recs[row].size()) {
                 row += 1;
                 col = 0;
@@ -30,7 +30,7 @@ public:
             }
         }
 
-        T &operator *() {
+        const T &operator *() {
             return data.recs[row][col];
         }
 
@@ -54,11 +54,11 @@ public:
         recs[omp_get_thread_num()].emplace_back(args...);
     }
 
-    Iterator begin() {
+    Iterator begin() const {
         return Iterator(*this, 0, 0);
     }
 
-    Iterator end() {
+    Iterator end() const {
         return Iterator(*this, recs.size(), 0);
     }
 
@@ -79,4 +79,16 @@ public:
         return std::move(res);
     }
 };
+
+template<class T>
+std::ostream& operator<<(std::ostream& out, const ParallelRecordCollector<T>& tree) {
+    if(tree.size() == 0) {
+        return out << "[]" << std::endl;
+    }
+    out << "[";
+    for(const T & item: tree) {
+        out << item << ", ";
+    }
+    return out << "]";
+}
 

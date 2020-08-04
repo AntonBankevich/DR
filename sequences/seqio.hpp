@@ -15,9 +15,9 @@ namespace io {
             std::string id, seq;
             std::getline(*stream, id);
             std::getline(*stream, seq);
-            if (!id.empty() and !seq.empty())
+            if (!id.empty() and !seq.empty()) {
                 next = Contig(Sequence(trim(seq)), trim(id.substr(1, id.size() - 1)));
-            else {
+            }else {
                 next = Contig();
                 return;
             }
@@ -52,10 +52,10 @@ namespace io {
                 return reader.next;
             }
 
-            bool operator==(const Iterator &other) {
+            bool operator==(const Iterator &other) const {
                 return isend == other.isend;
             }
-            bool operator!=(const Iterator &other) {
+            bool operator!=(const Iterator &other) const {
                 return isend != other.isend;
             }
         };
@@ -80,10 +80,10 @@ namespace io {
             const Sequence &operator*() const {
                 return reader.next.seq;
             }
-            bool operator==(const SeqIterator &other) {
+            bool operator==(const SeqIterator &other) const {
                 return isend == other.isend;
             }
-            bool operator!=(const SeqIterator &other) {
+            bool operator!=(const SeqIterator &other) const {
                 return isend != other.isend;
             }
         };
@@ -100,19 +100,19 @@ namespace io {
         }
 
         Iterator begin() {
-            return Iterator(*this, false);
+            return {*this, false};
         }
 
         Iterator end() {
-            return Iterator(*this, true);
+            return {*this, true};
         }
 
         SeqIterator seqbegin() {
-            return SeqIterator(*this, false);
+            return {*this, false};
         }
 
         SeqIterator seqend() {
-            return SeqIterator(*this, true);
+            return {*this, true};
         }
 
         Contig read() {
