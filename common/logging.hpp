@@ -6,10 +6,12 @@
 #include "sys/sysinfo.h"
 #include <sys/resource.h>
 #include "common/output_utils.hpp"
+#include "dir_utils.hpp"
 #include <experimental/filesystem>
 #include <ctime>
 #include <string>
 #include <sstream>
+#include <utility>
 #include <vector>
 #include <iostream>
 #include <ostream>
@@ -55,6 +57,43 @@ public:
     }
 };
 
+class LoggerStorage {
+private:
+    const std::experimental::filesystem::path dir;
+    const std::experimental::filesystem::path logFile;
+    const std::experimental::filesystem::path backupDir;
+public:
+    explicit LoggerStorage(std::experimental::filesystem::path _dir, const std::string &_programName):
+            dir(std::move(_dir)), logFile(dir / (_programName + ".log")), backupDir(dir / "old_logs") {
+    }
+
+    std::experimental::filesystem::path backup() const {
+        if(!std::experimental::filesystem::is_regular_file(logFile)) {
+            return {};
+        }
+        ensure_dir_existance(backupDir);
+        size_t max = 0;
+        for (const std::experimental::filesystem::path & file : std::experimental::filesystem::directory_iterator(backupDir)) {
+            string fname = file.string();
+            if (fname.size() < 5 || fname.substr(fname.size() - 4) != ".log")
+                continue;
+            try {
+                max = std::max<size_t>(max, std::stoi(fname.substr(0, fname.size() - 4)));
+            } catch (const std::invalid_argument& ia) {
+            }
+        }
+        std::experimental::filesystem::path backup = backupDir / (itos(max + 1) + ".log");
+        std::experimental::filesystem::copy_file(logFile, backup);
+        std::experimental::filesystem::remove(logFile);
+        return std::move(backup);
+    }
+
+    std::experimental::filesystem::path newLoggerFile() const {
+        backup();
+        return logFile;
+    }
+};
+
 class Logger {
 private:
     std::vector<std::ofstream *> oss;
@@ -79,7 +118,7 @@ private:
         {
             std::cout << std::endl;
             for(std::ofstream *os : logger_.oss) {
-                *os << "\n";
+                *os << std::endl;
             }
             return *this;
         }

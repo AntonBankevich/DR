@@ -398,9 +398,6 @@ void fillSparseDBGEdges(SparseDBG<htype> &sdbg, logging::Logger &logger, Iterato
                     reads.push_back(*begin);
                     ++begin;
                     tlen += reads.back().size();
-                    if (reads.size() % 100000 == 0) {
-                        logger << "gopa100000 " << reads.size() << std::endl;
-                    }
                     if(reads.back().size() < min_read_size) {
                         continue;
                     }
@@ -505,38 +502,57 @@ void mergeLoop(Vertex<htype> &start, std::vector<Edge<htype>> &path) {
 }
 
 template<class htype>
-void mergeAll(SparseDBG<htype> &sdbg) {
+void MergeEdge(SparseDBG<htype> &sdbg, Vertex<htype> &start, const Edge<htype> &edge) {
+    std::vector<Edge<htype>> path = sdbg.walkForward(start, edge);
+//                            TODO change to hash comparison?
+    Vertex<htype> &end = path.back().end()->rc();
+    if (path.size() > 1 && end.hash() >= start.hash()) {
+        if (start != end)
+            end.lock();
+        Sequence newSeq(start.pathSeq(path));
+        start.addEdgeFree(Edge<htype>(&end.rc(), newSeq.Subseq(start.seq.size())));
+        end.addEdgeFree(Edge<htype>(&start.rc(), !(newSeq.Subseq(start.seq.size()))));
+        if (start != end)
+            end.unlock();
+        for(size_t i = 0; i + 1 < path.size(); i++) {
+            path[i].end()->clear();
+        }
+    }
+
+}
+template<class htype>
+void mergeLinearPaths(logging::Logger & logger, SparseDBG<htype> &sdbg) {
+    logger << "Merging linear unbranching paths" << std::endl;
 #pragma omp parallel default(none) shared(sdbg)
     {
 #pragma omp single
         {
-            for( auto &it: sdbg) {
-                Vertex<htype> &start =  it.second;
+            for (auto &it: sdbg) {
+                Vertex<htype> &start = it.second;
+                if (!start.isJunction())
+                    continue;
 #pragma omp task default(none) shared(start, sdbg)
                 {
                     start.lock();
                     for (const Edge<htype> &edge: start.getOutgoing()) {
-                        std::vector<Edge<htype>> path = sdbg.walkForward(start, edge);
-//                            TODO change to hash comparison?
-                        Vertex<htype> &end = path.back().end()->rc();
-                        if (path.size() > 1 && end.hash() >= start.hash()) {
-                            if (start != end)
-                                end.lock();
-                            Sequence newSeq(start.pathSeq(path));
-                            start.addEdgeFree(Edge<htype>(&end.rc(), newSeq.Subseq(start.seq.size())));
-                            end.addEdgeFree(Edge<htype>(&start.rc(), !(newSeq.Subseq(start.seq.size()))));
-                            if (start != end)
-                                end.unlock();
-                            for(size_t i = 0; i + 1 < path.size(); i++) {
-                                path[i].end()->clear();
-                            }
-                        }
+                        MergeEdge(sdbg, start, edge);
                     }
                     start.unlock();
+                    start.rc().lock();
+                    for (const Edge<htype> &edge: start.rc().getOutgoing()) {
+                        MergeEdge(sdbg, start.rc(), edge);
+                    }
+                    start.rc().unlock();
                 }
             }
         }
     }
+    logger << "Finished merging linear unbranching paths" << std::endl;
+}
+
+template<class htype>
+void mergeCyclicPaths(logging::Logger & logger, SparseDBG<htype> &sdbg) {
+    logger << "Merging cyclic paths" << std::endl;
 #pragma omp parallel default(none) shared(sdbg)
     {
 #pragma omp single
@@ -567,6 +583,14 @@ void mergeAll(SparseDBG<htype> &sdbg) {
             }
         }
     }
-    sdbg.removeIsolated();
+    logger << "Finished merging cyclic paths" << std::endl;
 }
 
+template<class htype>
+void mergeAll(logging::Logger & logger, SparseDBG<htype> &sdbg) {
+    mergeLinearPaths(logger, sdbg);
+    mergeCyclicPaths(logger, sdbg);
+    logger << "Removing isolated vertices" << std::endl;
+    sdbg.removeIsolated();
+    logger << "Finished removing isolated vertices" << std::endl;
+}

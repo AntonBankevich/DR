@@ -86,7 +86,7 @@ SparseDBG<htype> constructDBG(logging::Logger & logger, const std::vector<htype>
     }
     logger << "Constructed dbg of size " << dbg.size() << std::endl;
     logger << "Merging edges " << std::endl;
-    mergeAll(dbg);
+    mergeAll(logger, dbg);
     logger << "Ended merging edges. Resulting size " << dbg.size() << std::endl;
     return std::move(dbg);
 }

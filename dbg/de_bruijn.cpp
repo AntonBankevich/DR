@@ -69,18 +69,19 @@ std::vector<Sequence> constructDisjointigs(const CLParser &parser, const std::ex
 }
 
 int main(int argc, char **argv) {
-    Logger logger;
     CLParser parser({"reads=", "unique=none", "output-dir=", "threads=8",
                      "k-mer-size=7000", "window=3000", "base=239", "debug", "disjointigs=none"},
             {"o=output-dir", "t=threads", "k=k-mer-size","w=window"});
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
-        logger << "Incorrect parameters" << std::endl;
-        logger << parser.check() << std::endl;
+        std::cout << "Incorrect parameters" << std::endl;
+        std::cout << parser.check() << std::endl;
         return 1;
     }
     const std::experimental::filesystem::path dir(parser.getValue("output-dir"));
-    logger.addLogFile(dir / "dbg.log");
+    logging::LoggerStorage ls(dir, "dbg");
+    Logger logger;
+    logger.addLogFile(ls.newLoggerFile());
     ensure_dir_existance(dir);
     const RollingHash<htype128> hasher(std::stoi(parser.getValue("k-mer-size")), std::stoi(parser.getValue("base")));
     const size_t w = std::stoi(parser.getValue("window"));
@@ -92,9 +93,11 @@ int main(int argc, char **argv) {
     std::vector<htype128> vertices = findJunctions(logger, disjointigs, hasher, threads);
     SparseDBG<htype128> dbg = constructDBG(logger, vertices, disjointigs, hasher);
     dbg.printStats(logger);
+    logger << "Printing graph to file" << std::endl;
     std::ofstream edges;
     edges.open(std::string(dir.c_str()) + "/graph.fasta");
     dbg.printFasta(edges);
     edges.close();
+    logger << "DBG construction finished" << std::endl;
     return 0;
 }
