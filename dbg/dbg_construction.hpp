@@ -85,9 +85,11 @@ SparseDBG<htype> constructDBG(logging::Logger & logger, const std::vector<htype>
         dbg.processDisjointig(disjointigs[i]);
     }
     logger << "Constructed dbg of size " << dbg.size() << std::endl;
+    dbg.printStats(logger);
     logger << "Merging edges " << std::endl;
     mergeAll(logger, dbg);
     logger << "Ended merging edges. Resulting size " << dbg.size() << std::endl;
+    dbg.printStats(logger);
     return std::move(dbg);
 }
 

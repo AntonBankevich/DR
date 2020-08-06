@@ -65,7 +65,7 @@ public:
         omp_init_lock(&writelock);
     }
 
-    Vertex(Vertex &&other) : rc_(other.rc_) {
+    Vertex(Vertex &&other) : rc_(other.rc_), hash_(other.hash_) {
         std::swap(outgoing_, other.outgoing_);
         omp_init_lock(&writelock);
         if(other.rc_ != nullptr) {
@@ -126,16 +126,28 @@ public:
         if(seq.empty()) {
             lock();
             if(seq.empty()) {
-                rc_->lock();
                 seq = Sequence(_seq.str());
+                unlock();
+                rc_->lock();
                 rc_->seq = !_seq;
                 rc_->unlock();
+            } else {
+                unlock();
             }
-            unlock();
+        }
+//        else {
+//            VERIFY(_seq == seq);
+//        }
+    }
+
+    void clearSequence() {
+        if (!seq.empty()) {
+            seq = Sequence();
+            rc_->seq = Sequence();
         }
     }
 
-    void addEdgeFree(const Edge<htype> &edge) {
+    void addEdgeLockFree(const Edge<htype> &edge) {
         for(Edge<htype> & e : outgoing_) {
             if (edge.size() <= e.size()) {
                 if (edge.seq() == e.seq().Subseq(0, edge.size())) {
@@ -151,7 +163,7 @@ public:
 
     void addEdge(const Edge<htype> &e) {
         omp_set_lock(&writelock);
-        addEdgeFree(e);
+        addEdgeLockFree(e);
         omp_unset_lock(&writelock);
     }
 
@@ -359,17 +371,17 @@ public:
     void printFasta(std::ostream &out) const {
         size_t cnt = 0;
         for(const auto &it : v) {
-            const Vertex<htype> &v = it.second;
-            for(size_t i = 0; i < v.outDeg(); i++) {
-                Sequence tmp = v.seq + v.getOutgoing()[i].seq();
+            const Vertex<htype> &vertex = it.second;
+            for(size_t i = 0; i < vertex.outDeg(); i++) {
+                Sequence tmp = vertex.seq + vertex.getOutgoing()[i].seq();
                 if (tmp <= !tmp) {
                     out << ">" << cnt << "\n";
                     cnt++;
                     out << tmp.str() << "\n";
                 }
             }
-            for(size_t i = 0; i < v.inDeg(); i++) {
-                Sequence tmp = v.rc().seq + v.rc().getOutgoing()[i].seq();
+            for(size_t i = 0; i < vertex.inDeg(); i++) {
+                Sequence tmp = vertex.rc().seq + vertex.rc().getOutgoing()[i].seq();
                 if (tmp <= !tmp) {
                     out << ">" << cnt << "\n";
                     cnt++;
@@ -493,8 +505,8 @@ void mergeLoop(Vertex<htype> &start, std::vector<Edge<htype>> &path) {
     for(const Edge<htype> &e : path) {
         e.end()->clear();
     }
-    start.addEdgeFree(Edge<htype>(path.back().end(), newSeq.Subseq(start.seq.size())));
-    path.back().end()->rc().addEdgeFree(Edge<htype>(&start.rc(), (!newSeq).Subseq(start.seq.size())));
+    start.addEdgeLockFree(Edge<htype>(path.back().end(), newSeq.Subseq(start.seq.size())));
+    path.back().end()->rc().addEdgeLockFree(Edge<htype>(&start.rc(), (!newSeq).Subseq(start.seq.size())));
     for(const Edge<htype> &e : path) {
         e.end()->unlock();
         e.end()->rc().unlock();
@@ -504,14 +516,17 @@ void mergeLoop(Vertex<htype> &start, std::vector<Edge<htype>> &path) {
 template<class htype>
 void MergeEdge(SparseDBG<htype> &sdbg, Vertex<htype> &start, const Edge<htype> &edge) {
     std::vector<Edge<htype>> path = sdbg.walkForward(start, edge);
-//                            TODO change to hash comparison?
     Vertex<htype> &end = path.back().end()->rc();
     if (path.size() > 1 && end.hash() >= start.hash()) {
         if (start != end)
             end.lock();
         Sequence newSeq(start.pathSeq(path));
-        start.addEdgeFree(Edge<htype>(&end.rc(), newSeq.Subseq(start.seq.size())));
-        end.addEdgeFree(Edge<htype>(&start.rc(), !(newSeq.Subseq(start.seq.size()))));
+        VERIFY(start.seq.size() > 0)
+        VERIFY(end.seq.size() > 0);
+        VERIFY(newSeq.Subseq(start.seq.size()).startsWith(edge.seq()));
+        VERIFY((!newSeq).startsWith(end.seq));
+        start.addEdgeLockFree(Edge<htype>(&end.rc(), newSeq.Subseq(start.seq.size())));
+        end.addEdgeLockFree(Edge<htype>(&start.rc(), (!newSeq).Subseq(start.seq.size())));
         if (start != end)
             end.unlock();
         for(size_t i = 0; i + 1 < path.size(); i++) {

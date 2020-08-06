@@ -74,7 +74,7 @@ public:
         ensure_dir_existance(backupDir);
         size_t max = 0;
         for (const std::experimental::filesystem::path & file : std::experimental::filesystem::directory_iterator(backupDir)) {
-            string fname = file.string();
+            string fname = file.filename().string();
             if (fname.size() < 5 || fname.substr(fname.size() - 4) != ".log")
                 continue;
             try {

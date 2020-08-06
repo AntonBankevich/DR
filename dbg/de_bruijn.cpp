@@ -69,7 +69,7 @@ std::vector<Sequence> constructDisjointigs(const CLParser &parser, const std::ex
 }
 
 int main(int argc, char **argv) {
-    CLParser parser({"reads=", "unique=none", "output-dir=", "threads=8",
+    CLParser parser({"vertices=none", "reads=", "unique=none", "output-dir=", "threads=8",
                      "k-mer-size=7000", "window=3000", "base=239", "debug", "disjointigs=none"},
             {"o=output-dir", "t=threads", "k=k-mer-size","w=window"});
     parser.parseCL(argc, argv);
@@ -88,11 +88,22 @@ int main(int argc, char **argv) {
     std::string reads_file = parser.getValue("reads");
     size_t threads = std::stoi(parser.getValue("threads"));
     omp_set_num_threads(threads);
-
     std::vector<Sequence> disjointigs = constructDisjointigs(parser, dir, hasher, w, reads_file, threads, logger);
-    std::vector<htype128> vertices = findJunctions(logger, disjointigs, hasher, threads);
+    std::vector<htype128> vertices;
+    if (parser.getValue("vertices") == "none") {
+        vertices = findJunctions(logger, disjointigs, hasher, threads);
+        std::ofstream os;
+        os.open(std::string(dir.c_str()) + "/vertices.save");
+        writeHashs(os, vertices);
+        os.close();
+    } else {
+        logger << "Loading vertex hashs from file" << parser.getValue("vertices") << std::endl;
+        std::ifstream is;
+        is.open(parser.getValue("vertices"));
+        readHashs(is, vertices);
+        is.close();
+    }
     SparseDBG<htype128> dbg = constructDBG(logger, vertices, disjointigs, hasher);
-    dbg.printStats(logger);
     logger << "Printing graph to file" << std::endl;
     std::ofstream edges;
     edges.open(std::string(dir.c_str()) + "/graph.fasta");

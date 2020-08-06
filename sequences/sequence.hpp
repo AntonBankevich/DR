@@ -267,6 +267,14 @@ public:
         return size() == 0;
     }
 
+    bool startsWith(const Sequence & other) const {
+        return (other.size() <= size()) && (Subseq(0, other.size()) == other);
+    }
+
+    bool endsWith(const Sequence & other) const {
+        return (other.size() <= size()) && (Subseq(size() - other.size(), size()) == other);
+    }
+
     template<class Seq>
     bool contains(const Seq &s, size_t offset = 0) const {
         VERIFY_DEV(offset + s.size() <= size());
