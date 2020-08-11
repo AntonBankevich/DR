@@ -367,6 +367,7 @@ public:
     SequenceBuilder &appendAll(S begin, S end) {
         while(begin != end) {
             append(*begin);
+            ++begin;
         }
         return *this;
     }

@@ -79,8 +79,7 @@ int main(int argc, char **argv) {
                     std::vector<CigarAlignment<Contig, Contig>> cigar_als = aligner.align(read);
                     std::vector<PositionalAlignment<Contig, Contig>> als =
                             oneline::initialize<PositionalAlignment<Contig, Contig>>(cigar_als.begin(), cigar_als.end());
-                    als.emplace_back(std::move(als[0]));
-                    size_t min_al_size = std::max(read.size() - 1000, read.size() * 3 / 4);
+                    size_t min_al_size = std::max(std::max<size_t>(read.size(), 1000u) - 1000, read.size() * 3 / 4);
                     std::function<bool(PositionalAlignment<Contig, Contig>&)> f = [min_al_size](PositionalAlignment <Contig, Contig>& al) {
                         return al.seg_from.size() > min_al_size;
                     };
@@ -140,7 +139,7 @@ int main(int argc, char **argv) {
     std::ofstream os;
     os.open(dir / "ref_errors.info");
     for(size_t i = 0; i < res.cov.size(); i++) {
-        logger << res.refErrors[i] << " " << res.cov.size() << std::endl;
+        os << res.refErrors[i] << " " << res.cov[i] << std::endl;
     }
     os.close();
     return 0;
