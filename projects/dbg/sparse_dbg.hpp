@@ -3,11 +3,11 @@
 //
 
 #pragma once
-#include "rolling_hash.hpp"
 #include "sequences/sequence.hpp"
 #include "sequences/seqio.hpp"
 #include "common/omp_utils.hpp"
 #include "common/logging.hpp"
+#include "rolling_hash.hpp"
 #include <vector>
 #include <numeric>
 #include <unordered_map>
@@ -263,11 +263,9 @@ public:
             if(i == 0 || vertices[i] != vertices[i - 1])
                 vertices.back()->setSequence(kmers[i].getSeq());
         }
-        std::vector<size_t> degs;
         for(size_t i = 0; i + 1 < vertices.size(); i++) {
 //            TODO: if too memory heavy save only some of the labels
             VERIFY(kmers[i].pos + hasher_.k <= seq.size())
-            degs.push_back(vertices[i]->outDeg());
             if (i > 0 && vertices[i] == vertices[i - 1] && vertices[i] == vertices[i + 1] &&
                 (kmers[i].pos - kmers[i - 1].pos == kmers[i + 1].pos - kmers[i].pos) &&
                 kmers[i + 1].pos - kmers[i].pos < hasher_.k) {
@@ -292,10 +290,16 @@ public:
         std::vector<Vertex<htype> *> vertices;
         for(size_t i = 0; i < kmers.size(); i++) {
             vertices.emplace_back(&getVertex(kmers[i]));
-            vertices.back()->setSequence(kmers[i].getSeq());
+            if(i == 0 || vertices[i] != vertices[i - 1])
+                vertices.back()->setSequence(kmers[i].getSeq());
         }
         for(size_t i = 0; i + 1 < vertices.size(); i++) {
 //            TODO: if too memory heavy save only some of the labels
+            if (i > 0 && vertices[i] == vertices[i - 1] && vertices[i] == vertices[i + 1] &&
+                (kmers[i].pos - kmers[i - 1].pos == kmers[i + 1].pos - kmers[i].pos) &&
+                kmers[i + 1].pos - kmers[i].pos < hasher_.k) {
+                continue;
+            }
             vertices[i]->addEdge(Edge<htype>(vertices[i + 1], seq.Subseq(kmers[i].pos + hasher_.k, kmers[i + 1].pos + hasher_.k)));
             vertices[i + 1]->rc().addEdge(Edge<htype>(&vertices[i]->rc(), !(seq.Subseq(kmers[i].pos, kmers[i + 1].pos))));
         }
@@ -320,10 +324,15 @@ public:
         std::vector<size_t> arr(10);
         size_t n11 = 0;
         size_t n01 = 0;
+        size_t e = 0;
+        std::vector<size_t> inout(25);
         for(auto &val: v) {
             const Vertex<htype> &tmp = val.second;
+            e == tmp.outDeg() + tmp.inDeg();
             arr[std::min(arr.size() - 1, tmp.outDeg())] += 1;
             arr[std::min(arr.size() - 1, tmp.inDeg())] += 1;
+            inout[std::min<size_t>(4u, tmp.outDeg()) * 5 + std::min<size_t>(4u, tmp.inDeg())] += 1;
+            inout[std::min<size_t>(4u, tmp.inDeg()) * 5 + std::min<size_t>(4u, tmp.outDeg())] += 1;
             if (tmp.inDeg() == 1 && tmp.outDeg() == 1) {
                 n11 += 1;
             }
@@ -331,14 +340,21 @@ public:
                 n01 += 1;
             }
         }
-        size_t total = std::accumulate(arr.begin(), arr.end(), size_t(0));
         logger << "Graph statistics:" << std::endl;
-        logger << "Total edges: " << total << std::endl;
+        VERIFY(e % 2 == 0);
+        logger << "Total edges: " << e / 2 << std::endl;
+        logger << "Total vertices: " << v.size() << std::endl;
         logger << "Number of end vertices: " << n01 << std::endl;
         logger << "Number of unbranching vertices: " << n11 << std::endl;
         logger << "Distribution of degrees:" << std::endl;
         for(size_t i = 0; i < arr.size(); i++) {
-            logger << i << " " << arr[i] << std::endl;
+            logger.noTimeSpace() << i << " " << arr[i] << std::endl;
+        }
+        logger << "Distribution of in/out degrees:" << std::endl;
+        for(size_t i = 0; i < inout.size(); i++) {
+            logger.noTimeSpace() << inout[i] << " ";
+            if(i % 5 == 4)
+                logger.noTimeSpace() << std::endl;
         }
     }
 
@@ -518,13 +534,11 @@ void MergeEdge(SparseDBG<htype> &sdbg, Vertex<htype> &start, const Edge<htype> &
     std::vector<Edge<htype>> path = sdbg.walkForward(start, edge);
     Vertex<htype> &end = path.back().end()->rc();
     if (path.size() > 1 && end.hash() >= start.hash()) {
-        if (start != end)
-            end.lock();
-        Sequence newSeq(start.pathSeq(path));
         VERIFY(start.seq.size() > 0)
         VERIFY(end.seq.size() > 0);
-        VERIFY(newSeq.Subseq(start.seq.size()).startsWith(edge.seq()));
-        VERIFY((!newSeq).startsWith(end.seq));
+        Sequence newSeq(start.pathSeq(path));
+        if (start != end)
+            end.lock();
         start.addEdgeLockFree(Edge<htype>(&end.rc(), newSeq.Subseq(start.seq.size())));
         end.addEdgeLockFree(Edge<htype>(&start.rc(), (!newSeq).Subseq(start.seq.size())));
         if (start != end)

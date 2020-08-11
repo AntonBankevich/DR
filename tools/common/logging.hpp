@@ -2,11 +2,11 @@
 // Created by anton on 7/27/20.
 //
 #pragma once
+#include "common/output_utils.hpp"
+#include "dir_utils.hpp"
 #include "sys/types.h"
 #include "sys/sysinfo.h"
 #include <sys/resource.h>
-#include "common/output_utils.hpp"
-#include "dir_utils.hpp"
 #include <experimental/filesystem>
 #include <ctime>
 #include <string>
@@ -141,6 +141,10 @@ public:
         for(std::ofstream *os : oss) {
             *os << time.get() << val;
         }
+        return dummyLogger;
+    }
+
+    DummyLogger &noTimeSpace() {
         return dummyLogger;
     }
 

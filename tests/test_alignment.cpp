@@ -3,9 +3,9 @@
 //
 
 #include "gtest/gtest.h"
-#include "../alignment/ftree.hpp"
-#include "../common/output_utils.hpp"
-#include "../common/simple_computation.hpp"
+#include "alignment/ftree.hpp"
+#include "common/output_utils.hpp"
+#include "common/simple_computation.hpp"
 
 
 template<class T>

@@ -64,7 +64,11 @@ struct PositionalAlignment {
                                   std::vector<size_t>(positions_to.begin() + from, positions_to.begin() + to + 1));
     }
 
-    std::vector<string> treestringForm() const {
+    double pi() const {
+        return positions_from.size() / std::max(seg_from.size(), seg_to.size());
+    }
+
+    std::vector<string> threeStringForm() const {
         std::vector<char> l1;
         std::vector<char> l2;
         std::vector<char> diff;

@@ -31,3 +31,8 @@ static inline std::string trim(std::string s) {
     rtrim_inplace(s);
     return s;
 }
+
+static inline std::string & compress_inplace(std::string &s) {
+    s.erase(std::unique(s.begin(), s.end()), s.end());
+    return s;
+}

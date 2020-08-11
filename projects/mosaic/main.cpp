@@ -47,6 +47,5 @@ int main() {
     std::cout << "8 threads " << worktime << std::endl;
     assert(worktime <= 8);
 
-    ensure_dir_existance("");
     return 0;
 }

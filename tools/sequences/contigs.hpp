@@ -33,8 +33,12 @@ public:
         VERIFY(0 <= left and left <= right and right <= contig.size())
     }
 
+    size_t size() const {
+        return right - left;
+    }
+
     size_t dist(const Segment<T> &other) const {
-        VERIFY(contig == other.contig)
+        VERIFY(contig == other.contig);
         if (right <= other.left)
             return other.left - right;
         else if (other.right <= left)

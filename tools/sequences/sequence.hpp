@@ -363,6 +363,14 @@ public:
         return *this;
     }
 
+    template<typename S>
+    SequenceBuilder &appendAll(S begin, S end) {
+        while(begin != end) {
+            append(*begin);
+        }
+        return *this;
+    }
+
     SequenceBuilder &append(char c) {
         buf_.push_back(c);
         return *this;

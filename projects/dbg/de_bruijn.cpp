@@ -79,10 +79,10 @@ int main(int argc, char **argv) {
         return 1;
     }
     const std::experimental::filesystem::path dir(parser.getValue("output-dir"));
+    ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");
     Logger logger;
     logger.addLogFile(ls.newLoggerFile());
-    ensure_dir_existance(dir);
     const RollingHash<htype128> hasher(std::stoi(parser.getValue("k-mer-size")), std::stoi(parser.getValue("base")));
     const size_t w = std::stoi(parser.getValue("window"));
     std::string reads_file = parser.getValue("reads");

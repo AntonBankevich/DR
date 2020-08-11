@@ -41,7 +41,7 @@ void CLParser::parseCL(const std::vector <std::string> &args) {
 }
 
 void CLParser::parseCL(int argc, char **argv) {
-    parseCL(oneline::initialize<char*,std::string>(argv, argv + argc));
+    parseCL(oneline::initialize<std::string, char*>(argv, argv + argc));
 }
 
 const std::string &CLParser::getValue(const std::string &s) const {

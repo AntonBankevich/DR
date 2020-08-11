@@ -12,6 +12,7 @@
 #include "marked_alignment.hpp"
 #include <omp.h>
 #include <fstream>
+#include <common/oneline_utils.hpp>
 
 template <class R>
 class RawAligner {
@@ -29,6 +30,11 @@ public:
         }
         index = constructIndex(ref_seqs, default_threads);
     }
+
+    explicit RawAligner(const std::vector<R> & ref, size_t _default_threads = 1):
+            RawAligner(oneline::map<R, const R*, typename std::vector<R>::const_iterator>(ref.begin(), ref.end(), [](const R & val)->const R* {return &val;}), _default_threads) {
+    }
+
     ~RawAligner() {
         destroyIndex(index);
     }
@@ -38,6 +44,17 @@ public:
         ss << i;
         return ss.str();
     }
+
+    template <class T>
+    std::vector<CigarAlignment<T, R>> align(const T & read) {
+        std::vector<RawAlignment> raw_results = run_minimap(read.seq.str(), 0, index);
+        std::vector<CigarAlignment<T, R>> final_results;
+        for(RawAlignment & rawAlignment: raw_results) {
+            final_results.emplace_back(std::move(rawAlignment), read, *(reference[rawAlignment.seg_to.id]));
+        }
+        return std::move(final_results);
+    }
+
 
     template <class T>
     std::vector<std::vector<CigarAlignment<T, R>>> align(const std::vector<const T *> & reads, size_t thread_num = size_t(-1)) {

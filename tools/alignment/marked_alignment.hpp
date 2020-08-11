@@ -68,7 +68,7 @@ public:
             }
         }
         stateCodes.push_back(alignment_state::codes[region_types.back()]);
-        std::vector<string> res = al.treestringForm();
+        std::vector<string> res = al.threeStringForm();
         res.insert(res.begin(), std::string(stateCodes.begin(), stateCodes.end()));
         return res;
     }

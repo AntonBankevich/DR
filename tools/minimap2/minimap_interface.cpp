@@ -81,6 +81,48 @@ std::vector<mm_idx_t *> constructIndex(std::vector<std::string> &ref, size_t thr
     return res;
 }
 
+std::vector<RawAlignment> run_minimap(const std::string & read, size_t read_id, std::vector<mm_idx_t *> & ref)
+{
+    mm_idxopt_t iopt;
+    mm_mapopt_t mopt;
+    mm_verbose = 2; // disable message output to stderr
+    mm_set_opt(0, &iopt, &mopt);
+    mopt.flag |= MM_F_CIGAR; // perform alignment
+    std::vector<RawAlignment> result;
+    size_t total = 0;
+    for (mm_idx_t * mi: ref) {
+        mm_mapopt_update(&mopt, mi); // this sets the maximum minimizer occurrence; TODO: set a better default in mm_mapopt_init()!
+        mm_tbuf_t *tbuf = mm_tbuf_init(); // thread buffer; for multi-threading, allocate one tbuf for each thread
+        size_t cnt = read_id;
+        mm_reg1_t *reg;
+        int j, n_reg;
+        char * read_seq = strdup(read.c_str());
+        reg = mm_map(mi, read.size(), read_seq, &n_reg, tbuf, &mopt, nullptr); // get all hits for the query
+        for (j = 0; j < n_reg; ++j) {
+            mm_reg1_t *hit = &reg[j];
+            if (hit->rev != 0)
+                continue;
+            total += hit->p->n_cigar;
+            RawSegment seg_from(cnt, hit->qs, hit->qe);
+            RawSegment seg_to(hit->rid, hit->rs, hit->re);
+            RawAlignment al(seg_from, seg_to, bool(hit->rev));
+            result.emplace_back(seg_from, seg_to, bool(hit->rev));
+            result.back().cigar_container = hit->p;
+        }
+        free(reg);
+        cnt += 1;
+        mm_tbuf_destroy(tbuf);
+    }
+//    Control over this memory is transferred to RawSequence objects in the result container
+//	kseq_destroy(ks); // close the query file
+//	gzclose(f);
+//    for (size_t i = 0; i < ref.size(); i++) {
+//        free(ref_name[i]);
+//        free(ref_seq[i]);
+//    }
+    return result;
+}
+
 std::vector<std::vector<RawAlignment>> run_minimap(const std::string * reads_from, const std::string * reads_to, size_t read_id, std::vector<mm_idx_t *> & ref)
 {
     mm_idxopt_t iopt;

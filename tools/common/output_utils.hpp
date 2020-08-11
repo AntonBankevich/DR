@@ -14,7 +14,7 @@ std::ostream& operator<<(std::ostream& out, const std::pair<U, V>& item) {
     return out << "(" << item.first << ", " << item.second << ")";
 }
 
-std::ostream& operator<<(std::ostream& out, const unsigned __int128& item) {
+inline std::ostream& operator<<(std::ostream& out, const unsigned __int128& item) {
     std::vector<char> res;
     unsigned __int128 tmp = item;
     while(tmp != 0) {

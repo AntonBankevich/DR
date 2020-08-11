@@ -114,12 +114,10 @@ std::vector<Sequence> extractDisjointigs(logging::Logger & logger, SparseDBG<hty
     for(const std::vector<Sequence> &r : res) {
         rres.insert(rres.end(), r.begin(), r.end());
     }
-    size_t sz = 0;
-    for (Sequence & seq: rres) {
-        sz += seq.size();
-//        logger << seq << std::endl;
-    }
-    logger << "Finished extracting " << rres.size() << " disjointigs of total size " << sz << std::endl;
+    std::sort(rres.begin(), rres.end(), [] (const Sequence& lhs, const Sequence& rhs) {
+        return lhs.size() > rhs.size();
+    });
+    logger << "Finished extracting " << rres.size() << " disjointigs of total size " << total_size(rres) << std::endl;
     return rres;
 }
 
