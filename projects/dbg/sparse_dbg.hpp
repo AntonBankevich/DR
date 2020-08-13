@@ -451,7 +451,7 @@ SparseDBG<htype> constructSparseDBGFromReads(logging::Logger & logger, const std
     logger << "Starting construction of sparse de Bruijn graph" << std::endl;
     SparseDBG<htype> sdbg(std::move(hash_list), hasher);
     logger << "Vertex map constructed." << std::endl;
-    io::SeqReader reader(reads_file);
+    io::SeqReader reader(io::SeqReader::CompressingReader(reads_file));
     fillSparseDBGEdges(sdbg, logger, reader.seqbegin(), reader.seqend(), threads, hasher, w + hasher.k - 1);
     return std::move(sdbg);
 }

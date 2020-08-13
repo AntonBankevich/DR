@@ -17,7 +17,7 @@ std::vector<htype> constructMinimizers(logging::Logger &logger, const std::strin
     size_t total_len = 0;
     size_t read_num = 0;
     std::vector<htype> hash_list;
-    io::SeqReader reader(reads_file);
+    io::SeqReader reader(io::SeqReader::CompressingReader(reads_file));
     while(not reader.eof()) {
         size_t tlen = 0;
         logger.log("Starting new round");

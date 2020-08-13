@@ -71,6 +71,7 @@ int main(int argc, char **argv) {
 #pragma omp single
             {
                 reads.clear();
+                reads.reserve(1000000);
                 size_t cnt = 0;
                 while (!reader.eof() && reads.size() < 10000) {
                     cnt += 1;
@@ -114,7 +115,7 @@ int main(int argc, char **argv) {
                                     best = &al;
                                 }
                             }
-                            size_t diff;
+                            size_t diff = 0;
                             size_t prev = 0;
                             for (size_t i = 0; i + 1 < best->positions_from.size(); i++) {
                                 if (best->positions_from[i + 1] > best->positions_from[i] + 1 ||
@@ -126,7 +127,7 @@ int main(int argc, char **argv) {
                             for (size_t i = best->seg_to.left / 1000; i < best->seg_to.right / 1000; i++) {
                                 stat.cov[i] += 1;
                             }
-                            stat.readErrors[std::min(diff, stat.readErrors.size() - 1)];
+                            stat.readErrors[std::min(diff, stat.readErrors.size() - 1)] += 1;
                         }
                     }
                 }
