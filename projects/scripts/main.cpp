@@ -64,64 +64,73 @@ int main(int argc, char **argv) {
     logger << "Aligning and analysing reads" << std::endl;
     io::SeqReader reader(io::SeqReader::CompressingReader(parser.getValue("reads")));
     std::vector<AlignmentStats> stats(threads);
-#pragma omp parallel default(none) shared(reader, aligner, stats, logger)
-    {
-#pragma omp single
+    std::vector<Contig> reads;
+    while(!reader.eof()) {
+#pragma omp parallel default(none) shared(reader, aligner, stats, logger, concatRef, reads)
         {
-            size_t cnt = 0;
-            while(!reader.eof()) {
-                cnt += 1;
-                if (cnt % 100000 == 0)
-                    logger << "Starting analysis of read number " << cnt << std::endl;
-                Contig read = reader.read();
-#pragma omp task default(none) shared(read, aligner, stats)
-                {
-                    std::vector<CigarAlignment<Contig, Contig>> cigar_als = aligner.align(read);
-                    std::vector<PositionalAlignment<Contig, Contig>> als =
-                            oneline::initialize<PositionalAlignment<Contig, Contig>>(cigar_als.begin(), cigar_als.end());
-                    size_t min_al_size = std::max(std::max<size_t>(read.size(), 1000u) - 1000, read.size() * 3 / 4);
-                    std::function<bool(PositionalAlignment<Contig, Contig>&)> f = [min_al_size](PositionalAlignment <Contig, Contig>& al) {
-                        return al.seg_from.size() > min_al_size;
-                    };
-                    als = oneline::filter(als.begin(), als.end(), f);
-                    AlignmentStats &stat = stats[omp_get_thread_num()];
-                    if(als.empty()) {
-                        stat.no_align += 1;
-                    } else {
-                        if (als.size() == 1) {
-                            stat.single_align += 1;
-                            if (als[0].seg_from.size() >= read.size() - 50) {
-                                stat.full_align += 1;
-                            }
+#pragma omp single
+            {
+                reads.clear();
+                size_t cnt = 0;
+                while (!reader.eof() && reads.size() < 10000) {
+                    cnt += 1;
+                    reads.emplace_back(reader.read());
+                    Contig & read = reads.back();
+#pragma omp task default(none) shared(read, aligner, stats, logger, concatRef)
+                    {
+                        std::vector<CigarAlignment<Contig, Contig>> cigar_als = aligner.align(read);
+                        std::vector<PositionalAlignment<Contig, Contig>> als =
+                                oneline::initialize<PositionalAlignment<Contig, Contig>>(cigar_als.begin(),
+                                                                                         cigar_als.end());
+                        size_t min_al_size = std::max(std::max<size_t>(read.size(), 1000u) - 1000, read.size() * 3 / 4);
+                        std::function<bool(PositionalAlignment<Contig, Contig> &)> f = [min_al_size](
+                                PositionalAlignment<Contig, Contig> &al) {
+                            return al.seg_from.size() > min_al_size;
+                        };
+                        als = oneline::filter(als.begin(), als.end(), f);
+                        AlignmentStats &stat = stats[omp_get_thread_num()];
+                        if (als.empty()) {
+                            stat.no_align += 1;
                         } else {
-                            stat.multi_align += 1;
-                        }
-                        PositionalAlignment<Contig, Contig>* best = &als[0];
-                        for(PositionalAlignment<Contig, Contig>& al : als) {
-                            if(best->seg_from.size() < read.size() - 50 && al.seg_from.size() >= read.size() - 50) {
-                                best = &al;
+                            if (als.size() == 1) {
+                                stat.single_align += 1;
+                                if (als[0].seg_from.size() >= read.size() - 50) {
+                                    stat.full_align += 1;
+                                }
+                            } else {
+                                stat.multi_align += 1;
                             }
-                            if(best->seg_from.size() >= read.size() - 50 && al.seg_from.size() < read.size() - 50) {
-                                continue;
+                            PositionalAlignment<Contig, Contig> *best = &als[0];
+                            for (PositionalAlignment<Contig, Contig> &al : als) {
+                                if (best->seg_from.size() < read.size() - 50 &&
+                                    al.seg_from.size() >= read.size() - 50) {
+                                    best = &al;
+                                }
+                                if (best->seg_from.size() >= read.size() - 50 &&
+                                    al.seg_from.size() < read.size() - 50) {
+                                    continue;
+                                }
+                                if (best->pi() < al.pi()) {
+                                    best = &al;
+                                }
                             }
-                            if(best->pi() < al.pi()) {
-                                best = &al;
+                            size_t diff;
+                            size_t prev = 0;
+                            for (size_t i = 0; i + 1 < best->positions_from.size(); i++) {
+                                if (best->positions_from[i + 1] > best->positions_from[i] + 1 ||
+                                    best->positions_to[i + 1] > best->positions_to[i] + 1) {
+                                    stat.refErrors[best->positions_to[i] / 1000] += 1;
+                                    diff += 1;
+                                }
                             }
-                        }
-                        size_t diff;
-                        size_t prev = 0;
-                        for(size_t i = 0; i + 1 < best->positions_from.size(); i++) {
-                            if (best->positions_from[i + 1] > best->positions_from[i] + 1 || best->positions_to[i + 1] > best->positions_to[i] + 1){
-                                stat.refErrors[best->positions_to[i] / 1000] += 1;
-                                diff += 1;
+                            for (size_t i = best->seg_to.left / 1000; i < best->seg_to.right / 1000; i++) {
+                                stat.cov[i] += 1;
                             }
+                            stat.readErrors[std::min(diff, stat.readErrors.size() - 1)];
                         }
-                        for(size_t i = best->seg_to.left / 1000; i < best->seg_to.right / 1000; i++) {
-                            stat.cov[i] += 1;
-                        }
-                        stat.readErrors[std::min(diff, stat.readErrors.size() - 1)];
                     }
                 }
+                logger << "Finished reading a batch of " << reads.size() << " reads. Processing." << std::endl;
             }
         }
     }

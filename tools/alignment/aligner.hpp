@@ -67,14 +67,14 @@ public:
         }
         std::vector<std::vector<CigarAlignment<T, R>>> hits;
         hits.resize(reads.size());
-        const size_t step = std::max<size_t>(reads.size() / (thread_num * 5), 1u);
+        size_t step = std::max<size_t>(reads.size() / (thread_num * 5), 1u);
         omp_set_dynamic(0);
         omp_set_num_threads(thread_num);
 #pragma omp parallel for default(none) shared(hits, reads, read_seqs, step)
         for(size_t i = 0; i < (reads.size() + step - 1) / step; i++) {
             size_t from = i * step;
             size_t to = std::min(from + step, reads.size());
-            VERIFY(to > from)
+//            VERIFY(to > from)
             std::stringstream ss;
             std::vector<std::vector<RawAlignment>> results = run_minimap(read_seqs.data() + from, read_seqs.data() + to, from, index);
             for(size_t j = 0; j < results.size(); j++) {
