@@ -104,7 +104,11 @@ int main(int argc, char **argv) {
         is.close();
     }
     SparseDBG<htype128> dbg = constructDBG(logger, vertices, disjointigs, hasher);
+    logger << "Calculating edge coverage." << std::endl;
+    io::SeqReader reader(io::SeqReader::CompressingReader(reads_file));
+    fillCoverage(dbg, logger, reader.seqbegin(), reader.seqend(), threads, hasher, 0);
     logger << "Printing graph to file" << std::endl;
+    dbg.printStats(logger);
     std::ofstream edges;
     edges.open(std::string(dir.c_str()) + "/graph.fasta");
     dbg.printFasta(edges);

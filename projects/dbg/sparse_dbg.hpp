@@ -20,9 +20,12 @@ class Edge {
 private:
     Sequence seq_;
     Vertex<htype> *end_;
+    mutable size_t cov;
 public:
+    friend class Vertex<htype>;
+
     Edge(Vertex<htype> *_end, const Sequence &_seq) :
-            seq_(_seq), end_(_end) {
+            seq_(_seq), end_(_end), cov(0) {
     }
 
     Vertex<htype> *end() const {
@@ -31,6 +34,15 @@ public:
 
     size_t size() const {
         return seq_.size();
+    }
+
+    double getCoverage() const {
+        return double(cov) / size();
+    }
+
+    void incCov(size_t val) const {
+#pragma omp atomic
+        cov += val;
     }
 
     const Sequence & seq() const {
@@ -65,12 +77,24 @@ public:
         omp_init_lock(&writelock);
     }
 
-    Vertex(Vertex &&other) : rc_(other.rc_), hash_(other.hash_) {
+    Vertex(Vertex &&other) noexcept : rc_(other.rc_), hash_(other.hash_) {
         std::swap(outgoing_, other.outgoing_);
+        std::swap(seq, other.seq);
         omp_init_lock(&writelock);
         if(other.rc_ != nullptr) {
             other.rc_->rc_ = this;
             other.rc_ = nullptr;
+        }
+        for(Edge<htype> &edge : rc_->outgoing_) {
+            if(edge.end() == &other) {
+                edge.end_ = this;
+            } else if (edge.end() != nullptr){
+                for(Edge<htype> &back : edge.end()->rc().outgoing_) {
+                    if(back.end() == &other) {
+                        back.end_ = this;
+                    }
+                }
+            }
         }
     }
 
@@ -97,19 +121,25 @@ public:
     }
 
     Edge<htype>& rcEdge(const Edge<htype> & edge) {
-        Vertex &vend = *edge.end();
+        Vertex &vend = edge.end()->rc();
         char c;
         if(edge.size() > seq.size()) {
             c = (!edge.seq())[seq.size()];
         } else {
             c = (!seq)[seq.size() - edge.size()];
         }
-        for(Edge<htype> &res : vend.getOutgoing()) {
-            if (res[0] == c) {
-                return res;
-            }
+        return vend.getOutgoing(c);
+    }
+
+    const Edge<htype>& rcEdge(const Edge<htype> & edge) const {
+        const Vertex &vend = edge.end()->rc();
+        char c;
+        if(edge.size() > seq.size()) {
+            c = (!edge.seq())[seq.size()];
+        } else {
+            c = (!seq)[seq.size() - edge.size()];
         }
-        VERIFY(false);
+        return vend.getOutgoing(c);
     }
 
     Sequence pathSeq(const std::vector<Edge<htype>> & path) const {
@@ -177,6 +207,16 @@ public:
 
     const std::vector<Edge<htype>> &getOutgoing() const {
         return outgoing_;
+    }
+
+    const Edge<htype> & getOutgoing(char c) const {
+        for(const Edge<htype> &edge : outgoing_) {
+            if(edge.seq()[0] == c) {
+                return edge;
+            }
+        }
+        VERIFY(false);
+        return getOutgoing()[0];
     }
 
     std::vector<Edge<htype>> &getOutgoing() {
@@ -253,6 +293,36 @@ public:
         }
     }
 
+    const Vertex<htype> &getVertex(const KWH<htype> &kwh) const {
+        VERIFY(v.find(kwh.hash()) != v.end());
+        if(kwh.isCanonical()) {
+            return v.find(kwh.hash())->second;
+        } else {
+            return v.find(kwh.hash())->second.rc();
+        }
+    }
+
+    std::vector<Segment<Edge<htype>>> align(const Sequence & seq) const {
+        std::vector<KWH<htype>> kmers = extractVertexPositions(seq);
+        std::vector<Segment<Edge<htype>>> res;
+        if(kmers.size() == 0) {
+            return res;
+        }
+        if (kmers.front().pos > 0) {
+            const Vertex<htype> &rcstart = getVertex(kmers.front()).rc();
+            const Edge<htype> &edge = rcstart.rcEdge(rcstart.getOutgoing(seq[kmers.front().pos - 1] ^ 3));
+            res.emplace_back(edge, edge.size() - kmers.front().pos, edge.size());
+        }
+        for(const KWH<htype> & kmer : kmers) {
+            if (kmer.pos + hasher_.k < seq.size()) {
+                const Vertex<htype> &vertex = getVertex(kmer);
+                const Edge<htype> &edge = vertex.getOutgoing(seq[kmer.pos + hasher_.k]);
+                res.emplace_back(edge, 0, std::min(seq.size() - kmer.pos, edge.size()));
+            }
+        }
+        return std::move(res);
+    }
+
 //    Add all edges (including hanging) from read. All Sequences are copied and read should be discarded after.
     void processRead(const Sequence & seq) {
         std::vector<KWH<htype>> kmers = extractVertexPositions(seq);
@@ -260,8 +330,11 @@ public:
         std::vector<Vertex<htype> *> vertices;
         for(size_t i = 0; i < kmers.size(); i++) {
             vertices.emplace_back(&getVertex(kmers[i]));
-            if(i == 0 || vertices[i] != vertices[i - 1])
+            if(i == 0 || vertices[i] != vertices[i - 1]){
                 vertices.back()->setSequence(kmers[i].getSeq());
+                VERIFY(!vertices.back()->seq.empty());
+                VERIFY(!vertices.back()->rc().seq.empty());
+            }
         }
         for(size_t i = 0; i + 1 < vertices.size(); i++) {
 //            TODO: if too memory heavy save only some of the labels
@@ -322,6 +395,10 @@ public:
 
     void printStats(logging::Logger &logger) const {
         std::vector<size_t> arr(10);
+        std::vector<size_t> cov(20);
+        std::vector<size_t> covLen(20);
+        size_t isolated = 0;
+        size_t isolatedSize = 0;
         size_t n11 = 0;
         size_t n01 = 0;
         size_t e = 0;
@@ -333,11 +410,29 @@ public:
             arr[std::min(arr.size() - 1, tmp.inDeg())] += 1;
             inout[std::min<size_t>(4u, tmp.outDeg()) * 5 + std::min<size_t>(4u, tmp.inDeg())] += 1;
             inout[std::min<size_t>(4u, tmp.inDeg()) * 5 + std::min<size_t>(4u, tmp.outDeg())] += 1;
+            if(tmp.outDeg() == 1 && tmp.inDeg() == 0) {
+                Vertex<htype> & tmp1 = tmp.getOutgoing()[0].end()->rc();
+                if (tmp1.outDeg() == 1 && tmp.inDeg() == 0) {
+                    isolated += 1;
+                    isolatedSize += tmp1.getOutgoing()[0].size();
+                }
+            }
+            if(tmp.outDeg() == 0 && tmp.inDeg() == 1) {
+                Vertex<htype> &tmp1 = tmp.getOutgoing()[0].end()->rc();
+                if (tmp1.outDeg() == 1 && tmp.inDeg() == 0) {
+                    isolated += 1;
+                    isolatedSize += tmp1.getOutgoing()[0].size();
+                }
+            }
             if (tmp.inDeg() == 1 && tmp.outDeg() == 1) {
                 n11 += 1;
             }
             if (tmp.inDeg() + tmp.outDeg() == 1) {
                 n01 += 1;
+            }
+            for(const Edge<htype> &edge : tmp.getOutgoing()) {
+                cov[std::min(size_t(edge.getCoverage()), cov.size() - 1)] += 1;
+                covLen[std::min(size_t(edge.getCoverage()), cov.size() - 1)] += edge.size();
             }
         }
         logger << "Graph statistics:" << std::endl;
@@ -355,6 +450,10 @@ public:
             logger.noTimeSpace() << inout[i] << " ";
             if(i % 5 == 4)
                 logger.noTimeSpace() << std::endl;
+        }
+        logger << "Distribution of coverages:" << std::endl;
+        for(size_t i = 0; i < cov.size(); i++) {
+            logger.noTimeSpace() << i << " " << cov[i] << " " << covLen[i] << std::endl;
         }
     }
 
@@ -444,6 +543,50 @@ void fillSparseDBGEdges(SparseDBG<htype> &sdbg, logging::Logger &logger, Iterato
     logger << "Sparse graph edges filled." << std::endl;
 }
 
+template<typename htype, class Iterator>
+void fillCoverage(SparseDBG<htype> &sdbg, logging::Logger &logger, Iterator begin, Iterator end, size_t threads,
+                        const RollingHash<htype> &hasher, const size_t min_read_size) {
+    logger << "Starting to fill edge coverages" << std::endl;
+    const size_t buffer_size = 1000000000;
+    while(begin != end) {
+        size_t tlen = 0;
+        logger << "Starting new round" << std::endl;
+        std::vector<Sequence> reads;
+        reads.reserve(1000000);
+#pragma omp parallel default(none) shared(hasher, begin, end, tlen, buffer_size, std::cout, logger, reads, sdbg, min_read_size)
+        {
+#pragma omp single
+            {
+                while (begin != end && tlen < buffer_size && reads.size() < 1000000) {
+                    reads.push_back(*begin);
+                    ++begin;
+                    tlen += reads.back().size();
+                    if(reads.back().size() < min_read_size) {
+                        continue;
+                    }
+                    size_t index = reads.size() - 1;
+#pragma omp task default(none) shared(reads, index, sdbg, std::cout)
+                    {
+//                        TODO make better for rc
+
+                        std::vector<Segment<Edge<htype>>> path = sdbg.align(reads[index]);
+                        for(Segment<Edge<htype>> &seg : path) {
+                            seg.contig.incCov(seg.size());
+                        }
+                        path = sdbg.align(!reads[index]);
+                        for(Segment<Edge<htype>> &seg : path) {
+                            seg.contig.incCov(seg.size());
+                        }
+                    }
+                }
+                logger << tlen  << " nucleotides in " << reads.size() <<
+                       " sequences were collected. Processing in progress  " << std::endl;
+            }
+        }
+        reads.clear();
+    }
+    logger << "Sparse graph edges filled." << std::endl;
+}
 
 template<typename htype>
 SparseDBG<htype> constructSparseDBGFromReads(logging::Logger & logger, const std::string &reads_file, size_t threads, const RollingHash<htype> &hasher,
