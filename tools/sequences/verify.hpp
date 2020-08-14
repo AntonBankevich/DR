@@ -28,8 +28,11 @@ inline void print_stacktrace() {
 
 #define VERIFY(expr)                                             \
     do {                                                         \
-        if (!(expr))                                             \
+        if (!(expr)) {                                           \
             print_stacktrace();                                  \
-        assert(expr);                                            \
+            assert(expr);                                             \
+            abort(); \
+        };                                                       \
     } while(0);
+
 

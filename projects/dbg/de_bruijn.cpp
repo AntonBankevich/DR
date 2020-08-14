@@ -104,6 +104,7 @@ int main(int argc, char **argv) {
         is.close();
     }
     SparseDBG<htype128> dbg = constructDBG(logger, vertices, disjointigs, hasher);
+    dbg.checkConsistency();
     logger << "Calculating edge coverage." << std::endl;
     io::SeqReader reader(io::SeqReader::CompressingReader(reads_file));
     fillCoverage(dbg, logger, reader.seqbegin(), reader.seqend(), threads, hasher, 0);

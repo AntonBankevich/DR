@@ -108,6 +108,17 @@ public:
         rc_ = nullptr;
     }
 
+    void checkConsistency() const {
+        for(const Edge<htype> & edge : outgoing_) {
+            if(edge.end() != nullptr) {
+                if(this->rcEdge(edge).end() != &(this->rc())) {
+                    std::cout << this << " " << seq << " " << edge.seq() << " " << rcEdge(edge).end() << " " << &(this->rc()) <<std::endl;
+                }
+                VERIFY(this->rcEdge(edge).end() == &(this->rc()));
+            }
+        }
+    }
+
     htype hash() const {
         return hash_;
     }
@@ -153,8 +164,8 @@ public:
 
 
     void setSequence(const Sequence &_seq) {
+        lock();
         if(seq.empty()) {
-            lock();
             if(seq.empty()) {
                 seq = Sequence(_seq.str());
                 unlock();
@@ -164,6 +175,8 @@ public:
             } else {
                 unlock();
             }
+        } else {
+            unlock();
         }
 //        else {
 //            VERIFY(_seq == seq);
@@ -275,6 +288,16 @@ public:
 
     SparseDBG(SparseDBG<htype> &&other) noexcept = default;
 
+    void checkConsistency() {
+        std::cout << "Checking consistency" << std::endl;
+        for(const auto & it : v) {
+            const Vertex<htype> & vert = it.second;
+            vert.checkConsistency();
+            vert.rc().checkConsistency();
+        }
+        std::cout << "Consistency check success" << std::endl;
+    }
+
     const RollingHash<htype> &hasher() const {
         return hasher_;
     }
@@ -332,8 +355,6 @@ public:
             vertices.emplace_back(&getVertex(kmers[i]));
             if(i == 0 || vertices[i] != vertices[i - 1]){
                 vertices.back()->setSequence(kmers[i].getSeq());
-                VERIFY(!vertices.back()->seq.empty());
-                VERIFY(!vertices.back()->rc().seq.empty());
             }
         }
         for(size_t i = 0; i + 1 < vertices.size(); i++) {
@@ -412,13 +433,15 @@ public:
             inout[std::min<size_t>(4u, tmp.inDeg()) * 5 + std::min<size_t>(4u, tmp.outDeg())] += 1;
             if(tmp.outDeg() == 1 && tmp.inDeg() == 0) {
                 Vertex<htype> & tmp1 = tmp.getOutgoing()[0].end()->rc();
+                VERIFY(tmp.getOutgoing()[0].end() != nullptr);
                 if (tmp1.outDeg() == 1 && tmp.inDeg() == 0) {
                     isolated += 1;
                     isolatedSize += tmp1.getOutgoing()[0].size();
                 }
             }
             if(tmp.outDeg() == 0 && tmp.inDeg() == 1) {
-                Vertex<htype> &tmp1 = tmp.getOutgoing()[0].end()->rc();
+                Vertex<htype> &tmp1 = tmp.rc().getOutgoing()[0].end()->rc();
+                VERIFY(tmp.rc().getOutgoing()[0].end()!= nullptr);
                 if (tmp1.outDeg() == 1 && tmp.inDeg() == 0) {
                     isolated += 1;
                     isolatedSize += tmp1.getOutgoing()[0].size();
@@ -431,16 +454,22 @@ public:
                 n01 += 1;
             }
             for(const Edge<htype> &edge : tmp.getOutgoing()) {
+                e += 1;
+                cov[std::min(size_t(edge.getCoverage()), cov.size() - 1)] += 1;
+                covLen[std::min(size_t(edge.getCoverage()), cov.size() - 1)] += edge.size();
+            }
+            for(const Edge<htype> &edge : tmp.rc().getOutgoing()) {
+                e += 1;
                 cov[std::min(size_t(edge.getCoverage()), cov.size() - 1)] += 1;
                 covLen[std::min(size_t(edge.getCoverage()), cov.size() - 1)] += edge.size();
             }
         }
         logger << "Graph statistics:" << std::endl;
-        VERIFY(e % 2 == 0);
         logger << "Total edges: " << e / 2 << std::endl;
         logger << "Total vertices: " << v.size() << std::endl;
         logger << "Number of end vertices: " << n01 << std::endl;
         logger << "Number of unbranching vertices: " << n11 << std::endl;
+        logger << "Number of isolated edges " << isolated << " " << isolatedSize << std::endl;
         logger << "Distribution of degrees:" << std::endl;
         for(size_t i = 0; i < arr.size(); i++) {
             logger.noTimeSpace() << i << " " << arr[i] << std::endl;
@@ -528,10 +557,10 @@ void fillSparseDBGEdges(SparseDBG<htype> &sdbg, logging::Logger &logger, Iterato
                     if(reads.back().size() < min_read_size) {
                         continue;
                     }
-                    size_t index = reads.size() - 1;
-#pragma omp task default(none) shared(reads, index, sdbg, std::cout)
+                    Sequence &read = reads.back();
+#pragma omp task default(none) shared(read, sdbg, std::cout)
                     {
-                        sdbg.processRead(reads[index]);
+                        sdbg.processRead(read);
                     }
                 }
                 logger << tlen  << " nucleotides in " << reads.size() <<
@@ -761,8 +790,11 @@ void mergeCyclicPaths(logging::Logger & logger, SparseDBG<htype> &sdbg) {
 template<class htype>
 void mergeAll(logging::Logger & logger, SparseDBG<htype> &sdbg) {
     mergeLinearPaths(logger, sdbg);
+    sdbg.checkConsistency();
     mergeCyclicPaths(logger, sdbg);
+    sdbg.checkConsistency();
     logger << "Removing isolated vertices" << std::endl;
     sdbg.removeIsolated();
     logger << "Finished removing isolated vertices" << std::endl;
+    sdbg.checkConsistency();
 }
