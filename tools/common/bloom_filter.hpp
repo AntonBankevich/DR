@@ -130,7 +130,7 @@ public:
 //        optp.table_size = static_cast<unsigned long long int>(min_m);
 //
 //        optp.table_size += (((optp.table_size % bits_per_char) != 0) ? (bits_per_char - (optp.table_size % bits_per_char)) : 0);
-        optp.table_size = projected_element_count * 30;
+        optp.table_size = projected_element_count * 32;
 
 
         if (optp.number_of_hashes < minimum_number_of_hashes)
@@ -252,7 +252,6 @@ public:
         for (std::size_t i = 0; i < salt_.size(); ++i)
         {
             compute_indices(hash_ap(key_begin, length, salt_[i]), bit_index, bit);
-
 #pragma omp atomic update
             bit_table_[bit_index / bits_per_char] |= bit_mask[bit];
         }

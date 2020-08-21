@@ -1,5 +1,10 @@
 #pragma once
 
+#include "sequence.hpp"
+#include "nucl.hpp"
+#include "IntrusiveRefCntPtr.h"
+#include "verify.hpp"
+#include <algorithm>
 #include <utility>
 #include <vector>
 #include <string>
@@ -7,10 +12,6 @@
 #include <cstring>
 #include <sstream>
 #include <unordered_map>
-#include "nucl.hpp"
-#include "IntrusiveRefCntPtr.h"
-#include "verify.hpp"
-#include "sequence.hpp"
 
 using std::string;
 using std::string;
@@ -25,20 +26,28 @@ namespace basic {
 
 template<class T>
 class Segment{
+    const T *contig_ptr;
 public:
-    const size_t left;
-    const size_t right;
-    const T &contig;
-    Segment(const T &contig_, size_t left_, size_t right_) : left(left_), right(right_), contig(contig_){
-        VERIFY(0 <= left and left <= right and right <= contig.size())
+    size_t left;
+    size_t right;
+    Segment(const T &contig_, size_t left_, size_t right_) : left(left_), right(right_), contig_ptr(&contig_){
+        VERIFY(0 <= left and left <= right and right <= contig_ptr->size())
+    }
+
+    const T &contig() const {
+        return *contig_ptr;
     }
 
     size_t size() const {
         return right - left;
     }
 
+    Sequence seq() const {
+        return contig_ptr->seq.Subseq(left, right);
+    }
+
     size_t dist(const Segment<T> &other) const {
-        VERIFY(contig == other.contig);
+        VERIFY(contig_ptr == other.contig_ptr);
         if (right <= other.left)
             return other.left - right;
         else if (other.right <= left)
@@ -48,11 +57,11 @@ public:
     }
 
     Segment<T> RC() const {
-        return Segment(contig.rc(), contig.size() - right, contig.size() - left);
+        return Segment(contig_ptr->rc(), contig_ptr->size() - right, contig_ptr->size() - left);
     }
 
     bool inter(const Segment &other) const {
-        return contig == other.contig and not (right <= other.left or left >= other.right);
+        return contig_ptr == other.contig_ptr and not (right <= other.left or left >= other.right);
     }
 
     int interSize(const Segment &other) const {
@@ -61,14 +70,20 @@ public:
         else
             return int(std::min(right, other.right) - std::max(left, other.left));
     }
+
+    bool operator<(const Segment<T> &other) const {
+        return contig().id < other.contig().id ||
+                    (contig().id == other.contig().id &&
+                            (left < other.left || left == other.left && right < other.right));
+    }
 };
 
 template <class T>
 inline std::ostream& operator<<(std::ostream& os, const Segment<T>& seg)
 {
-    os << seg.contig.id << "[" << seg.left << ":";
-    if (seg.right > seg.contig.size() * 3 / 4)
-        os << seg.contig.size() << "-" << (seg.contig.size() - seg.right);
+    os << seg.contig().id << "[" << seg.left << ":";
+    if (seg.right > seg.contig().size() * 3 / 4)
+        os << seg.contig().size() << "-" << (seg.contig().size() - seg.right);
     else
         os << seg.right;
     os << "]";
@@ -95,7 +110,7 @@ public:
     }
 
     Segment<T> segment(size_t left, size_t right) const {
-        return Segment<T>(*this, left, right);
+        return Segment<T>(*(static_cast<const T*>(this)), left, right);
     }
 
     Segment<T> suffix(size_t pos) const {
@@ -152,9 +167,63 @@ public:
     Contig(const string &_seq, const string &_id): NamedSequence(Sequence(_seq), _id) {
     }
 
+    Contig RC() {
+        if(id[0] == '-')
+            return Contig(!seq, id.substr(1, id.size() - 1));
+        else
+            return Contig(!seq, "-" + id);
+    }
+
 //    Contig(const string &_seq, const string &_id, Contig *_rc): NamedSequence(Sequence(_seq), _id, _rc) {
 //    }
 };
+
+class StringContig {
+public:
+    std::string id;
+    std::string seq;
+
+    StringContig() : id(""), seq("") {
+    }
+
+    StringContig(std::string && _seq, std::string &&_id) : id(_id), seq(_seq) {
+    }
+
+    StringContig(StringContig && other) = default;
+
+    StringContig& operator=(StringContig && other) = default;
+
+    void compress() {
+        seq.erase(std::unique(seq.begin(), seq.end()), seq.end());
+    }
+
+    Contig makeContig() {
+        return Contig(Sequence(seq), id);
+    }
+
+    Contig makeCompressedContig() {
+        compress();
+        return makeContig();
+    }
+
+    Sequence makeSequence() {
+        return Sequence(seq);
+    }
+
+    Sequence makeCompressedSequence() {
+        compress();
+        return makeSequence();
+    }
+
+    bool isNull() const {
+        return id.empty() && seq.empty();
+    }
+
+    size_t size() const {
+        return seq.size();
+    }
+};
+
 
 template <class T>
 class SequenceCollection {

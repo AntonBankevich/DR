@@ -36,8 +36,8 @@ struct PositionalAlignment {
     explicit PositionalAlignment(const CigarAlignment<U, V> &other): seg_from(other.seg_from), seg_to(other.seg_to) {
         size_t cur_from = other.seg_from.left;
         size_t cur_to = other.seg_to.left;
-        const Sequence &contig_from = other.seg_from.contig.seq;
-        const Sequence &contig_to = other.seg_to.contig.seq;
+        const Sequence &contig_from = other.seg_from.contig().seq;
+        const Sequence &contig_to = other.seg_to.contig().seq;
         const mm_extra_t * cigar_container = other.cigar_container;
         for(size_t i = 0; i < cigar_container->n_cigar; i++){
             size_t block_len = cigar_container->cigar[i] >> 4u;
@@ -59,13 +59,17 @@ struct PositionalAlignment {
     }
 
     PositionalAlignment<U, V> subalignment(size_t from, size_t to) const {
-        return PositionalAlignment<U, V>(seg_from.contig, seg_to.contig(),
+        return PositionalAlignment<U, V>(seg_from.contig(), seg_to.contig(),
                                   std::vector<size_t>(positions_from.begin() + from, positions_from.begin() + to + 1),
                                   std::vector<size_t>(positions_to.begin() + from, positions_to.begin() + to + 1));
     }
 
     double pi() const {
-        return positions_from.size() / std::max(seg_from.size(), seg_to.size());
+        return double(positions_from.size()) / std::max(seg_from.size(), seg_to.size());
+    }
+
+    bool isPerfect() {
+        return positions_from.size() == seg_from.size() && seg_from.size() == seg_to.size();
     }
 
     std::vector<string> threeStringForm() const {
@@ -76,20 +80,20 @@ struct PositionalAlignment {
             const size_t len1 = positions_from[i + 1] - positions_from[i] - 1;
             const size_t len2 = positions_to[i + 1] - positions_to[i] - 1;
             for(size_t j = 0; j < std::min(len1, len2) + 1; j++) {
-                l1.push_back(seg_from.contig[positions_from[i + j]]);
-                l2.push_back(seg_to.contig[positions_to[i + j]]);
+                l1.push_back(seg_from.contig()[positions_from[i + j]]);
+                l2.push_back(seg_to.contig()[positions_to[i + j]]);
             }
             for(size_t j = std::min(len1, len2) + 1; j <= len1; j++) {
-                l1.push_back(seg_from.contig[positions_from[i + j]]);
+                l1.push_back(seg_from.contig()[positions_from[i + j]]);
                 l2.push_back('-');
             }
             for(size_t j = std::min(len1, len2) + 1; j <= len2; j++) {
                 l1.push_back('-');
-                l2.push_back(seg_to.contig[positions_to[i + j]]);
+                l2.push_back(seg_to.contig()[positions_to[i + j]]);
             }
         }
-        l1.push_back(seg_from.contig[positions_from.back()]);
-        l2.push_back(seg_to.contig[positions_to.back()]);
+        l1.push_back(seg_from.contig()[positions_from.back()]);
+        l2.push_back(seg_to.contig()[positions_to.back()]);
         for(size_t i = 0; i < l1.size(); i++) {
             if(l1[i] == l2[i])
                 diff.push_back('|');
@@ -100,6 +104,12 @@ struct PositionalAlignment {
     }
 };
 
+template <class U, class V>
+inline std::ostream& operator<<(std::ostream& os, const PositionalAlignment<U, V>& al)
+{
+    os << "(" << al.seg_from << "->" <<al.seg_to << "):" << size_t(al.pi() * 10000) * 0.01 ;
+    return os;
+}
 
 struct AlignmentView {
     string sfrom;
@@ -161,25 +171,25 @@ public:
         std::vector<size_t> pos_from = ftree_from.get(0, ftree_from.size());
         std::vector<size_t> pos_to = ftree_from.get(0, ftree_to.size());
         for(size_t i = 0; i + 1 < pos_from.size(); i++){
-            ss_from << seg_from.contig[pos_from[i]];
-            ss_to << seg_to.contig[pos_to[i]];
+            ss_from << seg_from.contig()[pos_from[i]];
+            ss_to << seg_to.contig()[pos_to[i]];
             size_t d_from = pos_from[i + 1] - pos_from[i];
             size_t d_to = pos_to[i + 1] - pos_to[i];
             for(size_t j = 1; j < std::min(d_from, d_to); j++) {
-                ss_from << seg_from.contig[pos_from[i] + j];
-                ss_to << seg_to.contig[pos_to[i] + j];
+                ss_from << seg_from.contig()[pos_from[i] + j];
+                ss_to << seg_to.contig()[pos_to[i] + j];
             }
             for(size_t j = std::min(d_from, d_to); j < d_from; j++) {
-                ss_from << seg_from.contig[pos_from[i + j + 1]];
+                ss_from << seg_from.contig()[pos_from[i + j + 1]];
                 ss_to << "-";
             }
             for(size_t j = std::min(d_from, d_to); j < d_to; j++) {
                 ss_from << "-";
-                ss_to << seg_to.contig[pos_to[i + j + 1]];
+                ss_to << seg_to.contig()[pos_to[i + j + 1]];
             }
         }
-        ss_from << seg_from.contig[pos_from.back()];
-        ss_to << seg_to.contig[pos_to.back()];
+        ss_from << seg_from.contig()[pos_from.back()];
+        ss_to << seg_to.contig()[pos_to.back()];
         return AlignmentView(ss_from.str(), ss_to.str());
     }
 };

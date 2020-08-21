@@ -3,15 +3,17 @@
 //
 
 #pragma once
+#include "oneline_utils.hpp"
+#include "string_utils.hpp"
 #include <vector>
 #include <string>
 #include <map>
 #include <sstream>
-#include "oneline_utils.hpp"
 
 class CLParser {
 private:
     const std::vector<std::string> long_params;
+    const std::vector<std::string> list_params;
     const std::vector<std::string> short_params;
     std::map<std::string, std::string> values;
     std::map<std::string, bool> checks;
@@ -22,7 +24,7 @@ private:
     const static std::string emptystring;
     std::string command_line;
 public:
-    CLParser(std::vector<std::string> _long_params, std::vector<std::string> _short_params);
+    CLParser(std::vector<std::string> _long_params, std::vector<std::string> _list_params, std::vector<std::string> _short_params);
 
 //    TODO: check what happens with quotes
 //    TODO: make failsafe
@@ -40,6 +42,10 @@ public:
     }
 
     const std::string & getValue(const std::string &s) const;
+
+    std::vector<std::string> getListValue(const std::string &s) const {
+        return split(getValue(s), ",");
+    }
 
     bool getCheck(const std::string &s) const;
 

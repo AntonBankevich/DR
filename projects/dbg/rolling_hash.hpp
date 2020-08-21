@@ -84,9 +84,9 @@ private:
 
     htype fhash;
     htype rhash;
+    Sequence seq;
 public:
     const RollingHash<htype> & hasher;
-    Sequence seq;
     size_t pos;
 
     KWH(const RollingHash<htype> & _hasher, const Sequence &_seq, size_t _pos):

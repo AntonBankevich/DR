@@ -36,3 +36,37 @@ static inline std::string & compress_inplace(std::string &s) {
     s.erase(std::unique(s.begin(), s.end()), s.end());
     return s;
 }
+
+inline std::vector<std::string> split(const std::string &s, const std::string &delimiter) {
+    std::vector<std::string> res;
+    size_t cur = 0;
+    while(cur < s.size()) {
+        size_t next = s.find(delimiter, cur);
+        if (next == size_t(-1)) {
+            next = s.size();
+        }
+        if (next > cur) {
+            res.push_back(s.substr(cur, next - cur));
+        }
+        cur = next + delimiter.size();
+    }
+    return res;
+}
+
+inline std::vector<std::string> split(const std::string &s) {
+    std::vector<std::string> res;
+    size_t cur = 0;
+    std::string bad = " \n\t";
+    while(cur < s.size()) {
+        size_t next = cur;
+        while(next < s.size() && bad.find(s[next]) == size_t(-1)) {
+//            std::cout << s[cur] << " " << size_t(s[next]) << " " << size_t('\t') << std::endl;
+            next += 1;
+        }
+        if (next > cur) {
+            res.push_back(s.substr(cur, next - cur));
+        }
+        cur = next + 1;
+    }
+    return res;
+}

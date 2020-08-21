@@ -103,6 +103,7 @@ private:
         Logger & logger_;
     public:
         explicit DummyLogger(Logger & logger): logger_(logger) {}
+        DummyLogger(const DummyLogger &) = delete;
 
         template<class T>
         DummyLogger &operator<<(const T &val) {
@@ -129,6 +130,8 @@ private:
 public:
     Logger() : dummyLogger(*this) {
     }
+
+    Logger(const Logger &) = delete;
 
     void addLogFile(const std::experimental::filesystem::path &fn) {
         oss.push_back(new std::ofstream());

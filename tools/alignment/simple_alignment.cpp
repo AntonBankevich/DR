@@ -9,7 +9,7 @@
 #include "aligner.hpp"
 
 int main(int argc, char **argv) {
-    CLParser parser({"reads=", "ref=", "output-dir=", "threads=8"}, {"o=output-dir", "t=threads"});
+    CLParser parser({"reads=", "ref=", "output-dir=", "threads=8"}, {}, {"o=output-dir", "t=threads"});
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
         std::cout << "Incorrect parameters" << std::endl;
@@ -17,10 +17,10 @@ int main(int argc, char **argv) {
         return 1;
     }
     std::cout << "Reading reads" <<std::endl;
-    std::vector<Contig> reads = io::SeqReader(parser.getValue("reads")).readAll();
+    std::vector<Contig> reads = io::SeqReader(parser.getValue("reads")).readAllContigs();
     std::cout << "Read " << reads.size() << " reads" <<std::endl;
     std::cout << "Reading reference" <<std::endl;
-    std::vector<Contig> reference = io::SeqReader(parser.getValue("ref")).readAll();
+    std::vector<Contig> reference = io::SeqReader(parser.getValue("ref")).readAllContigs();
     std::cout << "Read " << reference.size() << " reference contigs" <<std::endl;
     std::cout << "Aligning reads" <<std::endl;
     std::ifstream is;
@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
     HMM hmm(HMM::load(is));
     is.close();
     std::vector<std::vector<MarkedAlignment<Contig, Contig>>> alignments =
-            alignment_recipes::MarkAlign(reads, reference, hmm, std::stoi(parser.getValue("threads")));
+            alignment_recipes::MarkAlign(reads, reference, hmm, "ava-pb", std::stoi(parser.getValue("threads")));
     std::experimental::filesystem::path dir(parser.getValue("output-dir"));
     ensure_dir_existance(dir);
     cout << std::experimental::filesystem::absolute(dir) << endl;

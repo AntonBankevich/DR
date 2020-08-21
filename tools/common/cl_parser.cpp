@@ -17,7 +17,11 @@ void CLParser::parseCL(const std::vector <std::string> &args) {
     std::string name;
     for(const std::string &s : args) {
         if (!name.empty()) {
-            values[name] = s;
+            if(!values[name].empty() && values[name][0] == ',') {
+                values[name] += "," + s;
+            } else {
+                values[name] = s;
+            }
             name = "";
         } else if(s[0] == '-') {
             isstart = false;
@@ -54,18 +58,25 @@ const std::string &CLParser::getValue(const std::string &s) const {
 }
 
 bool CLParser::getCheck(const std::string &s) const {
-    auto it = checks.find(s);
-    return it != checks.end();
+    return checks.find(s)->second;
 }
 
-CLParser::CLParser(std::vector<std::string> _long_params, std::vector<std::string> _short_params) :
-        long_params(std::move(_long_params)), short_params(std::move(_short_params)) {
+CLParser::CLParser(std::vector<std::string> _long_params, std::vector<std::string> _list_params, std::vector<std::string> _short_params) :
+        long_params(std::move(_long_params)), list_params(std::move(_list_params)), short_params(std::move(_short_params)) {
     for(const std::string& s : long_params) {
         size_t pos = s.find('=');
         if (pos != -1) {
             values[s.substr(0, pos)] = s.substr(pos + 1, s.size() - pos - 1);
         } else {
             checks[s] = false;
+        }
+    }
+    for(const std::string& s : list_params) {
+        size_t pos = s.find('=');
+        if (pos != size_t(-1)) {
+            values[s.substr(0, pos)] = s.substr(pos + 1, s.size() - pos - 1);
+        } else {
+            values[s] = ",";
         }
     }
     for(const std::string& s : short_params) {

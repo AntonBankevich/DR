@@ -49,13 +49,14 @@ RawAlignment::~RawAlignment() {
 }
 
 
-std::vector<mm_idx_t *> constructIndex(std::vector<std::string> &ref, size_t threads) {
+std::vector<mm_idx_t *> constructIndex(std::vector<std::string> &ref, size_t threads, const char *preset) {
     if(threads < 3)
         threads = 3;
     mm_idxopt_t iopt;
     mm_mapopt_t mopt;
     mm_verbose = 2; // disable message output to stderr
     mm_set_opt(nullptr, &iopt, &mopt);
+    mm_set_opt(preset, &iopt, &mopt);
     mopt.flag |= MM_F_CIGAR; // perform alignment
 
     char ** ref_seq = (char**)malloc(sizeof(char*) * ref.size());
@@ -81,12 +82,14 @@ std::vector<mm_idx_t *> constructIndex(std::vector<std::string> &ref, size_t thr
     return res;
 }
 
-std::vector<RawAlignment> run_minimap(const std::string & read, size_t read_id, std::vector<mm_idx_t *> & ref)
+std::vector<RawAlignment> run_minimap(const std::string & read, size_t read_id, std::vector<mm_idx_t *> & ref,
+        const char *preset)
 {
     mm_idxopt_t iopt;
     mm_mapopt_t mopt;
     mm_verbose = 2; // disable message output to stderr
-    mm_set_opt(0, &iopt, &mopt);
+    mm_set_opt(nullptr, &iopt, &mopt);
+    mm_set_opt(preset, &iopt, &mopt);
     mopt.flag |= MM_F_CIGAR; // perform alignment
     std::vector<RawAlignment> result;
     size_t total = 0;
@@ -123,12 +126,14 @@ std::vector<RawAlignment> run_minimap(const std::string & read, size_t read_id, 
     return result;
 }
 
-std::vector<std::vector<RawAlignment>> run_minimap(const std::string * reads_from, const std::string * reads_to, size_t read_id, std::vector<mm_idx_t *> & ref)
+std::vector<std::vector<RawAlignment>> run_minimap(const std::string * reads_from, const std::string * reads_to, size_t read_id,
+        std::vector<mm_idx_t *> & ref, const char *preset)
 {
     mm_idxopt_t iopt;
     mm_mapopt_t mopt;
     mm_verbose = 2; // disable message output to stderr
-    mm_set_opt(0, &iopt, &mopt);
+    mm_set_opt(nullptr, &iopt, &mopt);
+    mm_set_opt(preset, &iopt, &mopt);
     mopt.flag |= MM_F_CIGAR; // perform alignment
     std::vector<std::vector<RawAlignment>> result;
     result.resize(reads_to - reads_from);

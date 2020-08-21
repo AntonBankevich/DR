@@ -1,13 +1,14 @@
 #pragma once
 
+#include "common/output_utils.hpp"
+#include "nucl.hpp"
+#include "IntrusiveRefCntPtr.h"
+#include "verify.hpp"
 #include <vector>
 #include <string>
 #include <memory>
 #include <cstring>
 #include <sstream>
-#include "nucl.hpp"
-#include "IntrusiveRefCntPtr.h"
-#include "verify.hpp"
 
 template<size_t N, size_t base = 2>
 struct log_ {
@@ -69,7 +70,9 @@ class Sequence {
     void InitFromNucls(const S &s, bool rc = false) {
         size_t bytes_size = DataSize(size_);
         ST *bytes = data_->data();
-
+        if(!(is_dignucl(s[0]) || is_nucl(s[0]))) {
+            std::cout << "Bad nucleotide sequence " << size_ << " " << s << std::endl;
+        }
         VERIFY(is_dignucl(s[0]) || is_nucl(s[0]));
 
         // Which symbols does our string contain : 0123 or ACGT?
@@ -290,6 +293,22 @@ public:
         return Sequence(*this, from_, size_, !rtl_);
     }
 
+    size_t commonPrefix(const Sequence & other) const {
+        size_t res = 0;
+        while(res < size() && res < other.size() && this->operator[](res) == other[res])
+            res += 1;
+        return res;
+    }
+
+    Sequence makeSequence() {
+        return *this;
+    }
+
+
+//    Fake method to unify interface with ContigSequence
+    Sequence &makeCompressedSequence() {
+        return *this;
+    }
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Sequence &s);
@@ -324,10 +343,20 @@ Sequence Sequence::Suffix(size_t count) const {
 
 
 /**
- * @todo optimize
+ * @todo optimize sequence copy
  */
 Sequence Sequence::operator+(const Sequence &s) const {
-    return Sequence(str() + s.str());
+    if (data_ == s.data_ && rtl_ == s.rtl_ &&
+            (
+                (!rtl_ && this->from_ + size_ == s.from_ ) ||
+                (rtl_ && this->from_ == s.from_ + s.size_)
+            )
+        )
+    {
+        return Sequence(*this, std::min(from_, s.from_), size_ + s.size_, rtl_);
+    } else {
+        return Sequence(str() + s.str());
+    }
 }
 
 std::string Sequence::str() const {

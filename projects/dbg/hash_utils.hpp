@@ -5,6 +5,28 @@
 #pragma once
 typedef unsigned __int128 htype128;
 
+std::ostream &operator<<(std::ostream &os, htype128 val) {
+    std::vector<size_t> res;
+    while(val != 0) {
+        res.push_back(val%10);
+        val /= 10;
+    }
+    for(auto it = res.rbegin(); it != res.rend(); ++it) {
+        os << *it;
+    }
+    return os;
+}
+
+std::istream &operator>>(std::istream &is, htype128 &val) {
+    val = 0;
+    std::string tmp;
+    is >> tmp;
+    for(char c : tmp) {
+        val = val * 10 + c - '0';
+    }
+    return is;
+}
+
 void writeHashs(std::ostream &os, const std::vector<htype128> &hash_list) {
     os << hash_list.size() << std::endl;
     for(htype128 h : hash_list) {
@@ -31,4 +53,11 @@ std::string decimal_string(htype128 n) {
         n = n / 10;
     }
     return std::string(res.rbegin(), res.rend());
+}
+
+htype128 string128(const std::string &s) {
+    htype128 res = 0;
+    for(char c : s)
+        res = res * 10 + c;
+    return res;
 }

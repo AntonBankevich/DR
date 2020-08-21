@@ -38,6 +38,7 @@ public:
     ~RawAlignment();
 };
 
-std::vector<RawAlignment> run_minimap(const std::string & read, size_t read_id, std::vector<mm_idx_t *> & ref);
-std::vector<std::vector<RawAlignment>> run_minimap(const std::string * reads_from, const std::string * reads_to, size_t read_id, std::vector<mm_idx_t *> & ref);
-std::vector<mm_idx_t *> constructIndex(std::vector<std::string> &ref, size_t threads);
+std::vector<RawAlignment> run_minimap(const std::string & read, size_t read_id, std::vector<mm_idx_t *> & ref, const char * preset = nullptr);
+std::vector<std::vector<RawAlignment>> run_minimap(const std::string * reads_from, const std::string * reads_to, size_t read_id,
+        std::vector<mm_idx_t *> & ref, const char * preset = nullptr);
+std::vector<mm_idx_t *> constructIndex(std::vector<std::string> &ref, size_t threads, const char *preset = nullptr);

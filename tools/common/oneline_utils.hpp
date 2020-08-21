@@ -29,10 +29,16 @@ namespace oneline {
         return std::move(result);
     }
 
+    template<typename V, class C>
+    std::vector<V> initialize(const C &container) {
+        return std::move(initialize<V, typename C::const_iterator>(container.begin(), container.end()));
+    }
+
     template<class V, class U, class I>
     std::vector<V> initialize(I begin, const I &end) {
         std::vector<V> result;
         std::for_each(begin, end, [&](const U & param){ result.emplace_back(param);});
         return std::move(result);
     }
+
 }

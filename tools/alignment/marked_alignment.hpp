@@ -83,8 +83,8 @@ class MarkingTranslator : public AlignmentTranslator<U, V, MarkedAlignment<U, V>
         for(size_t t = 0; t + 1 < al.positions_from.size(); t++) {
             matches.push_back(observed.size());
             observed.push_back(alignment_event::match);
-            Sequence from = al.seg_from.contig.seq.Subseq(al.positions_from[t], al.positions_from[t + 1] + 1);
-            Sequence to = al.seg_to.contig.seq.Subseq(al.positions_to[t], al.positions_to[t + 1] + 1);
+            Sequence from = al.seg_from.contig().seq.Subseq(al.positions_from[t], al.positions_from[t + 1] + 1);
+            Sequence to = al.seg_to.contig().seq.Subseq(al.positions_to[t], al.positions_to[t + 1] + 1);
             size_t match = std::min(from.size(), to.size()) - 1;
             size_t diff = std::max(from.size(), to.size()) - match - 1;
             for (size_t i = 1; i < match; i++) {

@@ -120,7 +120,7 @@ void PrintContigs(ParallelRecordCollector<Contig> &collector, const std::experim
 }
 
 int main(int argc, char **argv) {
-    CLParser parser({"reference=", "output-dir=", "threads=8"}, {"reads", "corrected"},
+    CLParser parser({"reference=", "output-dir=", "threads=8"}, {"reads"},
                     {"o=output-dir", "t=threads"});
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
@@ -146,126 +146,71 @@ int main(int argc, char **argv) {
     logger << "Finished reading genome" << std::endl;
     logger << "Building minimap index of reference" << std::endl;
     RawAligner<Contig> aligner(ref, threads, "ava-hifi");
-    logger << "Aligner parts " << aligner.index.size() << std::endl;
     logger << "Finished building minimap index" << std::endl;
     logger << "Aligning and analysing reads" << std::endl;
     io::Library libReads = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     io::Library libCorrected = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("corrected"));
     io::SeqReader reads(libReads);
-    io::SeqReader corrected(libCorrected);
-    std::vector<AlignmentStats> stats(threads);
-    std::vector<AlignmentStats> stats_corrected(threads);
-    ParallelRecordCollector<Contig> strange_reads(threads);
-    ParallelRecordCollector<Contig> bad_reads(threads);
-    ParallelRecordCollector<Contig> nonperfect_reads(threads);
-    ParallelRecordCollector<Contig> unaligned_reads(threads);
-    ParallelRecordCollector<Contig> perfect_reads(threads);
-//    std::vector<Contig> contigs;
-//    for(StringContig contig : corrected) {
-//        contigs.push_back(contig.makeCompressedContig());
-//    }
-//    logger << "Batch test" << std::endl;
-//    aligner.align1(contigs, threads);
-//    logger << "Sequential test" << std::endl;
-//#pragma omp parallel for default(none) shared(aligner, contigs)
-//    for(size_t i = 0; i < contigs.size(); i++) {
-//        aligner.align(contigs[i]);
-//    }
-//    logger << "Done" << std::endl;
-//    corrected.reset();
-    std::vector<double> pis;
-    std::vector<Contig> initial;
-    pis.resize(10000000);
-    initial.resize(10000000);
+    ParallelRecordCollector<Segment<Contig>> segs(threads);
 
     std::function<void(size_t, const Contig &, const std::vector<CigarAlignment<Contig, Contig>> &)> collect_task=
-        [&pis, &initial, &unaligned_reads] (size_t ind, const Contig &read, const std::vector<CigarAlignment<Contig, Contig>> &cigar_als) {
-            std::vector<PositionalAlignment<Contig, Contig>> als = selectAlignments(cigar_als);
-            initial[ind] = read;
-            size_t best = chooseBest(als, read);
-            if(best == size_t(-1)) {
-                pis[ind] = 0;
-            } else {
-                pis[ind] = als[best].pi();
-                VERIFY(als[best].pi() > 0.5);
-            }
-//            if(best == size_t(-1)) {
-//#pragma omp critical
-//                {
-//                    std::cout << "Unaligned " << read.id << std::endl;
-//                }
-//            }
-        };
-    std::function<void(size_t, const Contig &, const std::vector<CigarAlignment<Contig, Contig>> &)> compare_task =
-            [&pis, &initial, &perfect_reads, &nonperfect_reads, &bad_reads, &strange_reads, &unaligned_reads]
-                        (size_t ind, const Contig &corrected, const std::vector<CigarAlignment<Contig, Contig>> &cigar_als){
+            [&segs] (size_t ind, const Contig &read, const std::vector<CigarAlignment<Contig, Contig>> &cigar_als) {
                 std::vector<PositionalAlignment<Contig, Contig>> als = selectAlignments(cigar_als);
-                size_t best = chooseBest(als, corrected);
-                std::vector<std::string> tmp = split(corrected.id);
-                size_t score = 0;
-                if(tmp.size() >= 4) {
-                    score = std::stoll(tmp[3]);
+                size_t best = chooseBest(als, read);
+                if(best != size_t(-1)) {
+                    segs.emplace_back(cigar_als[best].seg_to);
+                    VERIFY(als[best].pi() > 0.5);
                 }
-                if(als.empty()) {
-                    unaligned_reads.emplace_back(initial[ind]);
-                } else if (als[best].isPerfect()) {
-                    perfect_reads.emplace_back(corrected);
-                } else {
-                    nonperfect_reads.emplace_back(corrected);
-                    if(score > 25000) {
-                        bad_reads.emplace_back(initial[ind]);
-                    } else if (score > 0 && score != size_t(-1)) {
-                        strange_reads.emplace_back(initial[ind]);
-                    }
-                }
-                if(!als.empty()) {
-                    if (!als[best].isPerfect() || pis[ind] < 1) {
-#pragma omp critical
-                        {
-                            std::cout << size_t((1 - pis[ind]) * 100000) * 0.001 << " " <<
-                                      size_t((1 - als[best].pi()) * 100000) * 0.001 << " " <<
-                                      corrected.id.substr(initial[ind].id.size()) << std::endl;
-                        }
-                    }
-                } else {
-#pragma omp critical
-                    {
-                        std::cout << "Fail " << als.size() << " " << cigar_als.size() << " " << pis[ind] << std::endl;
-                    }
-                }
-
             };
-
     alignment_recipes::AlignAndProcess(reads.begin(), reads.end(), aligner, collect_task, logger, threads);
-    alignment_recipes::AlignAndProcess(corrected.begin(), corrected.end(), aligner, compare_task, logger, threads);
 
-    logger << "Not aligned " << unaligned_reads.size() << std::endl;
-    logger << "Perfect " << perfect_reads.size() << std::endl;
-    logger << "Nonperfect " << nonperfect_reads.size() << std::endl;
-    logger << "Strange " << strange_reads.size() << std::endl;
-    logger << "Bad " << bad_reads.size() << std::endl;
-    PrintContigs(unaligned_reads, dir / "unaligned.fasta");
-    PrintContigs(perfect_reads, dir / "perfect.fasta");
-    PrintContigs(nonperfect_reads, dir / "nonperfect.fasta");
-    PrintContigs(strange_reads, dir / "strange.fasta");
-    PrintContigs(bad_reads, dir / "bad.fasta");
-    logger << "Printed contigs to files" << std::endl;
-//    AlignmentStats res;
-//    for(const AlignmentStats & stat : stats) {
-//        res = res + stat;
-//    }
-//    logger << "No read alignment " << res.no_align << std::endl;
-//    logger << "Single read alignment " << res.single_align << std::endl;
-//    logger << "Single read alignment is end-to-end " << res.full_align << std::endl;
-//    logger << "Multiple read alignment " << res.multi_align << std::endl;
-//    for(size_t i = 0; i < res.readErrors.size(); i++) {
-//        logger << i << " " << res.readErrors[i] << std::endl;
-//    }
-//    std::ofstream os;
-//    os.open(dir / "ref_errors.info");
-//    for(size_t i = 0; i < res.cov.size(); i++) {
-//        os << res.refErrors[i] << " " << res.cov[i] << std::endl;
-//    }
-//    os.close();
+    logger << "Collecting events" << std::endl;
+    std::vector<std::pair<size_t, int>> events;
+    for(Segment<Contig> & seg : segs) {
+        if(seg.contig() == concatRef){
+            events.emplace_back(seg.left, 1);
+            events.emplace_back(seg.right, -1);
+        } else {
+            events.emplace_back(concatRef.size() - seg.right, 1);
+            events.emplace_back(concatRef.size() - seg.left, -1);
+        }
+    }
+    logger << "Sorting events" << std::endl;
+    std::sort(events.begin(), events.end(), [] (const std::pair<size_t, int> &e1, const std::pair<size_t, int> &e2)
+              {
+                    return e1.first < e2.first || (e1.first == e2.second && e1.second > e2.first);
+              }
+    );
+    logger << "Printing result" << std::endl;
+    size_t start = 0;
+    int cov = 0;
+    int max_cov = 0;
+    std::vector<std::pair<double, Segment<Contig>>> bad;
+    for(size_t i = 0; i < events.size(); i++) {
+        cov +=events[i].second;
+        max_cov = std::max(max_cov, cov);
+        if(cov == 0) {
+            if(max_cov > 3) {
+                double ratio = ( i - start + 1.0) / std::max(events[i].first - events[start].first - 8000, size_t(1));
+                bad.emplace_back(-ratio, concatRef.segment(events[start].first, events[i].first));
+                logger.noTimeSpace() << "New seg " << events[start].first << " " << events[i].first - events[start].first << " " << (i - start + 1) / 2<< std::endl;
+                for(size_t j = start; j <= i; j++) {
+                    logger.noTimeSpace() << events[j].first - events[start].first << " " << events[j].second << std::endl;
+                }
+            } else {
+                logger.noTimeSpace() << "Low covered seg " << events[start].first << " " << events[i].first - events[start].first << std::endl;
+            }
+            start = i + 1;
+            max_cov = 0;
+        }
+    }
+    std::sort(bad.begin(), bad.end());
+    std::ofstream os;
+    os.open(dir / "segments.fasta");
+    for(std::pair<double, Segment<Contig>> & pair : bad) {
+        os << ">" << pair.second.left << "-" << pair.second.size() << "-" << -pair.first << std::endl;
+        os << pair.second.seq() << std::endl;
+    }
+    os.close();
     return 0;
 }

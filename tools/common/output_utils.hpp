@@ -14,15 +14,15 @@ std::ostream& operator<<(std::ostream& out, const std::pair<U, V>& item) {
     return out << "(" << item.first << ", " << item.second << ")";
 }
 
-inline std::ostream& operator<<(std::ostream& out, const unsigned __int128& item) {
-    std::vector<char> res;
-    unsigned __int128 tmp = item;
-    while(tmp != 0) {
-        res.push_back(char((tmp % 10) + '0'));
-        tmp /= 10;
-    }
-    return out << std::string(res.rbegin(), res.rend());
-}
+//inline std::ostream& operator<<(std::ostream& out, const unsigned __int128& item) {
+//    std::vector<char> res;
+//    unsigned __int128 tmp = item;
+//    while(tmp != 0) {
+//        res.push_back(char((tmp % 10) + '0'));
+//        tmp /= 10;
+//    }
+//    return out << std::string(res.rbegin(), res.rend());
+//}
 
 
 template<class T>
