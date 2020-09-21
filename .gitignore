@@ -1,13 +1,10 @@
 # Project exclude paths
-/alignment/CMakeFiles/
 /cmake-build-release/
-/CMakeFiles/
-/minimap2/CMakeFiles/
-/tests/CMakeFiles/
+**/CMakeFiles/
 CMakeCache.txt
 Makefile
-alignment/Makefile
-alignment/libalignment.a
-minimap2/Makefile
-tests/Makefile
+**/*.a
+**/Makefile
 tests/run_tests
+**/*.cmake
+**/*.cbp
