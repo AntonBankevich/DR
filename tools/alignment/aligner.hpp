@@ -192,6 +192,11 @@ namespace alignment_recipes {
     template<class U, class V>
     std::vector<std::vector<CigarAlignment<U, V>>> SplitAlign(const std::vector<const U *> & reads, const std::vector<const V *> & ref, size_t break_size, size_t min_size, const char * preset, size_t thread_num = 1) {
         RawAligner<U> aligner(ref, thread_num, preset);
+        return SplitAlign(reads, aligner, break_size, min_size, preset, thread_num);
+    }
+
+    template<class U, class V>
+    std::vector<std::vector<CigarAlignment<U, V>>> SplitAlign(const std::vector<const U *> & reads, RawAligner<U> &aligner, size_t break_size, size_t min_size, const char * preset, size_t thread_num = 1) {
         if (thread_num == size_t(-1)) {
             thread_num = aligner.default_threads;
         }
