@@ -113,6 +113,7 @@ private:
     omp_lock_t writelock{};
     size_t coverage_ = 0;
     bool canonical = false;
+    bool mark_ = false;
 
 
     explicit Vertex(htype hash, Vertex *_rc) : hash_(hash), rc_(_rc), canonical(false) {
@@ -128,6 +129,18 @@ public:
 
     bool isCanonical() const {
         return canonical;
+    }
+
+    void mark() {
+        mark_ = true;
+    }
+
+    void unmark() {
+        mark_ = false;
+    }
+
+    bool marked() const {
+        return mark_;
     }
 
     void clear() {
@@ -1016,6 +1029,16 @@ public:
         std::swap(v, newv);
     }
 
+    void removeMarked() {
+        std::unordered_map<htype, Vertex<htype>> newv;
+        for(auto & item : v) {
+            if(!item.second.marked()) {
+                newv.emplace(item.first, std::move(item.second));
+            }
+        }
+        std::swap(v, newv);
+    }
+
     void printFasta(std::ostream &out) const {
         size_t cnt = 0;
         for(const auto &it : v) {
@@ -1439,7 +1462,7 @@ void mergeLoop(Vertex<htype> &start, std::vector<Edge<htype>> &path) {
     }
     Sequence newSeq(start.pathSeq(path));
     for(const Edge<htype> &e : path) {
-        e.end()->clear();
+        e.end()->mark();
     }
     start.addEdgeLockFree(Edge<htype>(path.back().end(), newSeq.Subseq(start.seq.size())));
     path.back().end()->rc().addEdgeLockFree(Edge<htype>(&start.rc(), (!newSeq).Subseq(start.seq.size())));
@@ -1462,7 +1485,9 @@ void MergeEdge(SparseDBG<htype> &sdbg, Vertex<htype> &start, const Edge<htype> &
         start.addEdgeLockFree(Edge<htype>(&end.rc(), newSeq.Subseq(start.seq.size())));
         end.addEdgeLockFree(Edge<htype>(&start.rc(), (!newSeq).Subseq(start.seq.size())));
         for(size_t i = 0; i + 1 < path.size(); i++) {
-            path[i].end()->clear();
+//            path[i].end()->clear();
+            path[i].end()->mark();
+            path[i].end()->rc().mark();
         }
         if (start != end)
             end.unlock();
@@ -1524,8 +1549,10 @@ void mergeCyclicPaths(logging::Logger & logger, SparseDBG<htype> &sdbg, size_t t
             [&sdbg](std::pair<const htype, Vertex<htype>> & pair) {
                 Vertex<htype> &start = pair.second;
                 start.lock();
-                if(start.isJunction())
+                if(start.isJunction() || start.marked()) {
+                    start.unlock();
                     return;
+                }
                 std::vector<Edge<htype>> path = start.walkForward(start.getOutgoing()[0]);
                 if (*path.back().end() == start) {
                     bool ismin = true;
@@ -1536,8 +1563,8 @@ void mergeCyclicPaths(logging::Logger & logger, SparseDBG<htype> &sdbg, size_t t
                         }
                     }
                     if(ismin) {
-                        start.unlock();
                         mergeLoop(start, path);
+                        start.unlock();
                     }
                 }
                 start.unlock();
@@ -1580,11 +1607,11 @@ void mergeCyclicPaths(logging::Logger & logger, SparseDBG<htype> &sdbg, size_t t
 template<class htype>
 void mergeAll(logging::Logger & logger, SparseDBG<htype> &sdbg, size_t threads) {
     mergeLinearPaths(logger, sdbg, threads);
-    sdbg.checkConsistency(threads, logger);
+//    sdbg.checkConsistency(threads, logger);
     mergeCyclicPaths(logger, sdbg, threads);
-    sdbg.checkConsistency(threads, logger);
+//    sdbg.checkConsistency(threads, logger);
     logger << "Removing isolated vertices" << std::endl;
-    sdbg.removeIsolated();
+    sdbg.removeMarked();
     logger << "Finished removing isolated vertices" << std::endl;
     sdbg.checkConsistency(threads, logger);
 }

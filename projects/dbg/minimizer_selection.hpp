@@ -9,7 +9,8 @@
 #include "common/omp_utils.hpp"
 
 template<typename htype>
-std::vector<htype> constructMinimizers(logging::Logger &logger, const io::Library &reads_file, size_t threads, const RollingHash<htype> &hasher, const size_t w) {
+std::vector<htype> constructMinimizers(logging::Logger &logger, const io::Library &reads_file, size_t threads,
+                                       const RollingHash<htype> &hasher, const size_t w) {
     logger << "Reading reads" << std::endl;
     std::vector<std::vector<htype>> prev;
     prev.resize(threads);
@@ -36,8 +37,8 @@ std::vector<htype> constructMinimizers(logging::Logger &logger, const io::Librar
     logger << hashs.size() << " hashs collected. Starting sorting." << std::endl;
     std::vector<htype> hash_list = hashs.collectUnique();
     //    TODO replace with parallel std::sort
-    __gnu_parallel::sort(hash_list.begin(), hash_list.end());
-    hash_list.erase(std::unique(hash_list.begin(), hash_list.end()), hash_list.end());
+//    __gnu_parallel::sort(hash_list.begin(), hash_list.end());
+//    hash_list.erase(std::unique(hash_list.begin(), hash_list.end()), hash_list.end());
     logger << "Finished sorting. Total distinct minimizers: " << hash_list.size() << std::endl;
     return hash_list;
 }

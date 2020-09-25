@@ -174,6 +174,10 @@ public:
     KWH<htype> get() const {
         return q.front();
     }
+
+    size_t size() const {
+        return q.size();
+    }
 };
 
 template<typename htype>
@@ -187,8 +191,10 @@ private:
 public:
     MinimizerCalculator(const Sequence& _seq, const RollingHash<htype> &_hasher, size_t _w) :
             seq(_seq), w(_w), kwh(_hasher, seq, 0), pos(-1) {
+        VERIFY(w >= 2); //This code does not work for w = 1
+        VERIFY(seq.size() >= _hasher.k + w - 1)
         queue.push(kwh);
-        for(size_t i = 1; i + 1 < w; i++) {
+        for(size_t i = 1; i < w; i++) {
             kwh = kwh.next();
             queue.push(kwh);
         }
@@ -208,7 +214,7 @@ public:
 
     std::vector<htype> minimizerHashs() {
         std::vector<htype> res;
-        res.push_back(next().hash());
+        res.push_back(queue.get().hash());
         while(hasNext()) {
             htype val = next().hash();
             if(val != res.back()) {
