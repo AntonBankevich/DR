@@ -82,7 +82,7 @@ void processVertex(Vertex<htype> &rec, ParallelRecordCollector<Sequence> &res) {
                 path[i].end()->clearSequence();
             }
             if (!disjointig.empty())
-                res.add(disjointig);
+                res.add(disjointig.copy());
         }
     }
 }
@@ -132,7 +132,7 @@ void extractLinearDisjointigs(SparseDBG<htype> &sdbg, ParallelRecordCollector<Se
                             Edge<htype> &e2 = rec.getOutgoing()[0];
                             disjointig = disjointig + e2.seq.Subseq(0, e2.intCov());
                         }
-                        res.add(disjointig);
+                        res.add(disjointig.copy());
                     }
                 }
             };

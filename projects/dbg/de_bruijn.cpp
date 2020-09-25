@@ -18,6 +18,8 @@
 #include <queue>
 #include <omp.h>
 #include <unordered_set>
+#include <wait.h>
+
 using logging::Logger;
 
 //
@@ -208,30 +210,52 @@ int main(int argc, char **argv) {
     io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     size_t threads = std::stoi(parser.getValue("threads"));
     omp_set_num_threads(threads);
-    std::vector<htype128> hash_list;
-    if (parser.getValue("unique") == "none") {
-        hash_list = constructMinimizers(logger, lib, threads, hasher, w);
-        std::ofstream os;
-        os.open(std::string(dir.c_str()) + "/unique.save");
-        writeHashs(os, hash_list);
-        os.close();
-    } else {
-        logger << "Loading minimizers from file " << parser.getValue("unique") << std::endl;
-        std::ifstream is;
-        is.open(parser.getValue("unique"));
-        readHashs(is, hash_list);
-        is.close();
-    }
     std::vector<Sequence> disjointigs;
     if (parser.getValue("disjointigs") == "none") {
-        disjointigs = constructDisjointigs(hasher, w, lib, hash_list, 1, threads, logger);
-        std::ofstream df;
-        df.open(dir / "disjointigs.fasta");
-        for(size_t i = 0; i < disjointigs.size(); i++) {
-            df << ">" << i << std::endl;
-            df << disjointigs[i] << std::endl;
+        pid_t p = fork();
+        if (p < 0) {
+            std::cout << "Fork failed" << std::endl;
+            return 1;
         }
-        df.close();
+        if(p == 0) {
+            std::vector<htype128> hash_list;
+            if (parser.getValue("unique") == "none") {
+                hash_list = constructMinimizers(logger, lib, threads, hasher, w);
+                std::ofstream os;
+                os.open(std::string(dir.c_str()) + "/unique.save");
+                writeHashs(os, hash_list);
+                os.close();
+            } else {
+                logger << "Loading minimizers from file " << parser.getValue("unique") << std::endl;
+                std::ifstream is;
+                is.open(parser.getValue("unique"));
+                readHashs(is, hash_list);
+                is.close();
+            }
+            disjointigs = constructDisjointigs(hasher, w, lib, hash_list, 1, threads, logger);
+            hash_list.clear();
+            std::ofstream df;
+            df.open(dir / "disjointigs.fasta");
+            for (size_t i = 0; i < disjointigs.size(); i++) {
+                df << ">" << i << std::endl;
+                df << disjointigs[i] << std::endl;
+            }
+            df.close();
+            return 0;
+        } else {
+            int status = 0;
+            std::cout << "Waiting" << std::endl;
+            waitpid(p, &status, 0);
+            if (WEXITSTATUS(status) || WIFSIGNALED(status)) {
+                std::cout << "Child process crashed" << std::endl;
+                return 1;
+            }
+            logger << "Loading disjointigs from file " << (dir / "disjointigs.fasta") << std::endl;
+            io::SeqReader reader(dir / "disjointigs.fasta");
+            while(!reader.eof()) {
+                disjointigs.push_back(reader.read().makeCompressedSequence());
+            }
+        }
     } else {
         logger << "Loading disjointigs from file " << parser.getValue("disjointigs") << std::endl;
         io::SeqReader reader(parser.getValue("disjointigs"));

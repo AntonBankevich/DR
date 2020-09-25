@@ -71,7 +71,7 @@ class Sequence {
         size_t bytes_size = DataSize(size_);
         ST *bytes = data_->data();
         if(!(is_dignucl(s[0]) || is_nucl(s[0]))) {
-            std::cout << "Bad nucleotide sequence " << size_ << " " << s << std::endl;
+            std::cerr << "Bad nucleotide sequence " << size_ << " " << s << std::endl;
         }
         VERIFY(is_dignucl(s[0]) || is_nucl(s[0]));
 
@@ -180,6 +180,10 @@ public:
         data_ = rhs.data_;
 
         return *this;
+    }
+
+    Sequence copy() const {
+        return Sequence(str());
     }
 
     unsigned char operator[](const size_t index) const {
