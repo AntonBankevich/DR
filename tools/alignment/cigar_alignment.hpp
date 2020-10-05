@@ -141,11 +141,11 @@ struct CigarAlignment {
             } else if (prev != finish) {
                 size_t len = 0;
                 for(size_t i = event.from_pos; i + 1 < event.from_end(); i++) {
-                    if(seg_from.contig()[i] != al.seg_from.contig()[i + 1])
+                    if(al.seg_from.contig()[i] != al.seg_from.contig()[i + 1])
                         len += 1;
                 }
                 for(size_t i = event.to_pos; i + 1 < event.to_end(); i++) {
-                    if(seg_to.contig()[i] != al.seg_to.contig()[i + 1])
+                    if(al.seg_to.contig()[i] != al.seg_to.contig()[i + 1])
                         len += 1;
                 }
                 if(len > break_size) {

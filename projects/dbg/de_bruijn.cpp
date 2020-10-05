@@ -184,6 +184,57 @@ void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, Logger
     logger.noTimeSpace() << cov_bad << std::endl << cov_bad_len << std::endl;
 }
 
+void
+CalculateCoverage(const std::experimental::filesystem::path &dir, const RollingHash<htype128> &hasher, const size_t w,
+                  const io::Library &lib, size_t threads, Logger &logger, SparseDBG<htype128> &dbg) {
+    logger << "Calculating edge coverage." << std::endl;
+    dbg.fillAnchors(w, logger, threads);
+    io::SeqReader reader(lib);
+    fillCoverage(dbg, logger, reader.begin(), reader.end(), threads, hasher, w + hasher.k - 1);
+    std::ofstream os;
+    os.open(dir / "coverages.save");
+    os << dbg.size() << std::endl;
+    for (std::pair<const htype128, Vertex<htype128>> &pair : dbg) {
+        Vertex<htype128> &v = pair.second;
+        os << v.hash() << " " << v.outDeg() << " " << v.inDeg() << std::endl;
+        for (const Edge<htype128> &edge : v.getOutgoing()) {
+            os << size_t(edge.seq[0]) << " " << edge.intCov() << std::endl;
+        }
+        for (const Edge<htype128> &edge : v.rc().getOutgoing()) {
+            os << size_t(edge.seq[0]) << " " << edge.intCov() << std::endl;
+        }
+    }
+    dbg.printCoverageStats(logger);
+    os.close();
+}
+
+void LoadCoverage(const CLParser &parser, Logger &logger, SparseDBG<htype128> &dbg) {
+    logger << "Loading edge coverages." << std::endl;
+    std::ifstream is;
+    is.open(parser.getValue("coverages"));
+    size_t n;
+    is >> n;
+    for (size_t i = 0; i < n; i++) {
+        htype128 vid;
+        is >> vid;
+        Vertex<htype128> *v = &dbg.getVertex(vid);
+        size_t inDeg, outDeg;
+        is >> outDeg >> inDeg;
+        for (size_t j = 0; j < inDeg + outDeg; j++) {
+            if (j == outDeg)
+                v = &v->rc();
+            size_t next;
+            is >> next;
+            Edge<htype128> &edge = v->getOutgoing(char(next));
+            size_t cov;
+            is >> cov;
+            edge.incCov(cov);
+        }
+    }
+    is.close();
+    logger << "Finished loading edge coverages." << std::endl;
+}
+
 int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "dbg=none", "coverages=none", "segments=none", "dbg=none", "output-dir=",
                      "threads=8", "k-mer-size=7000", "window=3000", "base=239", "debug", "disjointigs=none", "reference=none",
@@ -291,55 +342,16 @@ int main(int argc, char **argv) {
         edges.close();
     }
 
-    dbg.fillAnchors(w, logger, threads);
 
-    if(parser.getValue("coverages") == "none") {
-        logger << "Calculating edge coverage." << std::endl;
-        io::SeqReader reader(lib);
-        fillCoverage(dbg, logger, reader.begin(), reader.end(), threads, hasher, w + hasher.k - 1);
-        std::ofstream os;
-        os.open(dir / "coverages.save");
-        os << dbg.size() << std::endl;
-        for(std::pair<const htype128, Vertex<htype128>> & pair : dbg) {
-            Vertex<htype128> &v = pair.second;
-            os << v.hash() << " " << v.outDeg() << " " << v.inDeg() << std::endl;
-            for(const Edge<htype128> &edge : v.getOutgoing()) {
-                os << size_t(edge.seq[0]) << " " << edge.intCov() << std::endl;
-            }
-            for(const Edge<htype128> &edge : v.rc().getOutgoing()) {
-                os << size_t(edge.seq[0]) << " " << edge.intCov() << std::endl;
-            }
+    if (parser.getCheck("correct") || parser.getValue("segments") != "none" || parser.getValue("reference") != "none") {
+        if (parser.getValue("coverages") == "none") {
+            CalculateCoverage(dir, hasher, w, lib, threads, logger, dbg);
+        } else {
+            LoadCoverage(parser, logger, dbg);
         }
-        os.close();
-    } else {
-        logger << "Loading edge coverages." << std::endl;
-        std::ifstream is;
-        is.open(parser.getValue("coverages"));
-        size_t n;
-        is >> n;
-        for(size_t i = 0; i < n; i++) {
-            htype128 vid;
-            is >> vid;
-            Vertex<htype128> *v = &dbg.getVertex(vid);
-            size_t inDeg, outDeg;
-            is >> outDeg >> inDeg;
-            for(size_t j = 0; j < inDeg + outDeg; j++) {
-                if(j == outDeg)
-                    v = &v->rc();
-                size_t next;
-                is >> next;
-                Edge<htype128> & edge = v->getOutgoing(char(next));
-                size_t cov;
-                is >> cov;
-                edge.incCov(cov);
-            }
-        }
-        is.close();
-        logger << "Finished loading edge coverages." << std::endl;
     }
 
 //    findTips(logger, dbg, threads);
-    dbg.printCoverageStats(logger);
     if(parser.getCheck("correct")) {
         io::SeqReader reader(lib);
         error_correction::correctSequences(dbg, logger, reader.begin(), reader.end(),
