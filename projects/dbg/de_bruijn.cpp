@@ -237,7 +237,7 @@ void LoadCoverage(const CLParser &parser, Logger &logger, SparseDBG<htype128> &d
 
 int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "dbg=none", "coverages=none", "segments=none", "dbg=none", "output-dir=",
-                     "threads=8", "k-mer-size=7000", "window=3000", "base=239", "debug", "disjointigs=none", "reference=none",
+                     "threads=8", "k-mer-size=5000", "window=3000", "base=239", "debug", "disjointigs=none", "reference=none",
                      "correct"},
                     {"reads"},
             {"o=output-dir", "t=threads", "k=k-mer-size","w=window"});
@@ -256,7 +256,12 @@ int main(int argc, char **argv) {
         logger.noTimeSpace() << argv[i] << " ";
     }
     logger.noTimeSpace() << std::endl;
-    RollingHash<htype128> hasher(std::stoi(parser.getValue("k-mer-size")), std::stoi(parser.getValue("base")));
+    size_t k = std::stoi(parser.getValue("k-mer-size"));
+    if (k % 2 == 0) {
+        logger << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
+        k += 1;
+    }
+    RollingHash<htype128> hasher(k, std::stoi(parser.getValue("base")));
     const size_t w = std::stoi(parser.getValue("window"));
     io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     size_t threads = std::stoi(parser.getValue("threads"));
