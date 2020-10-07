@@ -438,6 +438,7 @@ public:
     }
 };
 
+
 template<typename htype>
 class Path {
 private:
@@ -1046,19 +1047,18 @@ public:
             VERIFY(!vertex.seq.empty());
             for(size_t i = 0; i < vertex.outDeg(); i++) {
                 Sequence tmp = vertex.seq + vertex.getOutgoing()[i].seq;
-                if (tmp <= !tmp) {
-                    out << ">" << cnt << " " << vertex.hash() << " " << vertex.getOutgoing()[i].end()->hash() << std::endl;
-                    cnt++;
-                    out << tmp.str() << "\n";
-                }
+                Vertex<htype> &end = *vertex.getOutgoing()[i].end();
+                out << ">" << cnt << "_" << vertex.hash() << "1_" << end.hash() << int(end.isCanonical()) << std::endl;
+                cnt++;
+                out << tmp.str() << "\n";
             }
-            for(size_t i = 0; i < vertex.inDeg(); i++) {
-                Sequence tmp = vertex.rc().seq + vertex.rc().getOutgoing()[i].seq;
-                if (tmp <= !tmp) {
-                    out << ">" << cnt << " " << vertex.rc().hash() << " " << vertex.rc().getOutgoing()[i].end()->hash() << std::endl;
-                    cnt++;
-                    out << tmp.str() << "\n";
-                }
+            const Vertex<htype> &rcvertex = vertex.rc();
+            for(size_t i = 0; i < rcvertex.outDeg(); i++) {
+                Sequence tmp = rcvertex.seq + rcvertex.getOutgoing()[i].seq;
+                Vertex<htype> &end = *rcvertex.getOutgoing()[i].end();
+                out << ">" << cnt << "_" << rcvertex.hash() << "1_" << end.hash() << int(end.isCanonical()) << std::endl;
+                cnt++;
+                out << tmp.str() << "\n";
             }
         }
     }

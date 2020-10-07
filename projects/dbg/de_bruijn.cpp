@@ -188,7 +188,6 @@ void
 CalculateCoverage(const std::experimental::filesystem::path &dir, const RollingHash<htype128> &hasher, const size_t w,
                   const io::Library &lib, size_t threads, Logger &logger, SparseDBG<htype128> &dbg) {
     logger << "Calculating edge coverage." << std::endl;
-    dbg.fillAnchors(w, logger, threads);
     io::SeqReader reader(lib);
     fillCoverage(dbg, logger, reader.begin(), reader.end(), threads, hasher, w + hasher.k - 1);
     std::ofstream os;
@@ -238,7 +237,7 @@ void LoadCoverage(const CLParser &parser, Logger &logger, SparseDBG<htype128> &d
 int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "dbg=none", "coverages=none", "segments=none", "dbg=none", "output-dir=",
                      "threads=8", "k-mer-size=5000", "window=3000", "base=239", "debug", "disjointigs=none", "reference=none",
-                     "correct"},
+                     "correct", "align=none"},
                     {"reads"},
             {"o=output-dir", "t=threads", "k=k-mer-size","w=window"});
     parser.parseCL(argc, argv);
@@ -320,19 +319,22 @@ int main(int argc, char **argv) {
         }
     }
     std::vector<htype128> vertices;
-    if (parser.getValue("vertices") == "none") {
-        vertices = findJunctions(logger, disjointigs, hasher, threads);
-        std::ofstream os;
-        os.open(std::string(dir.c_str()) + "/vertices.save");
-        writeHashs(os, vertices);
-        os.close();
-    } else {
-        logger << "Loading vertex hashs from file " << parser.getValue("vertices") << std::endl;
-        std::ifstream is;
-        is.open(parser.getValue("vertices"));
-        readHashs(is, vertices);
-        is.close();
+    if (parser.getValue("dbg") == "none") {
+        if (parser.getValue("vertices") == "none") {
+            vertices = findJunctions(logger, disjointigs, hasher, threads);
+            std::ofstream os;
+            os.open(std::string(dir.c_str()) + "/vertices.save");
+            writeHashs(os, vertices);
+            os.close();
+        } else {
+            logger << "Loading vertex hashs from file " << parser.getValue("vertices") << std::endl;
+            std::ifstream is;
+            is.open(parser.getValue("vertices"));
+            readHashs(is, vertices);
+            is.close();
+        }
     }
+
     SparseDBG<htype128> dbg = parser.getValue("dbg") == "none" ?
             constructDBG(logger, vertices, disjointigs, hasher, threads) :
           SparseDBG<htype128>::loadDBGFromFasta({std::experimental::filesystem::path(parser.getValue("dbg"))},
@@ -347,6 +349,10 @@ int main(int argc, char **argv) {
         edges.close();
     }
 
+    if (parser.getValue("align") != "none" || parser.getCheck("correct") || parser.getValue("segments") != "none"
+                || parser.getValue("reference") != "none") {
+        dbg.fillAnchors(w, logger, threads);
+    }
 
     if (parser.getCheck("correct") || parser.getValue("segments") != "none" || parser.getValue("reference") != "none") {
         if (parser.getValue("coverages") == "none") {
@@ -354,6 +360,30 @@ int main(int argc, char **argv) {
         } else {
             LoadCoverage(parser, logger, dbg);
         }
+    }
+
+    if (parser.getValue("align") != "none") {
+        std::ofstream os(dir / "alignments.txt");
+        io::SeqReader reader(parser.getValue("align"));
+        std::string acgt = "ACGT";
+        for(auto contig : reader) {
+            Contig read = contig.makeCompressedContig();
+            if(read.size() < w + hasher.k - 1)
+                continue;
+            Path<htype128> path = dbg.align(read.seq).path();
+            os << read.id << " " << path.start().hash() << int(path.start().isCanonical()) << " ";
+            for (size_t i = 0; i < path.size(); i++) {
+                os << acgt[path[i].seq[0]];
+            }
+            os << "\n";
+            Path<htype128> path1 = dbg.align(!read.seq).path();
+            os << "-" << read.id << " " << path1.start().hash() << int(path1.start().isCanonical()) << " ";
+            for (size_t i = 0; i < path1.size(); i++) {
+                os << acgt[path1[i].seq[0]];
+            }
+            os << "\n";
+        }
+        os.close();
     }
 
 //    findTips(logger, dbg, threads);
