@@ -1048,7 +1048,8 @@ public:
             for(size_t i = 0; i < vertex.outDeg(); i++) {
                 Sequence tmp = vertex.seq + vertex.getOutgoing()[i].seq;
                 Vertex<htype> &end = *vertex.getOutgoing()[i].end();
-                out << ">" << cnt << "_" << vertex.hash() << "1_" << end.hash() << int(end.isCanonical()) << std::endl;
+                out << ">" << cnt << "_" << vertex.hash() << int(vertex.isCanonical()) <<
+                       "_" << end.hash() << int(end.isCanonical()) << std::endl;
                 cnt++;
                 out << tmp.str() << "\n";
             }
@@ -1056,7 +1057,8 @@ public:
             for(size_t i = 0; i < rcvertex.outDeg(); i++) {
                 Sequence tmp = rcvertex.seq + rcvertex.getOutgoing()[i].seq;
                 Vertex<htype> &end = *rcvertex.getOutgoing()[i].end();
-                out << ">" << cnt << "_" << rcvertex.hash() << "1_" << end.hash() << int(end.isCanonical()) << std::endl;
+                out << ">" << cnt << "_" << rcvertex.hash() << int(rcvertex.isCanonical()) <<
+                       "_" << end.hash() << int(end.isCanonical()) << std::endl;
                 cnt++;
                 out << tmp.str() << "\n";
             }
