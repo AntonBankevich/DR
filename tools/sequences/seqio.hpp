@@ -93,7 +93,7 @@ namespace io {
                     std::stringstream ss;
                     ss << seq;
                     size_t cnt = 0;
-                    while(!stream->eof() && stream->peek() != '>' && stream->peek() != '+') {
+                    while(stream->peek() != EOF && stream->peek() != '>' && stream->peek() != '+') {
                         std::getline(*stream, seq);
                         trim(seq);
                         if (seq.empty())
