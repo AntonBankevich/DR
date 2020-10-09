@@ -6,6 +6,27 @@
 #include <parallel/algorithm>
 #include <omp.h>
 #include <utility>
+#include <numeric>
+
+
+class ParallelCounter {
+    std::vector<size_t> cnt;
+public:
+    explicit ParallelCounter(size_t thread_num) : cnt(thread_num){
+    }
+
+    void operator++() {
+        cnt[omp_get_thread_num()]++;
+    }
+
+    void operator+=(const size_t val) {
+        cnt[omp_get_thread_num()] += val;
+    }
+
+    size_t get() const {
+        return std::accumulate(cnt.begin(), cnt.end(), size_t(0));
+    }
+};
 
 template<class T>
 class ParallelRecordCollector {
