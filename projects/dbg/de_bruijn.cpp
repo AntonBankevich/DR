@@ -237,7 +237,7 @@ void LoadCoverage(const CLParser &parser, Logger &logger, SparseDBG<htype128> &d
 int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "dbg=none", "coverages=none", "segments=none", "dbg=none", "output-dir=",
                      "threads=8", "k-mer-size=5000", "window=3000", "base=239", "debug", "disjointigs=none", "reference=none",
-                     "correct", "align=none"},
+                     "correct", "align=none", "simplify"},
                     {"reads"},
             {"o=output-dir", "t=threads", "k=k-mer-size","w=window"});
     parser.parseCL(argc, argv);
@@ -354,7 +354,8 @@ int main(int argc, char **argv) {
         dbg.fillAnchors(w, logger, threads);
     }
 
-    if (parser.getCheck("correct") || parser.getValue("segments") != "none" || parser.getValue("reference") != "none") {
+    if (parser.getCheck("simplify") || parser.getCheck("correct") ||
+            parser.getValue("segments") != "none" || parser.getValue("reference") != "none") {
         if (parser.getValue("coverages") == "none") {
             CalculateCoverage(dir, hasher, w, lib, threads, logger, dbg);
         } else {
@@ -416,6 +417,30 @@ int main(int argc, char **argv) {
     }
     if (parser.getValue("reference") != "none") {
         analyseGenome(dbg, parser.getValue("reference"), logger);
+    }
+    if (parser.getCheck("simplify")) {
+        logger << "Removing low covered edges" << std::endl;
+        std::vector<Sequence> edges;
+        std::vector<htype128> vertices_again;
+        for(auto & it : dbg) {
+            vertices_again.push_back(it.first);
+            Vertex<htype128> &vert = it.second;
+            for(Edge<htype128> & edge : vert.getOutgoing()) {
+                if (edge.getCoverage() >= 4)
+                    edges.push_back(vert.seq + edge.seq);
+            }
+            for(Edge<htype128> & edge : vert.rc().getOutgoing()) {
+                if (edge.getCoverage() >= 4)
+                    edges.push_back(vert.rc().seq + edge.seq);
+            }
+        }
+        SparseDBG<htype128> simp_dbg(vertices_again.begin(), vertices_again.end(), hasher);
+        simp_dbg.fillSparseDBGEdges(edges.begin(), edges.end(), logger, threads, 0);
+        mergeAll(logger, simp_dbg, threads);
+        std::ofstream simp_os;
+        simp_os.open(dir / "simp_graph.fasta");
+        simp_dbg.printFasta(simp_os);
+        simp_os.close();
     }
     logger << "DBG construction finished" << std::endl;
     return 0;
