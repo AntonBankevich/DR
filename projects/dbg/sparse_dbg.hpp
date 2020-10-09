@@ -332,18 +332,19 @@ public:
         }
     }
 
-    void addEdgeLockFree(const Edge<htype> &edge) {
+    Edge<htype> & addEdgeLockFree(const Edge<htype> &edge) {
         for(Edge<htype> & e : outgoing_) {
             if (edge.size() <= e.size()) {
                 if (edge.seq == e.seq.Subseq(0, edge.size())) {
-                    return;
+                    return e;
                 }
             } else if (edge.seq.Subseq(0, e.size()) == e.seq) {
                 e = edge;
-                return;
+                return e;
             }
         }
         outgoing_.emplace_back(edge);
+        return outgoing_.back();
     }
 
     void addEdge(const Edge<htype> &e) {
@@ -843,8 +844,44 @@ public:
         return std::move(res);
     }
 
+    void printEdge(std::ostream &os, Vertex<htype> & start, Edge<htype> &edge) {
+        Vertex<htype> &end = *edge.end();
+        os << "\"";
+        if (!start.isCanonical())
+            os << "-";
+        os << start.hash() % 10000 << "\" -> \"";
+        if (!end.isCanonical())
+            os << "-";
+        os << end.hash() % 10000  << "\" [label=\"" << edge.size() << "(" << edge.getCoverage() << ")\"]\n";
+    }
+    void printDot(std::ostream &os) {
+        os << "digraph {\nnodesep = 0.5;\n";
+        for(std::pair<const htype, Vertex<htype>> & it : this->v) {
+            Vertex<htype> &start = it.second;
+            for(Edge<htype> &edge : start.getOutgoing()) {
+                Vertex<htype> &end = *edge.end();
+                printEdge(os, start, edge);
+                if(v.find(end.hash()) == v.end()) {
+                    printEdge(os, end.rc(), start.rcEdge(edge));
+                }
+            }
+            for(Edge<htype> &edge : start.rc().getOutgoing()) {
+                Vertex<htype> &end = *edge.end();
+                printEdge(os, start.rc(), edge);
+                if(v.find(end.hash()) == v.end()) {
+                    printEdge(os, end.rc(), start.rc().rcEdge(edge));
+                }
+            }
+        }
+        os << "}\n";
+    }
+
+
     void processRead(const Sequence & seq) {
         std::vector<KWH<htype>> kmers = extractVertexPositions(seq);
+        if(kmers.size() == 0) {
+            std::cout << seq << std::endl;
+        }
         VERIFY(kmers.size() > 0);
         std::vector<Vertex<htype> *> vertices;
         for(size_t i = 0; i < kmers.size(); i++) {
@@ -885,6 +922,8 @@ public:
         size_t isolatedSize = 0;
         size_t n11 = 0;
         size_t n01 = 0;
+        size_t ltips = 0;
+        size_t ntips = 0;
         size_t e = 0;
         std::vector<size_t> inout(25);
         for(auto &val: v) {
@@ -927,6 +966,12 @@ public:
             }
             if (tmp.inDeg() + tmp.outDeg() == 1) {
                 n01 += 1;
+                Edge<htype> tip_edge = tmp.outDeg() == 1 ? tmp.getOutgoing()[0] : tmp.rc().getOutgoing()[0];
+                if (tip_edge.end()->outDeg() > 1) {
+                    ltips += tip_edge.size();
+                    ntips += 1;
+                }
+
             }
             for(const Edge<htype> &edge : tmp.getOutgoing()) {
                 e += 1;
@@ -995,7 +1040,7 @@ public:
             for(size_t val : cov_ldist[i]) {
                 logger.noTimeSpace() << " " << val;
             }
-            std::cout << std::endl;
+            logger.noTimeSpace() << std::endl;
             logger.noTimeSpace() << i << " " << cov_tips[i] << " " << covLen_tips[i];
             for(size_t val : cov_ldist_tips[i]) {
                 logger.noTimeSpace() << " " << val;
@@ -1457,21 +1502,16 @@ void mergeLoop(Vertex<htype> &start, std::vector<Edge<htype>> &path) {
     if(path.size() % 2 == 0 && *path[path.size() / 2].end() == start.rc()) {
         path =std::vector<Edge<htype>>(path.begin(), path.begin() + path.size() / 2);
     }
-    start.rc().lock();
-    for(const Edge<htype> &e : path) {
-        e.end()->lock();
-        e.end()->rc().lock();
-    }
     Sequence newSeq(start.pathSeq(path));
+    size_t cov = 0;
     for(const Edge<htype> &e : path) {
         e.end()->mark();
+        cov += e.intCov();
     }
-    start.addEdgeLockFree(Edge<htype>(path.back().end(), newSeq.Subseq(start.seq.size())));
-    path.back().end()->rc().addEdgeLockFree(Edge<htype>(&start.rc(), (!newSeq).Subseq(start.seq.size())));
-    for(const Edge<htype> &e : path) {
-        e.end()->unlock();
-        e.end()->rc().unlock();
-    }
+    Edge<htype> &new_edge = start.addEdgeLockFree(Edge<htype>(path.back().end(), newSeq.Subseq(start.seq.size())));
+    new_edge.incCov(cov - new_edge.intCov());
+    Edge<htype> &rc_new_edge = path.back().end()->rc().addEdgeLockFree(Edge<htype>(&start.rc(), (!newSeq).Subseq(start.seq.size())));
+    rc_new_edge.incCov(cov - rc_new_edge.intCov());
 }
 
 template<class htype>
@@ -1484,13 +1524,18 @@ void MergeEdge(SparseDBG<htype> &sdbg, Vertex<htype> &start, const Edge<htype> &
         Sequence newSeq(start.pathSeq(path));
         if (start != end)
             end.lock();
-        start.addEdgeLockFree(Edge<htype>(&end.rc(), newSeq.Subseq(start.seq.size())));
-        end.addEdgeLockFree(Edge<htype>(&start.rc(), (!newSeq).Subseq(start.seq.size())));
+        size_t cov = 0;
         for(size_t i = 0; i + 1 < path.size(); i++) {
 //            path[i].end()->clear();
             path[i].end()->mark();
             path[i].end()->rc().mark();
+            cov += path[i].intCov();
         }
+        cov += path.back().intCov();
+        Edge<htype> &new_edge = start.addEdgeLockFree(Edge<htype>(&end.rc(), newSeq.Subseq(start.seq.size())));
+        Edge<htype> &rc_new_edge = end.addEdgeLockFree(Edge<htype>(&start.rc(), (!newSeq).Subseq(start.seq.size())));
+        new_edge.incCov(cov - new_edge.intCov());
+        rc_new_edge.incCov(cov - rc_new_edge.intCov());
         if (start != end)
             end.unlock();
     }
@@ -1547,67 +1592,40 @@ void mergeLinearPaths(logging::Logger & logger, SparseDBG<htype> &sdbg, size_t t
 template<class htype>
 void mergeCyclicPaths(logging::Logger & logger, SparseDBG<htype> &sdbg, size_t threads) {
     logger << "Merging cyclic paths" << std::endl;
+    ParallelRecordCollector<htype> loops(threads);
     std::function<void(std::pair<const htype, Vertex<htype>> &)> task =
-            [&sdbg](std::pair<const htype, Vertex<htype>> & pair) {
+            [&sdbg, &loops](std::pair<const htype, Vertex<htype>> & pair) {
                 Vertex<htype> &start = pair.second;
-                start.lock();
                 if(start.isJunction() || start.marked()) {
-                    start.unlock();
                     return;
                 }
                 std::vector<Edge<htype>> path = start.walkForward(start.getOutgoing()[0]);
-                if (*path.back().end() == start) {
-                    bool ismin = true;
-                    for (const Edge<htype> &e : path) {
-                        if (e.end()->hash() < start.hash()) {
-                            ismin = false;
-                            break;
-                        }
+                VERIFY(*path.back().end() == start);
+                bool ismin = true;
+                for (const Edge<htype> &e : path) {
+                    if (e.end()->hash() < start.hash() || (e.end()->hash() == start.hash() && e.end()->isCanonical())) {
+                        ismin = false;
+                        break;
                     }
-                    if(ismin) {
-                        mergeLoop(start, path);
-                        start.unlock();
-                    }
+                }
+                if(ismin) {
+                    loops.emplace_back(start.hash());
                 }
                 start.unlock();
             };
     processObjects(sdbg.begin(), sdbg.end(), logger, threads, task);
-
-//#pragma omp parallel default(none) shared(sdbg)
-//    {
-//#pragma omp single
-//        {
-//            for( auto &it: sdbg) {
-//                Vertex<htype> &start =  it.second;
-//#pragma omp task default(none) shared(start, sdbg)
-//                {
-//                    start.lock();
-//                    if(start.inDeg() == 1 && start.outDeg() == 1) {
-//                        std::vector<Edge<htype>> path = start.walkForward(start.getOutgoing()[0]);
-//                        if (*path.back().end() == start) {
-//                            bool ismin = true;
-//                            for (const Edge<htype> &e : path) {
-//                                if (e.end()->hash() < start.hash()) {
-//                                    ismin = false;
-//                                    break;
-//                                }
-//                            }
-//                            if(ismin) {
-//                                start.unlock();
-//                                mergeLoop(start, path);
-//                            }
-//                        }
-//                    }
-//                    start.unlock();
-//                }
-//            }
-//        }
-//    }
+    logger << "Found " << loops.size() << " perfect loops" << std::endl;
+    for(htype loop : loops) {
+        Vertex<htype> &start = sdbg.getVertex(loop);
+        std::vector<Edge<htype>> path = start.walkForward(start.getOutgoing()[0]);
+        mergeLoop(start, path);
+    }
     logger << "Finished merging cyclic paths" << std::endl;
 }
 
 template<class htype>
 void mergeAll(logging::Logger & logger, SparseDBG<htype> &sdbg, size_t threads) {
+    logger << "Merging unbranching paths" << std::endl;
     mergeLinearPaths(logger, sdbg, threads);
 //    sdbg.checkConsistency(threads, logger);
     mergeCyclicPaths(logger, sdbg, threads);

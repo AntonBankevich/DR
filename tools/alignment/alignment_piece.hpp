@@ -68,6 +68,16 @@ struct PositionalAlignment {
         return double(positions_from.size()) / std::max(seg_from.size(), seg_to.size());
     }
 
+    size_t diff_number() {
+        size_t res = 0;
+        for (size_t i = 0; i + 1 < positions_from.size(); i++){
+            if (positions_from[i + 1] - positions_from[i] != 1 || positions_to[i + 1] - positions_to[i] != 1) {
+                res += 1;
+            }
+        }
+        return res;
+    }
+
     bool isPerfect() {
         return positions_from.size() == seg_from.size() && seg_from.size() == seg_to.size();
     }

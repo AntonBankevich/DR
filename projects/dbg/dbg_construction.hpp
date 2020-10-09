@@ -41,6 +41,7 @@ std::vector<htype> findJunctions(logging::Logger & logger, const std::vector<Seq
     ParallelRecordCollector<htype> junctions(threads);
     std::function<void(const Sequence &)> junk_task = [&filter, &hasher, &junctions](const Sequence & seq) {
         KWH<htype> kmer(hasher, seq, 0);
+        size_t cnt = 0;
         while (true) {
             size_t cnt1 = 0;
             size_t cnt2 = 0;
@@ -49,12 +50,16 @@ std::vector<htype> findJunctions(logging::Logger & logger, const std::vector<Seq
                 cnt2 += filter.contains(kmer.extendLeft(c));
             }
             if (cnt1 != 1 || cnt2 != 1) {
+                cnt += 1;
                 junctions.emplace_back(kmer.hash());
             }
             VERIFY(cnt1 <= 4 && cnt2 <= 4);
             if (!kmer.hasNext())
                 break;
             kmer = kmer.next();
+        }
+        if (cnt == 0) {
+            junctions.emplace_back(KWH<htype>(hasher, seq, 0).hash());
         }
     };
 
