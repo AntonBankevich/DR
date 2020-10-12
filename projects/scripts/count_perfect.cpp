@@ -79,7 +79,7 @@ void PrintContigs(ParallelRecordCollector<Contig> &collector, const std::experim
 }
 
 int main(int argc, char **argv) {
-    CLParser parser({"reference=", "threads=8"}, {"reads"},
+    CLParser parser({"reference=", "downsample=none", "threads=8"}, {"reads"},
                     {"t=threads"});
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
@@ -108,20 +108,50 @@ int main(int argc, char **argv) {
     io::SeqReader reads(libReads);
     ParallelCounter perfect_reads(threads);
     ParallelCounter all_reads(threads);
+    ParallelCounter len(threads);
+    ParallelCounter errors(threads);
+    ParallelRecordCollector<size_t> hist(threads);
+
 
     std::function<void(size_t, const Contig &, const std::vector<CigarAlignment<Contig, Contig>> &)> compare_task =
-            [&perfect_reads, &all_reads]
+            [&perfect_reads, &all_reads, &len, &errors, &hist]
                     (size_t ind, const Contig &corrected, const std::vector<CigarAlignment<Contig, Contig>> &cigar_als){
                 std::vector<PositionalAlignment<Contig, Contig>> als = selectAlignments(cigar_als);
                 size_t best = chooseBest(als, corrected);
-                if(!als.empty() && als[best].isPerfect()) {
-                    ++perfect_reads;
+                if(!als.empty()){
+                    if(als[best].isPerfect()) {
+                        ++perfect_reads;
+                        hist.emplace_back(0);
+                    } else {
+                        errors += als[best].diff_number();
+                        hist.emplace_back(als[best].diff_number());
+                    }
                 }
                 ++all_reads;
+                len += corrected.size();
             };
-
-    alignment_recipes::AlignAndProcess(reads.begin(), reads.end(), aligner, compare_task, logger, threads);
+    if(parser.getValue("downsample") == "none")
+        alignment_recipes::AlignAndProcess(reads.begin(), reads.end(), aligner, compare_task, logger, threads);
+    else {
+        size_t rnum = std::stoull(parser.getValue("downsample"));
+        std::vector<StringContig> readSeqs;
+        for(StringContig read : reads) {
+            readSeqs.emplace_back(std::move(read));
+            if (readSeqs.size() == rnum)
+                break;
+        }
+        alignment_recipes::AlignAndProcess(readSeqs.begin(), readSeqs.end(), aligner, compare_task, logger, threads);
+    }
     logger << "Perfect " << perfect_reads.get() << std::endl;
+    logger << "Errors " << errors.get() << std::endl;
+    logger << "Errorrate " << double(errors.get()) / len.get() << std::endl;
     logger << "All " << all_reads.get() << std::endl;
+    std::vector<size_t> h(30);
+    for (size_t e : hist) {
+        h[std::min(h.size() - 1, e)] += 1;
+    }
+    for(size_t i = 0; i < h.size(); i++) {
+        std::cout << i << ": " << h[i] << std::endl;
+    }
     return 0;
 }
