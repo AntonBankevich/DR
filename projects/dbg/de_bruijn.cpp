@@ -111,76 +111,51 @@ void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, Logger
     logger << "Finished reading reference. Starting alignment" << std::endl;
     std::vector<std::pair<Edge<htype128> const *, size_t>> path;
     for(StringContig & contig : ref) {
-        auto tmp = dbg.carefulAlign(contig.makeCompressedSequence());
+        auto tmp = dbg.align(contig.makeCompressedSequence());
         logger << "Aligned chromosome " << contig.id << " . Path length " << tmp.size() << std::endl;
         path.insert(path.end(), tmp.begin(), tmp.end());
     }
     logger << "Reference path consists of " << path.size() << " edges" << std::endl;
-    std::vector<size_t> fill_distr(11);
-    std::vector<size_t> fill_distr_len(11);
-    for(const std::pair<const Edge<htype128> *, size_t> & val : path) {
-        size_t ind = val.second * 10 / val.first->size();
-        fill_distr[ind] += 1;
-        fill_distr_len[ind] += 1;
-    }
-    logger << "Edge filling distribution" <<std::endl;
-    logger.noTimeSpace() << fill_distr << std::endl << fill_distr_len << std::endl;
+//    std::vector<size_t> fill_distr(11);
+//    std::vector<size_t> fill_distr_len(11);
+//    for(const std::pair<const Edge<htype128> *, size_t> & val : path) {
+//        size_t ind = val.second * 10 / val.first->size();
+//        fill_distr[ind] += 1;
+//        fill_distr_len[ind] += 1;
+//    }
+//    logger << "Edge filling distribution" <<std::endl;
+//    logger.noTimeSpace() << fill_distr << std::endl << fill_distr_len << std::endl;
     std::unordered_set<Edge<htype128> const *> eset;
-    std::sort(path.begin(), path.end(), [](const std::pair<const Edge<htype128> *, size_t> & a, const std::pair<const Edge<htype128> *, size_t> & b) -> bool
-    {
-        return a.first->end() < b.first->end() || (a.first->end() == b.first->end() && a.first->seq < b.first->seq);
-    });
     std::vector<size_t> cov(50);
-    std::vector<size_t> cov_inc(50);
-    std::vector<size_t> cov_inc_len(50);
     std::vector<size_t> cov_len(50);
     std::vector<size_t> cov_bad(50);
     std::vector<size_t> cov_bad_len(50);
-    std::vector<size_t> cov_med(50);
-    std::vector<size_t> cov_med_len(50);
     std::vector<size_t> cov_good(50);
     std::vector<size_t> cov_good_len(50);
-    std::vector<size_t> fills;
-    for(size_t i = 0; i <= path.size(); i++) {
-        if(i == path.size() || (i > 0 && path[i].first != path[i - 1].first)) {
-            const Edge<htype128> &edge = *path[i - 1].first;
-            eset.emplace(path[i].first);
-            size_t cov_val = std::min(cov.size() - 1, size_t(edge.getCoverage()));
-            cov[cov_val] += 1;
-            cov_len[cov_val] += edge.size();
-            size_t sum = std::accumulate(fills.begin(), fills.end(), 0u);
-            if(sum == edge.size() * fills.size()) {
-                cov_good[cov_val] += 1;
-                cov_good_len[cov_val] += edge.size();
-            } else if (sum > edge.size() * fills.size() * 3 / 4) {
-                cov_med[cov_val] += 1;
-                cov_med_len[cov_val] += edge.size();
-            } else {
-                cov_bad[cov_val] += 1;
-                cov_bad_len[cov_val] += edge.size();
-            }
-            fills.clear();
-        }
-        if (i < path.size())
-            fills.push_back(path[i].second);
+    for(size_t i = 0; i < path.size(); i++) {
+        const Edge<htype128> &edge = *path[i - 1].first;
+        eset.emplace(path[i].first);
+        size_t cov_val = std::min(cov.size() - 1, size_t(edge.getCoverage()));
+        cov_good[cov_val] += 2;
+        cov_good_len[cov_val] += edge.size() * 2;
     }
     for(auto & pair : dbg) {
         Vertex<htype128> &vert = pair.second;
         for (Edge<htype128> &edge : vert.getOutgoing()) {
+            size_t cov_val = std::min(cov.size() - 1, size_t(edge.getCoverage()));
             if (eset.find(&edge) == eset.end() && eset.find(&vert.rcEdge(edge)) == eset.end()) {
-                size_t cov_val = std::min(cov.size() - 1, size_t(edge.getCoverage()));
-                cov_inc[cov_val] += 1;
-                cov_inc_len[cov_val] += edge.size();
+                cov_bad[cov_val] += 1;
+                cov_bad_len[cov_val] += edge.size();
             }
+            cov[cov_val] += 1;
+            cov_len[cov_val] += edge.size();
         }
     }
     logger << "All coverages" << std::endl;
     logger.noTimeSpace() << cov << std::endl << cov_len << std::endl;
-    logger << "Good coverages" << std::endl;
+    logger << "Coverages of edges in genome path" << std::endl;
     logger.noTimeSpace() << cov_good << std::endl << cov_good_len << std::endl;
-    logger << "Med coverages" << std::endl;
-    logger.noTimeSpace() << cov_med << std::endl << cov_med_len << std::endl;
-    logger << "Bad coverages" << std::endl;
+    logger << "Coverages of edges outside genome path" << std::endl;
     logger.noTimeSpace() << cov_bad << std::endl << cov_bad_len << std::endl;
 }
 
@@ -263,6 +238,11 @@ int main(int argc, char **argv) {
     RollingHash<htype128> hasher(k, std::stoi(parser.getValue("base")));
     const size_t w = std::stoi(parser.getValue("window"));
     io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
+    io::Library lib_for_coverage = lib;
+    if (parser.getValue("reference") != "none") {
+        logger << "Added reference to graph construction. Careful, some edges may have coverage 0" << std::endl;
+        lib.insert(lib.begin(), std::experimental::filesystem::path(parser.getValue("reference")));
+    }
     size_t threads = std::stoi(parser.getValue("threads"));
     omp_set_num_threads(threads);
     std::vector<Sequence> disjointigs;
@@ -357,7 +337,7 @@ int main(int argc, char **argv) {
     if (parser.getCheck("simplify") || parser.getCheck("correct") ||
             parser.getValue("segments") != "none" || parser.getValue("reference") != "none") {
         if (parser.getValue("coverages") == "none") {
-            CalculateCoverage(dir, hasher, w, lib, threads, logger, dbg);
+            CalculateCoverage(dir, hasher, w, lib_for_coverage, threads, logger, dbg);
         } else {
             LoadCoverage(parser, logger, dbg);
         }

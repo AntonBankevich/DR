@@ -993,12 +993,12 @@ public:
         for(size_t i = 0; i < cov.size(); i++) {
             logger.noTimeSpace() << i << " " << cov[i] << " " << covLen[i];
             for(size_t val : cov_ldist[i]) {
-                logger.noTimeSpace() << " " << val;
+                logger.noTimeSpace() << " " << val << "\n";
             }
             std::cout << std::endl;
             logger.noTimeSpace() << i << " " << cov_tips[i] << " " << covLen_tips[i];
             for(size_t val : cov_ldist_tips[i]) {
-                logger.noTimeSpace() << " " << val;
+                logger.noTimeSpace() << " " << val << "\n";
             }
             std::cout << std::endl;
         }
