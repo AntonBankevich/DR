@@ -247,57 +247,58 @@ int main(int argc, char **argv) {
     size_t threads = std::stoi(parser.getValue("threads"));
     omp_set_num_threads(threads);
     std::vector<Sequence> disjointigs;
-    if (parser.getValue("disjointigs") == "none") {
-        pid_t p = fork();
-        if (p < 0) {
-            std::cout << "Fork failed" << std::endl;
-            return 1;
-        }
-        if(p == 0) {
-            std::vector<htype128> hash_list;
-            if (parser.getValue("unique") == "none") {
-                hash_list = constructMinimizers(logger, lib, threads, hasher, w);
-                std::ofstream os;
-                os.open(std::string(dir.c_str()) + "/unique.save");
-                writeHashs(os, hash_list);
-                os.close();
-            } else {
-                logger << "Loading minimizers from file " << parser.getValue("unique") << std::endl;
-                std::ifstream is;
-                is.open(parser.getValue("unique"));
-                readHashs(is, hash_list);
-                is.close();
-            }
-            disjointigs = constructDisjointigs(hasher, w, lib, hash_list, 1, threads, logger);
-            hash_list.clear();
-            std::ofstream df;
-            df.open(dir / "disjointigs.fasta");
-            for (size_t i = 0; i < disjointigs.size(); i++) {
-                df << ">" << i << std::endl;
-                df << disjointigs[i] << std::endl;
-            }
-            df.close();
-            return 0;
-        } else {
-            int status = 0;
-            waitpid(p, &status, 0);
-            if (WEXITSTATUS(status) || WIFSIGNALED(status)) {
-                std::cout << "Child process crashed" << std::endl;
+    if (parser.getValue("dbg") == "none")
+        if (parser.getValue("disjointigs") == "none") {
+            pid_t p = fork();
+            if (p < 0) {
+                std::cout << "Fork failed" << std::endl;
                 return 1;
             }
-            logger << "Loading disjointigs from file " << (dir / "disjointigs.fasta") << std::endl;
-            io::SeqReader reader(dir / "disjointigs.fasta");
+            if(p == 0) {
+                std::vector<htype128> hash_list;
+                if (parser.getValue("unique") == "none") {
+                    hash_list = constructMinimizers(logger, lib, threads, hasher, w);
+                    std::ofstream os;
+                    os.open(std::string(dir.c_str()) + "/unique.save");
+                    writeHashs(os, hash_list);
+                    os.close();
+                } else {
+                    logger << "Loading minimizers from file " << parser.getValue("unique") << std::endl;
+                    std::ifstream is;
+                    is.open(parser.getValue("unique"));
+                    readHashs(is, hash_list);
+                    is.close();
+                }
+                disjointigs = constructDisjointigs(hasher, w, lib, hash_list, 1, threads, logger);
+                hash_list.clear();
+                std::ofstream df;
+                df.open(dir / "disjointigs.fasta");
+                for (size_t i = 0; i < disjointigs.size(); i++) {
+                    df << ">" << i << std::endl;
+                    df << disjointigs[i] << std::endl;
+                }
+                df.close();
+                return 0;
+            } else {
+                int status = 0;
+                waitpid(p, &status, 0);
+                if (WEXITSTATUS(status) || WIFSIGNALED(status)) {
+                    std::cout << "Child process crashed" << std::endl;
+                    return 1;
+                }
+                logger << "Loading disjointigs from file " << (dir / "disjointigs.fasta") << std::endl;
+                io::SeqReader reader(dir / "disjointigs.fasta");
+                while(!reader.eof()) {
+                    disjointigs.push_back(reader.read().makeCompressedSequence());
+                }
+            }
+        } else {
+            logger << "Loading disjointigs from file " << parser.getValue("disjointigs") << std::endl;
+            io::SeqReader reader(parser.getValue("disjointigs"));
             while(!reader.eof()) {
                 disjointigs.push_back(reader.read().makeCompressedSequence());
             }
         }
-    } else {
-        logger << "Loading disjointigs from file " << parser.getValue("disjointigs") << std::endl;
-        io::SeqReader reader(parser.getValue("disjointigs"));
-        while(!reader.eof()) {
-            disjointigs.push_back(reader.read().makeCompressedSequence());
-        }
-    }
     std::vector<htype128> vertices;
     if (parser.getValue("dbg") == "none") {
         if (parser.getValue("vertices") == "none") {
@@ -352,27 +353,30 @@ int main(int argc, char **argv) {
     }
 
     if (parser.getValue("align") != "none") {
-        std::ofstream os(dir / "alignments.txt");
-        io::SeqReader reader(parser.getValue("align"));
+        logger << "Aligning reads" << std::endl;
+        ParallelRecordCollector<std::string> alignment_results(threads);
         std::string acgt = "ACGT";
-        for(auto contig : reader) {
+
+        std::function<void(StringContig &)> task = [&dbg, &alignment_results, &hasher, w, acgt](StringContig & contig) {
             Contig read = contig.makeCompressedContig();
             if(read.size() < w + hasher.k - 1)
-                continue;
+                return;
             Path<htype128> path = dbg.align(read.seq).path();
-            os << read.id << " " << path.start().hash() << int(path.start().isCanonical()) << " ";
+            std::stringstream ss;
+            ss << read.id << " " << path.start().hash() << int(path.start().isCanonical()) << " ";
             for (size_t i = 0; i < path.size(); i++) {
-                os << acgt[path[i].seq[0]];
+                ss << acgt[path[i].seq[0]];
             }
-            os << "\n";
-            Path<htype128> path1 = dbg.align(!read.seq).path();
-            os << "-" << read.id << " " << path1.start().hash() << int(path1.start().isCanonical()) << " ";
-            for (size_t i = 0; i < path1.size(); i++) {
-                os << acgt[path1[i].seq[0]];
-            }
-            os << "\n";
+            alignment_results.emplace_back(ss.str());
+        };
+        std::ofstream os(dir / "alignments.txt");
+        io::SeqReader reader(parser.getValue("align"));
+        processRecords(reader.begin(), reader.end(), logger, threads, task);
+        for(std::string & rec : alignment_results) {
+            os << rec << "\n";
         }
         os.close();
+        logger << "Finished read alignment. Results are in " << (dir / "alignments.txt") << std::endl;
     }
 
 //    findTips(logger, dbg, threads);

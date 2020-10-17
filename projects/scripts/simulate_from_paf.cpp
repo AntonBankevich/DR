@@ -8,7 +8,7 @@
 #include <vector>
 
 int main(int argc, char **argv) {
-    CLParser parser({"output=", "paf=", "left=0", "right=none"}, {"reference"},
+    CLParser parser({"output=", "paf=", "left=0", "right=none", "chr=none"}, {"reference"},
                     {"o=output", "t=threads"});
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
@@ -22,6 +22,7 @@ int main(int argc, char **argv) {
         right = size_t(-1);
     } else
         right = std::stoull(parser.getValue("right"));
+    std::string chr = parser.getValue("chr");
     io::Library libRef = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reference"));
     io::SeqReader ref_reader(libRef);
     std::unordered_map<std::string, Sequence> ref;
@@ -35,9 +36,11 @@ int main(int argc, char **argv) {
     std::ofstream os;
     os.open(out);
     std::string line;
-    while (std::getline(is, line))
-    {
+    while (std::getline(is, line)) {
         std::vector<std::string> ss = split(line);
+        if(chr != ss[5] && chr != "none") {
+            continue;
+        }
         size_t from = std::stoull(ss[7]);
         size_t to = std::stoull(ss[8]);
         if (from > right || to < left)
