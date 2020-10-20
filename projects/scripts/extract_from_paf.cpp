@@ -9,7 +9,7 @@
 #include <vector>
 
 int main(int argc, char **argv) {
-    CLParser parser({"output=", "paf=", "chr="}, {"reads"},
+    CLParser parser({"output=", "paf=", "chr=", "full"}, {"reads"},
                     {"o=output", "t=threads"});
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
@@ -24,10 +24,18 @@ int main(int argc, char **argv) {
     std::ofstream os;
     std::string line;
     std::unordered_set<std::string> read_set;
+    bool check_size = parser.getCheck("full");
     while (std::getline(is, line))
     {
         std::vector<std::string> ss = split(line);
-        read_set.insert(ss[0]);
+        if (check_size) {
+            size_t from = std::stoull(ss[7]);
+            size_t to = std::stoull(ss[8]);
+            size_t sz = std::stoull(ss[1]);
+            if (to - from > std::max(std::min(sz * 9 / 10, sz - 1000), sz * 2 / 3)) {
+                read_set.insert(ss[0]);
+            }
+        }
     }
     is.close();
     os.open(out);

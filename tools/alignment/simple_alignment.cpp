@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
     HMM hmm(HMM::load(is));
     is.close();
     std::vector<std::vector<MarkedAlignment<Contig, Contig>>> alignments =
-            alignment_recipes::MarkAlign(reads, reference, hmm, "ava-pb", std::stoi(parser.getValue("threads")));
+            alignment_recipes::MarkAlign(reads, reference, hmm, "map-pb", std::stoi(parser.getValue("threads")));
     std::experimental::filesystem::path dir(parser.getValue("output-dir"));
     ensure_dir_existance(dir);
     cout << std::experimental::filesystem::absolute(dir) << endl;

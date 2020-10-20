@@ -213,8 +213,8 @@ void LoadCoverage(const std::experimental::filesystem::path &fname, Logger &logg
 int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "dbg=none", "coverages=none", "segments=none", "dbg=none", "output-dir=",
                      "threads=8", "k-mer-size=5000", "window=3000", "base=239", "debug", "disjointigs=none", "reference=none",
-                     "correct", "align=none", "simplify", "coverage"},
-                    {"reads"},
+                     "correct", "simplify", "coverage"},
+                    {"reads", "align"},
             {"o=output-dir", "t=threads", "k=k-mer-size","w=window"});
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
@@ -331,7 +331,7 @@ int main(int argc, char **argv) {
         edges.close();
     }
 
-    if (parser.getValue("align") != "none" || parser.getCheck("correct") || parser.getValue("segments") != "none"
+    if (!parser.getListValue("align").empty() || parser.getCheck("correct") || parser.getValue("segments") != "none"
                 || parser.getValue("reference") != "none") {
         dbg.fillAnchors(w, logger, threads);
     }
@@ -352,7 +352,7 @@ int main(int argc, char **argv) {
         dot.close();
     }
 
-    if (parser.getValue("align") != "none") {
+    if (!parser.getListValue("align").empty()) {
         logger << "Aligning reads" << std::endl;
         ParallelRecordCollector<std::string> alignment_results(threads);
         std::string acgt = "ACGT";
@@ -368,9 +368,18 @@ int main(int argc, char **argv) {
                 ss << acgt[path[i].seq[0]];
             }
             alignment_results.emplace_back(ss.str());
+            Contig rc_read = read.RC();
+            Path<htype128> rc_path = dbg.align(rc_read.seq).path();
+            std::stringstream rc_ss;
+            rc_ss << rc_read.id << " " << rc_path.start().hash() << int(rc_path.start().isCanonical()) << " ";
+            for (size_t i = 0; i < rc_path.size(); i++) {
+                rc_ss << acgt[rc_path[i].seq[0]];
+            }
+            alignment_results.emplace_back(rc_ss.str());
         };
         std::ofstream os(dir / "alignments.txt");
-        io::SeqReader reader(parser.getValue("align"));
+        io::Library align_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("align"));
+        io::SeqReader reader(align_lib);
         processRecords(reader.begin(), reader.end(), logger, threads, task);
         for(std::string & rec : alignment_results) {
             os << rec << "\n";
