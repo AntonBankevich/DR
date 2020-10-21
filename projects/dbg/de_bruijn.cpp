@@ -213,7 +213,7 @@ void LoadCoverage(const std::experimental::filesystem::path &fname, Logger &logg
 int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "dbg=none", "coverages=none", "segments=none", "dbg=none", "output-dir=",
                      "threads=8", "k-mer-size=5000", "window=3000", "base=239", "debug", "disjointigs=none", "reference=none",
-                     "correct", "simplify", "coverage"},
+                     "correct", "simplify", "coverage", "cov-threshold=4"},
                     {"reads", "align"},
             {"o=output-dir", "t=threads", "k=k-mer-size","w=window"});
     parser.parseCL(argc, argv);
@@ -332,7 +332,8 @@ int main(int argc, char **argv) {
     }
 
     if (!parser.getListValue("align").empty() || parser.getCheck("correct") || parser.getValue("segments") != "none"
-                || parser.getValue("reference") != "none") {
+                || parser.getValue("reference") != "none" || parser.getCheck("coverage")
+                || parser.getCheck("simplify")) {
         dbg.fillAnchors(w, logger, threads);
     }
 
@@ -421,19 +422,20 @@ int main(int argc, char **argv) {
     }
     if (parser.getCheck("simplify")) {
         logger << "Removing low covered edges" << std::endl;
+        size_t threshold = std::stoull(parser.getValue("cov-threshold"));
         std::vector<Sequence> edges;
         std::vector<htype128> vertices_again;
         for(auto & it : dbg) {
             Vertex<htype128> &vert = it.second;
             bool add = false;
             for(Edge<htype128> & edge : vert.getOutgoing()) {
-                if (edge.getCoverage() >= 4) {
+                if (edge.getCoverage() >= threshold) {
                     edges.push_back(vert.seq + edge.seq);
                     add = true;
                 }
             }
             for(Edge<htype128> & edge : vert.rc().getOutgoing()) {
-                if (edge.getCoverage() >= 4){
+                if (edge.getCoverage() >= threshold){
                     edges.push_back(vert.rc().seq + edge.seq);
                     add = true;
                 }

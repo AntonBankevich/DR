@@ -2,6 +2,7 @@
 // Created by anton on 08.07.2020.
 //
 #include <iostream>
+#include <sequences/verify.hpp>
 #include "cl_parser.hpp"
 
 const std::string CLParser::emptystring;
@@ -50,6 +51,7 @@ void CLParser::parseCL(int argc, char **argv) {
 
 const std::string &CLParser::getValue(const std::string &s) const {
     auto it = values.find(s);
+    VERIFY(it != values.end());
     if(it == values.end()) {
         return emptystring;
     } else {

@@ -765,7 +765,7 @@ public:
                 if (!kwh.hasNext()) {
 #pragma omp critical
                     {
-                        std::cout << "Gopa" << std::endl;
+                        std::cout << "Gopa " << seq.size() << std::endl;
                         std::cout << seq << std::endl;
                     };
                     return {nullptr, res};
@@ -1045,7 +1045,7 @@ public:
             for(size_t val : cov_ldist_tips[i]) {
                 logger.noTimeSpace() << " " << val;
             }
-            std::cout << std::endl;
+            logger.noTimeSpace() << std::endl;
         }
     }
 
@@ -1091,19 +1091,21 @@ public:
             const Vertex<htype> &vertex = it.second;
             VERIFY(!vertex.seq.empty());
             for(size_t i = 0; i < vertex.outDeg(); i++) {
-                Sequence tmp = vertex.seq + vertex.getOutgoing()[i].seq;
-                Vertex<htype> &end = *vertex.getOutgoing()[i].end();
+                const Edge<htype> & edge = vertex.getOutgoing()[i];
+                Sequence tmp = vertex.seq + edge.seq;
+                Vertex<htype> &end = *edge.end();
                 out << ">" << cnt << "_" << vertex.hash() << int(vertex.isCanonical()) <<
-                       "_" << end.hash() << int(end.isCanonical()) << std::endl;
+                       "_" << end.hash() << int(end.isCanonical()) << "_" << edge.size() << "_" << edge.getCoverage() << std::endl;
                 cnt++;
                 out << tmp.str() << "\n";
             }
             const Vertex<htype> &rcvertex = vertex.rc();
             for(size_t i = 0; i < rcvertex.outDeg(); i++) {
-                Sequence tmp = rcvertex.seq + rcvertex.getOutgoing()[i].seq;
-                Vertex<htype> &end = *rcvertex.getOutgoing()[i].end();
+                const Edge<htype> & edge = rcvertex.getOutgoing()[i];
+                Sequence tmp = rcvertex.seq + edge.seq;
+                Vertex<htype> &end = *edge.end();
                 out << ">" << cnt << "_" << rcvertex.hash() << int(rcvertex.isCanonical()) <<
-                       "_" << end.hash() << int(end.isCanonical()) << std::endl;
+                       "_" << end.hash() << int(end.isCanonical()) << "_" << edge.size() << "_" << edge.getCoverage() << std::endl;
                 cnt++;
                 out << tmp.str() << "\n";
             }
@@ -1499,13 +1501,17 @@ void findTips(logging::Logger &logger, SparseDBG<htype> &sdbg, size_t threads) {
 
 template<typename htype>
 void mergeLoop(Vertex<htype> &start, std::vector<Edge<htype>> &path) {
+    VERIFY(*path.back().end() == start)
     if(path.size() % 2 == 0 && *path[path.size() / 2].end() == start.rc()) {
         path =std::vector<Edge<htype>>(path.begin(), path.begin() + path.size() / 2);
     }
     Sequence newSeq(start.pathSeq(path));
     size_t cov = 0;
     for(const Edge<htype> &e : path) {
-        e.end()->mark();
+        if (e.end()->hash() != start.hash()) {
+            e.end()->mark();
+            e.end()->rc().mark();
+        }
         cov += e.intCov();
     }
     Edge<htype> &new_edge = start.addEdgeLockFree(Edge<htype>(path.back().end(), newSeq.Subseq(start.seq.size())));
@@ -1603,7 +1609,7 @@ void mergeCyclicPaths(logging::Logger & logger, SparseDBG<htype> &sdbg, size_t t
                 VERIFY(*path.back().end() == start);
                 bool ismin = true;
                 for (const Edge<htype> &e : path) {
-                    if (e.end()->hash() < start.hash() || (e.end()->hash() == start.hash() && e.end()->isCanonical())) {
+                    if (e.end()->hash() < start.hash()) {
                         ismin = false;
                         break;
                     }
