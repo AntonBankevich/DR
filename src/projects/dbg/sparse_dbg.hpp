@@ -765,8 +765,9 @@ public:
                 if (!kwh.hasNext()) {
 #pragma omp critical
                     {
-                        std::cout << "Gopa " << seq.size() << std::endl;
+                        std::cout << "Error: could not align sequence " << seq.size() << std::endl;
                         std::cout << seq << std::endl;
+                        abort();
                     };
                     return {nullptr, res};
                 }
@@ -980,17 +981,17 @@ public:
                 e += 1;
             }
         }
-        logger << "Graph statistics:" << std::endl;
-        logger << "Total edges: " << e / 2 << std::endl;
-        logger << "Total vertices: " << v.size() << std::endl;
-        logger << "Number of end vertices: " << n01 << std::endl;
-        logger << "Number of unbranching vertices: " << n11 << std::endl;
-        logger << "Number of isolated edges " << isolated << " " << isolatedSize << std::endl;
-        logger << "Distribution of degrees:" << std::endl;
+        logger.noTimeSpace() << "Graph statistics:" << std::endl;
+        logger.noTimeSpace() << "Total edges: " << e / 2 << std::endl;
+        logger.noTimeSpace() << "Total vertices: " << v.size() << std::endl;
+        logger.noTimeSpace() << "Number of end vertices: " << n01 << std::endl;
+        logger.noTimeSpace() << "Number of unbranching vertices: " << n11 << std::endl;
+        logger.noTimeSpace() << "Number of isolated edges " << isolated << " " << isolatedSize << std::endl;
+        logger.noTimeSpace() << "Distribution of degrees:" << std::endl;
         for(size_t i = 0; i < arr.size(); i++) {
             logger.noTimeSpace() << i << " " << arr[i] << std::endl;
         }
-        logger << "Distribution of in/out degrees:" << std::endl;
+        logger.noTimeSpace() << "Distribution of in/out degrees:" << std::endl;
         for(size_t i = 0; i < inout.size(); i++) {
             logger.noTimeSpace() << inout[i] << " ";
             if(i % 5 == 4)
@@ -1639,5 +1640,5 @@ void mergeAll(logging::Logger & logger, SparseDBG<htype> &sdbg, size_t threads) 
     logger << "Removing isolated vertices" << std::endl;
     sdbg.removeMarked();
     logger << "Finished removing isolated vertices" << std::endl;
-    sdbg.checkConsistency(threads, logger);
+//    sdbg.checkConsistency(threads, logger);
 }

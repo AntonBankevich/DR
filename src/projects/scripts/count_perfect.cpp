@@ -12,12 +12,9 @@
 #include <vector>
 
 size_t stoi1(std::string s) {
-    if(s.size() == 0)
-        std::cout << "Gopa0" << std::endl;
     size_t res = 0;
     for(char c : s) {
         if(c < '0' || c > '9') {
-            std::cout << "Gopa1 " << s << std::endl;
             abort();
         }
         res = res * 10 + c - '0';

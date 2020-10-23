@@ -115,11 +115,6 @@ void extractLinearDisjointigs(SparseDBG<htype> &sdbg, ParallelRecordCollector<Se
                 htype hash = pair.first;
                 Vertex<htype> &rec = pair.second;
                 if(rec.isJunction()) {
-//                    htype oppa = htype(63100013936723) * 1000000000000 * 1000000000000 + htype(716503108335) * 1000000000000  + 449034034478;
-//                    if(rec.hash() == oppa) {
-//                        std::cout << "Oppa" << std::endl;
-//                        std::cout << rec.seq << std::endl << rec.inDeg() <<  " " << rec.outDeg() << std::endl;
-//                    }
                     processVertex(rec, res);
                     processVertex(rec.rc(), res);
                     if (rec.inDeg() != 1 && rec.outDeg() != 1 &&  (rec.inDeg() != 0 || rec.outDeg() != 0)) {

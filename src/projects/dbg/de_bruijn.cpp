@@ -80,11 +80,12 @@ std::vector<Sequence> constructDisjointigs(const RollingHash<htype> &hasher, siz
                                            logging::Logger & logger) {
     std::vector<Sequence> disjointigs;
     SparseDBG<htype> sdbg = constructSparseDBGFromReads(logger, reads_file, threads, hasher, hash_list, w);
-    sdbg.printStats(logger);
+//    sdbg.printStats(logger);
     sdbg.checkSeqFilled(threads, logger);
 
     tieTips(logger, sdbg, w, threads);
     sdbg.checkSeqFilled(threads, logger);
+    logger << "Statistics for sparse de Bruijn graph:" << std::endl;
     sdbg.printStats(logger);
 //    std::ofstream os;
 //    os.open("sdbg.fasta");
@@ -320,8 +321,7 @@ int main(int argc, char **argv) {
             constructDBG(logger, vertices, disjointigs, hasher, threads) :
           SparseDBG<htype128>::loadDBGFromFasta({std::experimental::filesystem::path(parser.getValue("dbg"))},
                   hasher, logger, threads);
-    dbg.checkConsistency(threads, logger);
-    dbg.printStats(logger);
+//    dbg.checkConsistency(threads, logger);
 
     if(parser.getValue("dbg") == "none") {
         logger << "Printing graph to file " << (dir / "graph.fasta") << std::endl;

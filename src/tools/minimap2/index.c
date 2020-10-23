@@ -287,9 +287,6 @@ static void *worker_pipeline(void *shared, int step, void *in)
         s = (step_t*)calloc(1, sizeof(step_t));
         s->seq = mm_bseq_read(p->fp, p->mini_batch_size, 0, &s->n_seq); // read a mini-batch
 		if (s->seq) {
-//            printf("Oppa %d\n", p->mini_batch_size);
-//            printf("%s\n", s->seq->seq);
-//            printf("%s\n", s->seq->name);
 			uint32_t old_m, m;
 			assert((uint64_t)p->mi->n_seq + s->n_seq <= UINT32_MAX); // to prevent integer overflow
 			// make room for p->mi->seq

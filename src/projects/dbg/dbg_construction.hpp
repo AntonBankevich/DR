@@ -36,7 +36,8 @@ std::vector<htype> findJunctions(logging::Logger & logger, const std::vector<Seq
     };
     logger << "Filling bloom filter with k+1-mers." << std::endl;
     processRecords(disjointigs.begin(), disjointigs.end(), logger, threads, task);
-    logger << filter.count_bits() << " " << total_size(disjointigs) - hasher.k * disjointigs.size() << std::endl;
+    std::pair<size_t, size_t> bits = filter.count_bits();
+    logger << "Filled " << bits.first << " bits out of " << bits.second << std::endl;
     logger << "Finished filling bloom filter. Selecting junctions." << std::endl;
     ParallelRecordCollector<htype> junctions(threads);
     std::function<void(const Sequence &)> junk_task = [&filter, &hasher, &junctions](const Sequence & seq) {
@@ -106,12 +107,13 @@ SparseDBG<htype> constructDBG(logging::Logger & logger, const std::vector<htype>
     logger << "Added " << tips.size() << " hanging vertices" << std::endl;
 
     logger << "Constructed dbg of size " << dbg.size() << std::endl;
-    dbg.checkConsistency(threads, logger);
-    dbg.printStats(logger);
+//    dbg.checkConsistency(threads, logger);
+//    dbg.printStats(logger);
     logger << "Merging edges " << std::endl;
     mergeAll(logger, dbg, threads);
-    dbg.checkConsistency(threads, logger);
+//    dbg.checkConsistency(threads, logger);
     logger << "Ended merging edges. Resulting size " << dbg.size() << std::endl;
+    logger << "Statistics for de Bruijn graph:" << std::endl;
     dbg.printStats(logger);
     return std::move(dbg);
 }
