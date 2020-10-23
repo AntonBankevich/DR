@@ -213,7 +213,7 @@ void LoadCoverage(const std::experimental::filesystem::path &fname, Logger &logg
 
 int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "dbg=none", "coverages=none", "segments=none", "dbg=none", "output-dir=",
-                     "threads=8", "k-mer-size=5000", "window=3000", "base=239", "debug", "disjointigs=none", "reference=none",
+                     "threads=16", "k-mer-size=5000", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
                      "correct", "simplify", "coverage", "cov-threshold=4"},
                     {"reads", "align"},
             {"o=output-dir", "t=threads", "k=k-mer-size","w=window"});
@@ -337,8 +337,9 @@ int main(int argc, char **argv) {
         dbg.fillAnchors(w, logger, threads);
     }
 
-    if (parser.getCheck("coverage") || parser.getCheck("simplify") || parser.getCheck("correct") ||
-            parser.getValue("segments") != "none" || parser.getValue("reference") != "none") {
+    bool calculate_coverage = parser.getCheck("coverage") || parser.getCheck("simplify") || parser.getCheck("correct") ||
+                              parser.getValue("segments") != "none" || parser.getValue("reference") != "none";
+    if (calculate_coverage) {
         if (parser.getValue("coverages") == "none") {
             CalculateCoverage(dir, hasher, w, lib_for_coverage, threads, logger, dbg);
         } else {
@@ -467,7 +468,7 @@ int main(int argc, char **argv) {
         simp_os.close();
         std::ofstream dot;
         dot.open(dir / "simp_graph.dot");
-        simp_dbg.printDot(dot);
+        simp_dbg.printDot(dot, calculate_coverage);
         dot.close();
     }
     logger << "DBG construction finished" << std::endl;

@@ -845,7 +845,7 @@ public:
         return std::move(res);
     }
 
-    void printEdge(std::ostream &os, Vertex<htype> & start, Edge<htype> &edge) {
+    void printEdge(std::ostream &os, Vertex<htype> & start, Edge<htype> &edge, bool output_coverage) {
         Vertex<htype> &end = *edge.end();
         os << "\"";
         if (!start.isCanonical())
@@ -853,15 +853,18 @@ public:
         os << start.hash() % 10000 << "\" -> \"";
         if (!end.isCanonical())
             os << "-";
-        os << end.hash() % 10000  << "\" [label=\"" << edge.size() << "(" << edge.getCoverage() << ")\"]\n";
+        if (output_coverage)
+            os << end.hash() % 10000  << "\" [label=\"" << edge.size() << "(" << edge.getCoverage() << ")\"]\n";
+        else
+            os << end.hash() % 10000  << "\" [label=\"" << edge.size() << "                                                                                                                                                          \"]\n";
     }
-    void printDot(std::ostream &os) {
+    void printDot(std::ostream &os, bool output_coverage) {
         os << "digraph {\nnodesep = 0.5;\n";
         for(std::pair<const htype, Vertex<htype>> & it : this->v) {
             Vertex<htype> &start = it.second;
             for(Edge<htype> &edge : start.getOutgoing()) {
                 Vertex<htype> &end = *edge.end();
-                printEdge(os, start, edge);
+                printEdge(os, start, edge, output_coverage);
                 if(v.find(end.hash()) == v.end()) {
                     printEdge(os, end.rc(), start.rcEdge(edge));
                 }
