@@ -106,16 +106,30 @@ struct hash_pair {
     }
 };
 
-void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, Logger &logger) {
+void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, const std::experimental::filesystem::path &out,
+                   Logger &logger) {
     logger << "Reading reference" << std::endl;
     std::vector<StringContig> ref = io::SeqReader(ref_file).readAll();
     logger << "Finished reading reference. Starting alignment" << std::endl;
     std::vector<Segment<Edge<htype128>>> path;
+    std::ofstream os;
+    os.open(out);
+    size_t cur = 0;
     for(StringContig & contig : ref) {
         auto tmp = dbg.align(contig.makeCompressedSequence());
+        os << "New chromosome " << contig.id << std::endl;
+        for(size_t i = 0; i < tmp.size(); i++) {
+            const Segment<Edge<htype128>> &seg = tmp[i];
+            os << "[" << cur << ", " << cur + seg.size() << "] -> [" << seg.left << ", " << seg.right <<"] ";
+            os << tmp.getVertex(i).hash() << tmp.getVertex(i).isCanonical() << " "
+               << tmp.getVertex(i + 1).hash() << tmp.getVertex(i + 1).isCanonical() << " "
+               << seg.size() << " " << seg.contig().getCoverage() << std::endl;
+            cur += seg.size();
+        }
         logger << "Aligned chromosome " << contig.id << " . Path length " << tmp.size() << std::endl;
         path.insert(path.end(), tmp.begin(), tmp.end());
     }
+    os.close();
     logger << "Reference path consists of " << path.size() << " edges" << std::endl;
 //    std::vector<size_t> fill_distr(11);
 //    std::vector<size_t> fill_distr_len(11);
@@ -350,7 +364,7 @@ int main(int argc, char **argv) {
     if(parser.getValue("dbg") == "none") {
         std::ofstream dot;
         dot.open(dir / "graph.dot");
-        dbg.printDot(dot);
+        dbg.printDot(dot, calculate_coverage);
         dot.close();
     }
 
@@ -419,7 +433,7 @@ int main(int argc, char **argv) {
         }
     }
     if (parser.getValue("reference") != "none") {
-        analyseGenome(dbg, parser.getValue("reference"), logger);
+        analyseGenome(dbg, parser.getValue("reference"), dir / "ref.info", logger);
     }
     if (parser.getCheck("simplify")) {
         logger << "Removing low covered edges" << std::endl;
@@ -459,7 +473,7 @@ int main(int argc, char **argv) {
         }
         std::ofstream dot1;
         dot1.open(dir / "simp_graph1.dot");
-        simp_dbg.printDot(dot1);
+        simp_dbg.printDot(dot1, calculate_coverage);
         dot1.close();
         mergeAll(logger, simp_dbg, threads);
         std::ofstream simp_os;

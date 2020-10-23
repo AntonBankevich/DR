@@ -513,6 +513,14 @@ public:
         return als[i];
     }
 
+    const Vertex<htype> &getVertex(size_t i) const {
+        VERIFY(i <= als.size());
+        if(i == 0)
+            return *start;
+        else
+            return *als[i - 1].contig().end();
+    }
+
     typename std::vector<Segment<Edge<htype>>>::iterator begin() {
         return als.begin();
     }
@@ -866,14 +874,14 @@ public:
                 Vertex<htype> &end = *edge.end();
                 printEdge(os, start, edge, output_coverage);
                 if(v.find(end.hash()) == v.end()) {
-                    printEdge(os, end.rc(), start.rcEdge(edge));
+                    printEdge(os, end.rc(), start.rcEdge(edge), output_coverage);
                 }
             }
             for(Edge<htype> &edge : start.rc().getOutgoing()) {
                 Vertex<htype> &end = *edge.end();
-                printEdge(os, start.rc(), edge);
+                printEdge(os, start.rc(), edge, output_coverage);
                 if(v.find(end.hash()) == v.end()) {
-                    printEdge(os, end.rc(), start.rc().rcEdge(edge));
+                    printEdge(os, end.rc(), start.rc().rcEdge(edge), output_coverage);
                 }
             }
         }
