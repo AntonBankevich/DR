@@ -488,8 +488,16 @@ public:
         return *start_;
     }
 
+    Vertex<htype> &finish() {
+        return *path.back().end();
+    }
+
     Edge<htype> &back() {
         return path.back();
+    }
+
+    Edge<htype> &front() {
+        return path.front();
     }
 
     Sequence Seq() const {

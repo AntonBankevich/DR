@@ -228,7 +228,7 @@ void LoadCoverage(const std::experimental::filesystem::path &fname, Logger &logg
 int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "dbg=none", "coverages=none", "segments=none", "dbg=none", "output-dir=",
                      "threads=16", "k-mer-size=5000", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
-                     "correct", "simplify", "coverage", "cov-threshold=4"},
+                     "correct", "simplify", "coverage", "cov-threshold=4", "tip-correct"},
                     {"reads", "align"},
             {"o=output-dir", "t=threads", "k=k-mer-size","w=window"});
     parser.parseCL(argc, argv);
@@ -254,7 +254,7 @@ int main(int argc, char **argv) {
     RollingHash<htype128> hasher(k, std::stoi(parser.getValue("base")));
     const size_t w = std::stoi(parser.getValue("window"));
     io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
-    io::Library lib_for_coverage = lib;
+    io::Library reads_lib = lib;
     if (parser.getValue("reference") != "none") {
         logger << "Added reference to graph construction. Careful, some edges may have coverage 0" << std::endl;
         lib.insert(lib.begin(), std::experimental::filesystem::path(parser.getValue("reference")));
@@ -347,15 +347,16 @@ int main(int argc, char **argv) {
 
     if (!parser.getListValue("align").empty() || parser.getCheck("correct") || parser.getValue("segments") != "none"
                 || parser.getValue("reference") != "none" || parser.getCheck("coverage")
-                || parser.getCheck("simplify")) {
+                || parser.getCheck("simplify") || parser.getCheck("tip-correct")) {
         dbg.fillAnchors(w, logger, threads);
     }
 
-    bool calculate_coverage = parser.getCheck("coverage") || parser.getCheck("simplify") || parser.getCheck("correct") ||
-                              parser.getValue("segments") != "none" || parser.getValue("reference") != "none";
+    bool calculate_coverage = parser.getCheck("coverage") || parser.getCheck("simplify") ||
+            parser.getCheck("correct") || parser.getValue("segments") != "none" ||
+            parser.getValue("reference") != "none" || parser.getCheck("tip-correct");
     if (calculate_coverage) {
         if (parser.getValue("coverages") == "none") {
-            CalculateCoverage(dir, hasher, w, lib_for_coverage, threads, logger, dbg);
+            CalculateCoverage(dir, hasher, w, reads_lib, threads, logger, dbg);
         } else {
             LoadCoverage(parser.getValue("coverages"), logger, dbg);
         }
@@ -366,6 +367,34 @@ int main(int argc, char **argv) {
         dot.open(dir / "graph.dot");
         dbg.printDot(dot, calculate_coverage);
         dot.close();
+    }
+
+    if (parser.getCheck("tip-correct")) {
+        logger << "Removing tips from reads" << std::endl;
+        std::experimental::filesystem::path out = dir / "tip_correct.fasta";
+        ParallelRecordCollector<Contig> alignment_results(threads);
+
+        std::function<void(StringContig &)> task = [&dbg, &alignment_results, &hasher, w](StringContig & contig) {
+            Contig read = contig.makeCompressedContig();
+            if(read.size() < w + hasher.k - 1)
+                return;
+            Path<htype128> path = dbg.align(read.seq).path();
+            if (path.size() > 0 && path.front().getCoverage() < 2 && path.start().inDeg() == 0 && path.start().outDeg() == 1) {
+                path = path.subPath(1, path.size());
+            }
+            if (path.size() > 0 && path.back().getCoverage() < 2 && path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
+                path = path.subPath(0, path.size() - 1);
+            }
+            alignment_results.emplace_back(path.Seq(), read.id);
+        };
+        std::ofstream os(dir / "tip_correct.fasta");
+        io::SeqReader reader(reads_lib);
+        processRecords(reader.begin(), reader.end(), logger, threads, task);
+        for(Contig & rec : alignment_results) {
+            os << ">" << rec.id << "\n" << rec.seq << "\n";
+        }
+        os.close();
+        logger << "Finished read alignment. Results are in " << (dir / "alignments.txt") << std::endl;
     }
 
     if (!parser.getListValue("align").empty()) {
@@ -406,7 +435,7 @@ int main(int argc, char **argv) {
 
 //    findTips(logger, dbg, threads);
     if(parser.getCheck("correct")) {
-        io::SeqReader reader(lib);
+        io::SeqReader reader(reads_lib);
         error_correction::correctSequences(dbg, logger, reader.begin(), reader.end(),
                                            dir / "corrected.fasta", dir / "bad.fasta", threads, w + hasher.k - 1);
     }
