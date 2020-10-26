@@ -228,7 +228,7 @@ void LoadCoverage(const std::experimental::filesystem::path &fname, Logger &logg
 int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "dbg=none", "coverages=none", "segments=none", "dbg=none", "output-dir=",
                      "threads=16", "k-mer-size=5000", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
-                     "correct", "simplify", "coverage", "cov-threshold=4", "tip-correct"},
+                     "correct", "simplify", "coverage", "cov-threshold=2", "tip-correct", "crude-correct"},
                     {"reads", "align"},
             {"o=output-dir", "t=threads", "k=k-mer-size","w=window"});
     parser.parseCL(argc, argv);
@@ -347,13 +347,13 @@ int main(int argc, char **argv) {
 
     if (!parser.getListValue("align").empty() || parser.getCheck("correct") || parser.getValue("segments") != "none"
                 || parser.getValue("reference") != "none" || parser.getCheck("coverage")
-                || parser.getCheck("simplify") || parser.getCheck("tip-correct")) {
+                || parser.getCheck("simplify") || parser.getCheck("tip-correct") || parser.getCheck("crude-correct")) {
         dbg.fillAnchors(w, logger, threads);
     }
 
     bool calculate_coverage = parser.getCheck("coverage") || parser.getCheck("simplify") ||
             parser.getCheck("correct") || parser.getValue("segments") != "none" ||
-            parser.getValue("reference") != "none" || parser.getCheck("tip-correct");
+            parser.getValue("reference") != "none" || parser.getCheck("tip-correct") || parser.getCheck("crude-correct");
     if (calculate_coverage) {
         if (parser.getValue("coverages") == "none") {
             CalculateCoverage(dir, hasher, w, reads_lib, threads, logger, dbg);
@@ -400,7 +400,129 @@ int main(int argc, char **argv) {
             os << ">" << rec.id << "\n" << rec.seq << "\n";
         }
         os.close();
-        logger << "Finished read alignment. Results are in " << (dir / "alignments.txt") << std::endl;
+    }
+
+    if (parser.getCheck("crude-correct")) {
+        logger << "Crude error correction based of removing low covered edges and heterozygous bulges" << std::endl;
+        logger << "Removing low covered edges" << std::endl;
+        size_t threshold = std::stoull(parser.getValue("cov-threshold"));
+        std::vector<Sequence> edges;
+        std::vector<htype128> vertices_again;
+        for(auto & it : dbg) {
+            Vertex<htype128> &vert = it.second;
+            bool add = false;
+            for(Edge<htype128> & edge : vert.getOutgoing()) {
+                if (edge.getCoverage() >= threshold) {
+                    edges.push_back(vert.seq + edge.seq);
+                    add = true;
+                }
+            }
+            for(Edge<htype128> & edge : vert.rc().getOutgoing()) {
+                if (edge.getCoverage() >= threshold){
+                    edges.push_back(vert.rc().seq + edge.seq);
+                    add = true;
+                }
+            }
+            if (add)
+                vertices_again.push_back(vert.hash());
+        }
+        SparseDBG<htype128> simp_dbg(vertices_again.begin(), vertices_again.end(), hasher);
+        simp_dbg.fillSparseDBGEdges(edges.begin(), edges.end(), logger, threads, 0);
+        for(auto & it : simp_dbg) {
+            Vertex<htype128> &vert = it.second;
+            Vertex<htype128> &other = dbg.getVertex(vert.hash());
+            bool add = false;
+            for(Edge<htype128> & edge : vert.getOutgoing()) {
+                edge.incCov(other.getOutgoing(edge.seq[0]).intCov());
+            }
+            for(Edge<htype128> & edge : vert.rc().getOutgoing()) {
+                edge.incCov(other.rc().getOutgoing(edge.seq[0]).intCov());
+            }
+        }
+        mergeAll(logger, simp_dbg, threads);
+        std::ofstream simp_os;
+        simp_os.open(dir / "simp_graph.fasta");
+        simp_dbg.printFasta(simp_os);
+        simp_os.close();
+        std::ofstream dot;
+        dot.open(dir / "simp_graph.dot");
+        simp_dbg.printDot(dot, calculate_coverage);
+        dot.close();
+
+        simp_dbg.fillAnchors(w, logger, threads);
+
+        size_t cov = 0;
+        size_t len = 0;
+        for(std::pair<const htype128, Vertex<htype128>> &it : simp_dbg) {
+            Vertex<htype128> &v = it.second;
+            for (Edge<htype128> &edge : v.getOutgoing()) {
+                if (edge.intCov() >= 2 * edge.size()) {
+                    cov += edge.intCov();
+                    len += edge.size();
+                }
+            }
+            for (Edge<htype128> &edge : v.rc().getOutgoing()) {
+                if (edge.intCov() >= 2 * edge.size()) {
+                    cov += edge.intCov();
+                    len += edge.size();
+                }
+            }
+        }
+        double avg_cov = double(cov) / len;
+        logger << "Estimated average coverage as " << avg_cov << std::endl;
+        std::unordered_map<const Edge<htype128> *, const Edge<htype128> *> edge_map;
+        for(std::pair<const htype128, Vertex<htype128>> &it : simp_dbg) {
+            for (Vertex<htype128> *vit : {&it.second, &it.second.rc()}) {
+                Vertex<htype128> &v = *vit;
+                if (v.inDeg() != 1 || v.outDeg() != 2) {
+                    continue;
+                }
+                Edge<htype128> &edge1 = v.getOutgoing()[0].getCoverage() < v.getOutgoing()[1].getCoverage() ? v.getOutgoing()[0] : v.getOutgoing()[1];
+                Edge<htype128> &edge2 = v.getOutgoing()[0].getCoverage() < v.getOutgoing()[1].getCoverage() ? v.getOutgoing()[1] : v.getOutgoing()[0];
+                Edge<htype128> &edge0 = v.rc().rcEdge(v.rc().getOutgoing()[0]);
+                if (edge1.end() == edge2.end() && edge0.getCoverage() < avg_cov * 3 / 2 && edge1.getCoverage() < avg_cov / 2) {
+                    edge_map[&edge1] = &edge2;
+                    edge_map[&v.rcEdge(edge1)] = &v.rcEdge(edge2);
+                    logger << "New bulge mapping" << "\n" << edge1.seq << "\n"<< edge2.seq << std::endl;
+                }
+            }
+        }
+        ParallelRecordCollector<Contig> alignment_results(threads);
+
+        omp_set_num_threads(1);
+        std::function<void(StringContig &)> task = [&simp_dbg, &dbg, &alignment_results, &hasher, &threshold, w, &edge_map](StringContig & contig) {
+            Contig read = contig.makeCompressedContig();
+            if(read.size() < w + hasher.k - 1)
+                return;
+            GraphAlignment<htype128> old_al = dbg.align(read.seq);
+            if (old_al.size() > 0 && old_al.front().contig().getCoverage() < threshold && old_al.start().inDeg() == 0 && old_al.start().outDeg() == 1) {
+                old_al = old_al.subalignment(1, old_al.size());
+            }
+            if (old_al.size() > 0 && old_al.back().contig().getCoverage() < 2 && old_al.finish().outDeg() == 0 && old_al.finish().inDeg() == 1) {
+                old_al = old_al.subalignment(0, old_al.size() - 1);
+            }
+            if (old_al.size() == 0)
+                return;
+            for(Segment<Edge<htype128>> seg : old_al) {
+                if (seg.contig().getCoverage() < 2) {
+                    return;
+                }
+            }
+            Sequence seq = old_al.Seq();
+            if(seq.size() < w + hasher.k - 1)
+                return;
+            GraphAlignment<htype128> gal = simp_dbg.align(seq);
+            if (gal.size() > 0) {
+                alignment_results.emplace_back(gal.map(edge_map).Seq(), read.id);
+            }
+        };
+        io::SeqReader reader(reads_lib);
+        processRecords(reader.begin(), reader.end(), logger, threads, task);
+        std::ofstream os(dir / "crude_correct.fasta");
+        for(Contig & rec : alignment_results) {
+            os << ">" << rec.id << "\n" << rec.seq << "\n";
+        }
+        os.close();
     }
 
     if (!parser.getListValue("align").empty()) {

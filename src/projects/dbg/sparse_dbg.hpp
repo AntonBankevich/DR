@@ -521,6 +521,28 @@ public:
         return {&getVertex(from), std::vector<Segment<Edge<htype>>>(als.begin() + from, als.begin() + to)};
     }
 
+    GraphAlignment<htype> map(std::unordered_map<const Edge<htype128> *, const Edge<htype128> *> &edge_map) {
+        std::vector<Segment<Edge<htype>>> als1;
+        for(Segment<Edge<htype>> & seg : als) {
+            auto it = edge_map.find(&seg.contig());
+            if(it == edge_map.end()) {
+                als1.emplace_back(seg);
+            } else {
+                if (seg.left == 0 && seg.right == seg.contig().size()) {
+                    als1.emplace_back(*it->second, 0, it->second->size());
+                } else if (seg.left == 0) {
+                    als1.emplace_back(*it->second, 0, std::min(it->second->size(), seg.right));
+                } else if(seg.right == seg.contig().size()) {
+                    als1.emplace_back(*it->second, it->second->size() - std::min(it->second->size(), seg.size()), it->second->size());
+                } else {
+                    size_t l = seg.left * it->second->size() / seg.contig().size();
+                    als1.emplace_back(*it->second, l, std::min(l + seg.size(), it->second->size()));
+                }
+            }
+        }
+        return {start_, std::move(als1)};
+    }
+
     Sequence Seq() const {
         if(als.size() == 0) {
             return {};
@@ -805,6 +827,63 @@ public:
         else
             return anchors.find(kwh.hash())->second.RC();
     }
+
+//    GraphAlignment<htype> partialAlign(const Sequence & seq) {
+//        std::vector<KWH<htype>> kmers = extractVertexPositions(seq);
+//        std::vector<Segment<Edge<htype>>> res;
+//        if(kmers.size() == 0) {
+//            KWH<htype> kwh(hasher_, seq, 0);
+//            while(true) {
+//                if(isAnchor(kwh.hash())) {
+//                    EdgePosition pos = getAnchor(kwh);
+//                    if(kwh.pos >= pos.pos || pos.pos + seq.size() - kwh.pos > pos.edge->size() + hasher_.k) {
+//                        return {nullptr, std::move(res)};
+//                    }
+//                    Segment<Edge<htype>> seg(*pos.edge, pos.pos - kwh.pos, pos.pos + seq.size() - kwh.pos - hasher_.k);
+//                    if (seg.seq() == seq)
+//                        return {pos.start, std::vector<Segment<Edge<htype>>>({seg})};
+//                    else
+//                        return {nullptr, std::move(res)};
+//                }
+//                if (!kwh.hasNext()) {
+//                    return {nullptr, std::move(res)};
+//                }
+//                kwh = kwh.next();
+//            }
+//        }
+//        Vertex<htype> *prestart = &getVertex(kmers.front());
+//        if (kmers.front().pos > 0) {
+//            const Vertex<htype> &rcstart = prestart->rc();
+//            if(rcstart.hasOutgoing(seq[kmers.front().pos - 1] ^ 3)) {
+//                const Edge<htype> &rcedge = rcstart.getOutgoing(seq[kmers.front().pos - 1] ^ 3);
+//                const Edge<htype> &edge = rcstart.rcEdge(rcedge);
+//                if (edge.size() >= kmers.front().pos) {
+//                    Segment<Edge<htype>> seg(edge, edge.size() - kmers.front().pos, edge.size());
+//                    if(rcedge.seq.Subseq(0, kmers.front().pos == !(seq.Subseq(0, kmers.front().pos))) {
+//                        res.emplace_back(seg);
+//                        prestart = &rcedge.end()->rc();
+//                    }
+//                }
+//            }
+//        }
+//        for(const KWH<htype> & kmer : kmers) {
+//            if (kmer.pos + hasher_.k < seq.size()) {
+//                Vertex<htype> &vertex = getVertex(kmer);
+//                if(vertex.hasOutgoing(seq[kmer.pos + hasher_.k])) {
+//                    const Edge<htype> &edge = vertex.getOutgoing(seq[kmer.pos + hasher_.k]);
+//                    Segment<Edge<htype>> seg(edge, 0, std::min(seq.size() - kmer.pos - hasher_.k, edge.size()));
+//                    std::cout << "gopa1 " << seg.seq() << std::endl;
+//                    std::cout << "gopa2 " << seq.Subseq(kmer.pos, std::min(kmer.pos + seg.size(), seq.size())) << std::endl;
+//                    if(seg.seq() == seq.Subseq(kmer.pos + hasher_.k, std::min(kmer.pos + hasher_.k + seg.size(), seq.size()))){
+//                        if (res.empty())
+//                            prestart = &vertex;
+//                        res.emplace_back(seg);
+//                    }
+//                }
+//            }
+//        }
+//        return {prestart, std::move(res)};
+//    }
 
     GraphAlignment<htype> align(const Sequence & seq) {
         std::vector<KWH<htype>> kmers = extractVertexPositions(seq);
