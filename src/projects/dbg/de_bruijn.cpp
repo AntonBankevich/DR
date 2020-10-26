@@ -374,18 +374,24 @@ int main(int argc, char **argv) {
         std::experimental::filesystem::path out = dir / "tip_correct.fasta";
         ParallelRecordCollector<Contig> alignment_results(threads);
 
-        std::function<void(StringContig &)> task = [&dbg, &alignment_results, &hasher, w](StringContig & contig) {
+        std::function<void(StringContig &)> task = [&dbg, &alignment_results, &hasher, w, &logger](StringContig & contig) {
             Contig read = contig.makeCompressedContig();
             if(read.size() < w + hasher.k - 1)
                 return;
-            Path<htype128> path = dbg.align(read.seq).path();
-            if (path.size() > 0 && path.front().getCoverage() < 2 && path.start().inDeg() == 0 && path.start().outDeg() == 1) {
-                path = path.subPath(1, path.size());
+            GraphAlignment<htype128> gal = dbg.align(read.seq);
+            if (gal.size() > 0 && gal.front().contig().getCoverage() < 2 && gal.start().inDeg() == 0 && gal.start().outDeg() == 1) {
+                gal = gal.subalignment(1, gal.size());
             }
-            if (path.size() > 0 && path.back().getCoverage() < 2 && path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
-                path = path.subPath(0, path.size() - 1);
+            if (gal.size() > 0 && gal.back().contig().getCoverage() < 2 && gal.finish().outDeg() == 0 && gal.finish().inDeg() == 1) {
+                gal = gal.subalignment(0, gal.size() - 1);
             }
-            alignment_results.emplace_back(path.Seq(), read.id);
+            for(Segment<Edge<htype128>> seg : gal) {
+                if (seg.contig().getCoverage() < 2)
+                    return;
+            }
+            if (gal.size() > 0) {
+                alignment_results.emplace_back(gal.Seq(), read.id);
+            }
         };
         std::ofstream os(dir / "tip_correct.fasta");
         io::SeqReader reader(reads_lib);

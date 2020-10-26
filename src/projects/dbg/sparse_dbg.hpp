@@ -512,10 +512,43 @@ public:
 template<typename htype>
 class GraphAlignment {
 private:
-    Vertex<htype> *start;
+    Vertex<htype> *start_;
     std::vector<Segment<Edge<htype>>> als;
 public:
-    GraphAlignment(Vertex<htype> *_start, std::vector<Segment<Edge<htype>>> _path) : start(_start), als(std::move(_path)){}
+    GraphAlignment(Vertex<htype> *_start, std::vector<Segment<Edge<htype>>> &&_path) : start_(_start), als(std::move(_path)){}
+
+    GraphAlignment<htype> subalignment(size_t from, size_t to) {
+        return {&getVertex(from), std::vector<Segment<Edge<htype>>>(als.begin() + from, als.begin() + to)};
+    }
+
+    Sequence Seq() const {
+        if(als.size() == 0) {
+            return {};
+        }
+        SequenceBuilder sb;
+        Sequence first = start_->seq + als[0].contig().seq;
+        sb.append(first.Subseq(als[0].left, als[0].right + start_->seq.size()));
+        for(size_t i = 1; i < als.size(); i++) {
+            sb.append(als[i].seq());
+        }
+        return sb.BuildSequence();
+    }
+
+    Vertex<htype> &start() {
+        return *start_;
+    }
+
+    Vertex<htype> &finish() {
+        return *als.back().contig().end();
+    }
+
+    Segment<Edge<htype>> &back() {
+        return als.back();
+    }
+
+    Segment<Edge<htype>> &front() {
+        return als.front();
+    }
 
     const Segment<Edge<htype>> &operator[](size_t i) const {
         return als[i];
@@ -524,7 +557,15 @@ public:
     const Vertex<htype> &getVertex(size_t i) const {
         VERIFY(i <= als.size());
         if(i == 0)
-            return *start;
+            return *start_;
+        else
+            return *als[i - 1].contig().end();
+    }
+
+    Vertex<htype> &getVertex(size_t i) {
+        VERIFY(i <= als.size());
+        if(i == 0)
+            return *start_;
         else
             return *als[i - 1].contig().end();
     }
@@ -550,7 +591,7 @@ public:
         for(auto & seg : als) {
             res.push_back(seg.contig());
         }
-        return {*start, res};
+        return {*start_, res};
     }
 
     size_t size() const {
@@ -785,7 +826,7 @@ public:
                         std::cout << seq << std::endl;
                         abort();
                     };
-                    return {nullptr, res};
+                    return {nullptr, std::move(res)};
                 }
                 kwh = kwh.next();
             }
@@ -824,7 +865,7 @@ public:
                 res.emplace_back(seg);
             }
         }
-        return {prestart, res};
+        return {prestart, std::move(res)};
     }
 
     std::vector<std::pair<const Edge<htype> *, size_t>> carefulAlign(const Sequence & seq) const {
