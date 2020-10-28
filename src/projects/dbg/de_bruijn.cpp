@@ -337,14 +337,6 @@ int main(int argc, char **argv) {
                   hasher, logger, threads);
 //    dbg.checkConsistency(threads, logger);
 
-    if(parser.getValue("dbg") == "none") {
-        logger << "Printing graph to file " << (dir / "graph.fasta") << std::endl;
-        std::ofstream edges;
-        edges.open(dir / "graph.fasta");
-        dbg.printFasta(edges);
-        edges.close();
-    }
-
     if (!parser.getListValue("align").empty() || parser.getCheck("correct") || parser.getValue("segments") != "none"
                 || parser.getValue("reference") != "none" || parser.getCheck("coverage")
                 || parser.getCheck("simplify") || parser.getCheck("tip-correct") || parser.getCheck("crude-correct")) {
@@ -363,6 +355,12 @@ int main(int argc, char **argv) {
     }
 
     if(parser.getValue("dbg") == "none") {
+        logger << "Printing graph to fasta file " << (dir / "graph.fasta") << std::endl;
+        std::ofstream edges;
+        edges.open(dir / "graph.fasta");
+        dbg.printFasta(edges);
+        edges.close();
+        logger << "Printing graph to dot file " << (dir / "graph.dot") << std::endl;
         std::ofstream dot;
         dot.open(dir / "graph.dot");
         dbg.printDot(dot, calculate_coverage);
