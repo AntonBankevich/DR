@@ -9,7 +9,7 @@
 #include <experimental/filesystem>
 
 //TODO: throw exception if this is file
-void ensure_dir_existance(const std::experimental::filesystem::path & path) {
+inline void ensure_dir_existance(const std::experimental::filesystem::path & path) {
     struct stat statbuf{};
     if (not std::experimental::filesystem::is_directory(path)) {
         std::experimental::filesystem::create_directories(path);
@@ -17,7 +17,7 @@ void ensure_dir_existance(const std::experimental::filesystem::path & path) {
 }
 
 //TODO: throw exception if this is file
-void recreate_dir(const std::experimental::filesystem::path & path) {
+inline void recreate_dir(const std::experimental::filesystem::path & path) {
     struct stat statbuf{};
     if (std::experimental::filesystem::is_directory(path)) {
         std::experimental::filesystem::remove_all(path);

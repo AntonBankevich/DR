@@ -3,9 +3,10 @@
 //
 #pragma once
 
+#include "sparse_dbg.hpp"
 #include <common/bloom_filter.hpp>
 #include <common/cl_parser.hpp>
-#include "sparse_dbg.hpp"
+#include <common/simple_computation.hpp>
 #include "common/logging.hpp"
 
 template<typename htype>
@@ -180,5 +181,27 @@ std::vector<Sequence> extractDisjointigs(logging::Logger & logger, SparseDBG<hty
     });
     logger << "Finished extracting " << rres.size() << " disjointigs of total size " << total_size(rres) << std::endl;
     return rres;
+}
+
+template<typename htype>
+std::vector<Sequence> constructDisjointigs(const RollingHash<htype> &hasher, size_t w, const io::Library &reads_file,
+                                           const std::vector<htype128> & hash_list, size_t cov_threshold, size_t threads,
+                                           logging::Logger & logger) {
+    std::vector<Sequence> disjointigs;
+    SparseDBG<htype> sdbg = constructSparseDBGFromReads(logger, reads_file, threads, hasher, hash_list, w);
+//    sdbg.printStats(logger);
+    sdbg.checkSeqFilled(threads, logger);
+
+    tieTips(logger, sdbg, w, threads);
+    sdbg.checkSeqFilled(threads, logger);
+    logger << "Statistics for sparse de Bruijn graph:" << std::endl;
+    sdbg.printStats(logger);
+//    std::ofstream os;
+//    os.open("sdbg.fasta");
+//    sdbg.printFasta(os);
+//    os.close();
+
+    disjointigs = extractDisjointigs(logger, sdbg, threads);
+    return disjointigs;
 }
 

@@ -5,7 +5,7 @@
 #pragma once
 typedef unsigned __int128 htype128;
 
-std::ostream &operator<<(std::ostream &os, htype128 val) {
+inline std::ostream &operator<<(std::ostream &os, htype128 val) {
     std::vector<size_t> res;
     while(val != 0) {
         res.push_back(val%10);
@@ -17,7 +17,7 @@ std::ostream &operator<<(std::ostream &os, htype128 val) {
     return os;
 }
 
-std::istream &operator>>(std::istream &is, htype128 &val) {
+inline std::istream &operator>>(std::istream &is, htype128 &val) {
     val = 0;
     std::string tmp;
     is >> tmp;
@@ -27,7 +27,7 @@ std::istream &operator>>(std::istream &is, htype128 &val) {
     return is;
 }
 
-void writeHashs(std::ostream &os, const std::vector<htype128> &hash_list) {
+inline void writeHashs(std::ostream &os, const std::vector<htype128> &hash_list) {
     os << hash_list.size() << std::endl;
     for(htype128 h : hash_list) {
         size_t * tmp = reinterpret_cast<size_t*>(&h);
@@ -35,7 +35,7 @@ void writeHashs(std::ostream &os, const std::vector<htype128> &hash_list) {
     }
 }
 
-void readHashs(std::istream &is, std::vector<htype128> &hash_list) {
+inline void readHashs(std::istream &is, std::vector<htype128> &hash_list) {
     size_t len;
     is >> len;
     size_t a[2];
@@ -46,7 +46,7 @@ void readHashs(std::istream &is, std::vector<htype128> &hash_list) {
     }
 }
 
-std::string decimal_string(htype128 n) {
+inline std::string decimal_string(htype128 n) {
     std::vector<char> res;
     while(n) {
         res.push_back('0' + n%10);
@@ -55,7 +55,7 @@ std::string decimal_string(htype128 n) {
     return std::string(res.rbegin(), res.rend());
 }
 
-htype128 string128(const std::string &s) {
+inline htype128 string128(const std::string &s) {
     htype128 res = 0;
     for(char c : s)
         res = res * 10 + c;

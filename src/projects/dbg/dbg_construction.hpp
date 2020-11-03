@@ -3,6 +3,8 @@
 //
 #pragma once
 
+#include "minimizer_selection.hpp"
+#include "dbg_disjointigs.hpp"
 #include "sparse_dbg.hpp"
 #include "rolling_hash.hpp"
 #include "sequences/sequence.hpp"
@@ -11,6 +13,7 @@
 #include "common/logging.hpp"
 #include "common/simple_computation.hpp"
 #include "common/omp_utils.hpp"
+#include <wait.h>
 
 template<typename htype>
 std::vector<htype> findJunctions(logging::Logger & logger, const std::vector<Sequence>& disjointigs,
@@ -116,6 +119,67 @@ SparseDBG<htype> constructDBG(logging::Logger & logger, const std::vector<htype>
     logger << "Statistics for de Bruijn graph:" << std::endl;
     dbg.printStats(logger);
     return std::move(dbg);
+}
+
+template<typename htype>
+SparseDBG<htype> DBGPipeline(logging::Logger & logger, const RollingHash<htype> &hasher, size_t w, const io::Library &lib,
+                                const std::experimental::filesystem::path &dir, size_t threads,
+                                const std::string &disjointigs_file = "none", const std::string &vertices_file = "none") {
+    std::vector<Sequence> disjointigs;
+    if (disjointigs_file == "none") {
+//        pid_t p = fork();
+//        if (p < 0) {
+//            std::cout << "Fork failed" << std::endl;
+//            exit(1);
+//        }
+//        if(p == 0) {
+            std::vector<htype> hash_list;
+            hash_list = constructMinimizers(logger, lib, threads, hasher, w);
+            disjointigs = constructDisjointigs(hasher, w, lib, hash_list, 1, threads, logger);
+            hash_list.clear();
+            std::ofstream df;
+            df.open(dir / "disjointigs.fasta");
+            for (size_t i = 0; i < disjointigs.size(); i++) {
+                df << ">" << i << std::endl;
+                df << disjointigs[i] << std::endl;
+            }
+            df.close();
+//            exit(0);
+//        } else {
+//            int status = 0;
+//            waitpid(p, &status, 0);
+//            if (WEXITSTATUS(status) || WIFSIGNALED(status)) {
+//                std::cout << "Child process crashed" << std::endl;
+//                exit(1);
+//            }
+            logger << "Loading disjointigs from file " << (dir / "disjointigs.fasta") << std::endl;
+            io::SeqReader reader(dir / "disjointigs.fasta");
+            while(!reader.eof()) {
+                disjointigs.push_back(reader.read().makeCompressedSequence());
+            }
+//        }
+    } else {
+        logger << "Loading disjointigs from file " << disjointigs_file << std::endl;
+        io::SeqReader reader(disjointigs_file);
+        while(!reader.eof()) {
+            disjointigs.push_back(reader.read().makeCompressedSequence());
+        }
+    }
+    std::vector<htype> vertices;
+    if (vertices_file == "none") {
+        vertices = findJunctions(logger, disjointigs, hasher, threads);
+        std::ofstream os;
+        os.open(std::string(dir.c_str()) + "/vertices.save");
+        writeHashs(os, vertices);
+        os.close();
+    } else {
+        logger << "Loading vertex hashs from file " << vertices_file << std::endl;
+        std::ifstream is;
+        is.open(vertices_file);
+        readHashs(is, vertices);
+        is.close();
+    }
+    return std::move(constructDBG(logger, vertices, disjointigs, hasher, threads));
 }
 
 

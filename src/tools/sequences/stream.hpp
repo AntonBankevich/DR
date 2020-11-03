@@ -34,6 +34,7 @@
 #include <fstream>
 #include <zlib.h>
 #include <string>
+#include <cstring>
 
 
 namespace gzstream {

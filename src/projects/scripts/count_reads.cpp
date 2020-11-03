@@ -15,7 +15,6 @@ int main(int argc, char **argv) {
         std::cout << parser.check() << std::endl;
         return 1;
     }
-    const std::experimental::filesystem::path out(parser.getValue("output"));
     std::vector<size_t> lens;
     io::Library libReads = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     io::SeqReader reads(libReads);
@@ -23,6 +22,6 @@ int main(int argc, char **argv) {
         lens.push_back(tmp.size());
     }
     std::sort(lens.begin(), lens.end());
-    std::cout << lens.size() << " " << lens[lens.size() / 2] << std::endl;
+    std::cout << lens.size() << " " << lens[lens.size() / 2] << " " << std::accumulate(lens.begin(), lens.end(), 0ull) << std::endl;
     return 0;
 }

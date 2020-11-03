@@ -21,7 +21,7 @@ namespace logging {
 
 const std::string endl = "\n";
 
-std::string itos(size_t val) {
+inline std::string itos(size_t val) {
     std::stringstream ss;
     if(val < 10)
         ss << "0";

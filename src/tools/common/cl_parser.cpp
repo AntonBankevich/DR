@@ -51,6 +51,10 @@ void CLParser::parseCL(int argc, char **argv) {
 
 const std::string &CLParser::getValue(const std::string &s) const {
     auto it = values.find(s);
+    if (it == values.end()) {
+        std::cerr << "Missing parameter " << s << std::endl;
+        exit(1);
+    }
     VERIFY(it != values.end());
     if(it == values.end()) {
         return emptystring;
