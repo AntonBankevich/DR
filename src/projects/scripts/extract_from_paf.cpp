@@ -28,6 +28,8 @@ int main(int argc, char **argv) {
     while (std::getline(is, line))
     {
         std::vector<std::string> ss = split(line);
+        if(ss[5] != parser.getValue("chr"))
+            continue;
         if (check_size) {
             size_t from = std::stoull(ss[7]);
             size_t to = std::stoull(ss[8]);

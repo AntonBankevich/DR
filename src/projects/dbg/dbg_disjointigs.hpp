@@ -185,7 +185,7 @@ std::vector<Sequence> extractDisjointigs(logging::Logger & logger, SparseDBG<hty
 
 template<typename htype>
 std::vector<Sequence> constructDisjointigs(const RollingHash<htype> &hasher, size_t w, const io::Library &reads_file,
-                                           const std::vector<htype128> & hash_list, size_t cov_threshold, size_t threads,
+                                           const std::vector<htype128> & hash_list, size_t threads,
                                            logging::Logger & logger) {
     std::vector<Sequence> disjointigs;
     SparseDBG<htype> sdbg = constructSparseDBGFromReads(logger, reads_file, threads, hasher, hash_list, w);

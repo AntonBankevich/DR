@@ -7,6 +7,7 @@
 #include <omp.h>
 #include <utility>
 #include <numeric>
+#include <wait.h>
 
 
 class ParallelCounter {
@@ -172,11 +173,11 @@ public:
             std::vector<V> items;
             items.reserve(buffer_size);
             doBefore();
-#pragma omp parallel default(none) shared(begin, end, items, buffer_size, clen, max_length, bucket_length, self)
+#pragma omp parallel default(none) shared(begin, end, items, buffer_size, clen, max_length, bucket_length, self, std::cout)
             {
 #pragma omp single
                 {
-#pragma omp task default(none) shared(self)
+#pragma omp task default(none) shared(self, std::cout)
                     {
                         self.doInParallel();
                     }
@@ -193,7 +194,7 @@ public:
                             cur_length += item.size();
                             self.doInOneThread(item);
                         }
-#pragma omp task default(none) shared(items, self) firstprivate(left, right)
+#pragma omp task default(none) shared(items, self, std::cout) firstprivate(left, right)
                         {
                             for(size_t i = left; i < right; i++)
                                 self.task(items[i]);
@@ -276,4 +277,23 @@ void processRecords(I begin, I end, logging::Logger &logger, size_t threads, std
                     size_t bucket_length = 1024 * 1024) {
     typedef typename I::value_type V;
     ParallelProcessor<V>(task, logger, threads).processRecords(begin, end, bucket_length);
+}
+
+inline void runInFork(const std::function<void()>& f) {
+    pid_t p = fork();
+    if (p < 0) {
+        std::cout << "Fork failed" << std::endl;
+        exit(1);
+    }
+    if(p == 0) {
+        f();
+        exit(0);
+    } else {
+        int status = 0;
+        waitpid(p, &status, 0);
+        if (WEXITSTATUS(status) || WIFSIGNALED(status)) {
+            std::cout << "Child process crashed" << std::endl;
+            exit(1);
+        }
+    }
 }

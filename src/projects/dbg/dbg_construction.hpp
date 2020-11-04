@@ -124,18 +124,13 @@ SparseDBG<htype> constructDBG(logging::Logger & logger, const std::vector<htype>
 template<typename htype>
 SparseDBG<htype> DBGPipeline(logging::Logger & logger, const RollingHash<htype> &hasher, size_t w, const io::Library &lib,
                                 const std::experimental::filesystem::path &dir, size_t threads,
-                                const std::string &disjointigs_file = "none", const std::string &vertices_file = "none") {
-    std::vector<Sequence> disjointigs;
+                                std::string disjointigs_file = "none", const std::string &vertices_file = "none") {
+    std::experimental::filesystem::path df;
     if (disjointigs_file == "none") {
-//        pid_t p = fork();
-//        if (p < 0) {
-//            std::cout << "Fork failed" << std::endl;
-//            exit(1);
-//        }
-//        if(p == 0) {
+        std::function<void()> task = [&logger, &lib, &threads, &w, &dir, &hasher]() {
             std::vector<htype> hash_list;
             hash_list = constructMinimizers(logger, lib, threads, hasher, w);
-            disjointigs = constructDisjointigs(hasher, w, lib, hash_list, 1, threads, logger);
+            std::vector<Sequence> disjointigs = constructDisjointigs(hasher, w, lib, hash_list, threads, logger);
             hash_list.clear();
             std::ofstream df;
             df.open(dir / "disjointigs.fasta");
@@ -144,26 +139,17 @@ SparseDBG<htype> DBGPipeline(logging::Logger & logger, const RollingHash<htype> 
                 df << disjointigs[i] << std::endl;
             }
             df.close();
-//            exit(0);
-//        } else {
-//            int status = 0;
-//            waitpid(p, &status, 0);
-//            if (WEXITSTATUS(status) || WIFSIGNALED(status)) {
-//                std::cout << "Child process crashed" << std::endl;
-//                exit(1);
-//            }
-            logger << "Loading disjointigs from file " << (dir / "disjointigs.fasta") << std::endl;
-            io::SeqReader reader(dir / "disjointigs.fasta");
-            while(!reader.eof()) {
-                disjointigs.push_back(reader.read().makeCompressedSequence());
-            }
-//        }
+        };
+        runInFork(task);
+        df = dir / "disjointigs.fasta";
     } else {
-        logger << "Loading disjointigs from file " << disjointigs_file << std::endl;
-        io::SeqReader reader(disjointigs_file);
-        while(!reader.eof()) {
-            disjointigs.push_back(reader.read().makeCompressedSequence());
-        }
+        df = disjointigs_file;
+    }
+    logger << "Loading disjointigs from file " << df << std::endl;
+    io::SeqReader reader(df);
+    std::vector<Sequence> disjointigs;
+    while(!reader.eof()) {
+        disjointigs.push_back(reader.read().makeCompressedSequence());
     }
     std::vector<htype> vertices;
     if (vertices_file == "none") {

@@ -1191,19 +1191,19 @@ public:
                 }
             }
         }
-        logger << "Distribution of coverages:" << std::endl;
-        for(size_t i = 0; i < cov.size(); i++) {
-            logger.noTimeSpace() << i << " " << cov[i] << " " << covLen[i];
-            for(size_t val : cov_ldist[i]) {
-                logger.noTimeSpace() << " " << val;
-            }
-            logger.noTimeSpace() << std::endl;
-            logger.noTimeSpace() << i << " " << cov_tips[i] << " " << covLen_tips[i];
-            for(size_t val : cov_ldist_tips[i]) {
-                logger.noTimeSpace() << " " << val;
-            }
-            logger.noTimeSpace() << std::endl;
-        }
+//        logger << "Distribution of coverages:" << std::endl;
+//        for(size_t i = 0; i < cov.size(); i++) {
+//            logger.noTimeSpace() << i << " " << cov[i] << " " << covLen[i];
+//            for(size_t val : cov_ldist[i]) {
+//                logger.noTimeSpace() << " " << val;
+//            }
+//            logger.noTimeSpace() << std::endl;
+//            logger.noTimeSpace() << i << " " << cov_tips[i] << " " << covLen_tips[i];
+//            for(size_t val : cov_ldist_tips[i]) {
+//                logger.noTimeSpace() << " " << val;
+//            }
+//            logger.noTimeSpace() << std::endl;
+//        }
     }
 
     typename std::unordered_map<htype, Vertex<htype>>::iterator begin() {
@@ -1501,9 +1501,9 @@ void fillCoverage(SparseDBG<htype> &sdbg, logging::Logger &logger, Iterator begi
     for(size_t l : lens) {
         lens_distr[std::min(l, lens_distr.size() - 1)] += 1;
     }
-    logger << "Distribution of path sizes." << std::endl;
-    for(size_t i = 0; i < lens_distr.size(); i++)
-        std::cout << i << " " << lens_distr[i] << std::endl;
+//    logger << "Distribution of path sizes." << std::endl;
+//    for(size_t i = 0; i < lens_distr.size(); i++)
+//        std::cout << i << " " << lens_distr[i] << std::endl;
 }
 
 template<typename htype>

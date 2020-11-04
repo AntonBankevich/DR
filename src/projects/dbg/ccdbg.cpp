@@ -37,30 +37,30 @@ int main(int argc, char **argv) {
     const size_t w = std::stoi(parser.getValue("window"));
     io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     size_t threads = std::stoi(parser.getValue("threads"));
-    omp_set_num_threads(threads);
-
-    const std::experimental::filesystem::path initial_dir = dir / "initial_graph";
-    ensure_dir_existance(initial_dir);
-    SparseDBG<htype128> dbg = DBGPipeline(logger, hasher, w, lib, initial_dir, threads);
-    dbg.fillAnchors(w, logger, threads);
-    CalculateCoverage(dir, hasher, w, lib, threads, logger, dbg);
-
-    {
-        logger << "Printing initial graph to fasta file " << (initial_dir / "graph.fasta") << std::endl;
-        std::ofstream edges;
-        edges.open(initial_dir / "graph.fasta");
-        dbg.printFasta(edges);
-        edges.close();
-        logger << "Printing graph to dot file " << (initial_dir / "graph.dot") << std::endl;
-        std::ofstream dot;
-        dot.open(initial_dir / "graph.dot");
-        dbg.printDot(dot, true);
-        dot.close();
-    }
-
     size_t threshold = std::__cxx11::stoull(parser.getValue("cov-threshold"));
-    std::experimental::filesystem::path corrected_reads = CrudeCorrect(logger, dbg, dir, w, lib, threads, threshold);
+    std::function<void()> initial_dbg_task = [&dir, &logger, &hasher, w, &lib, threads, threshold] {
+        const std::experimental::filesystem::path initial_dir = dir / "initial_graph";
+        ensure_dir_existance(initial_dir);
+        SparseDBG<htype128> dbg = DBGPipeline(logger, hasher, w, lib, initial_dir, threads);
+        dbg.fillAnchors(w, logger, threads);
+        CalculateCoverage(dir, hasher, w, lib, threads, logger, dbg);
 
+        {
+            logger << "Printing initial graph to fasta file " << (initial_dir / "graph.fasta") << std::endl;
+            std::ofstream edges;
+            edges.open(initial_dir / "graph.fasta");
+            dbg.printFasta(edges);
+            edges.close();
+            logger << "Printing graph to dot file " << (initial_dir / "graph.dot") << std::endl;
+            std::ofstream dot;
+            dot.open(initial_dir / "graph.dot");
+            dbg.printDot(dot, true);
+            dot.close();
+        }
+        CrudeCorrect(logger, dbg, dir, w, lib, threads, threshold);
+    };
+
+    std::experimental::filesystem::path corrected_reads = dir / "corrected.fasta";
     io::Library corrected_lib = {corrected_reads};
     logger << "Reconstructing dbg from corrected reads" << std::endl;
     SparseDBG<htype128> dbg_corrected = DBGPipeline(logger, hasher, w, corrected_lib, dir, threads);
