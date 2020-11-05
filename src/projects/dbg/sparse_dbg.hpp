@@ -654,10 +654,12 @@ public:
             return EdgePosition(rc_edge, edge->end()->rc(), edge->size() - pos);
         }
     };
+    typedef std::unordered_map<htype, Vertex<htype>, alt_hasher<htype>> vertex_map_type;
+    typedef std::unordered_map<htype, EdgePosition, alt_hasher<htype>> anchor_map_type;
 private:
 //    TODO: replace with perfect hash map? It is parallel, maybe faster and compact.
-    std::unordered_map<htype, Vertex<htype>> v;
-    std::unordered_map<htype, EdgePosition> anchors;
+    vertex_map_type v;
+    anchor_map_type anchors;
     const RollingHash<htype> hasher_;
 
     std::vector<KWH<htype>> extractVertexPositions(const Sequence &seq) const {
@@ -1206,24 +1208,24 @@ public:
 //        }
     }
 
-    typename std::unordered_map<htype, Vertex<htype>>::iterator begin() {
+    typename vertex_map_type::iterator begin() {
         return v.begin();
     }
 
-    typename std::unordered_map<htype, Vertex<htype>>::iterator end() {
+    typename vertex_map_type::iterator end() {
         return v.end();
     }
 
-    typename std::unordered_map<htype, Vertex<htype>>::const_iterator begin() const {
+    typename vertex_map_type::const_iterator begin() const {
         return v.begin();
     }
 
-    typename std::unordered_map<htype, Vertex<htype>>::const_iterator end() const {
+    typename vertex_map_type::const_iterator end() const {
         return v.end();
     }
 
     void removeIsolated() {
-        std::unordered_map<htype, Vertex<htype>> newv;
+        vertex_map_type newv;
         for(auto & item : v) {
             if(item.second.outDeg() != 0 || item.second.inDeg() != 0) {
                 newv.emplace(item.first, std::move(item.second));
@@ -1233,7 +1235,7 @@ public:
     }
 
     void removeMarked() {
-        std::unordered_map<htype, Vertex<htype>> newv;
+        vertex_map_type newv;
         for(auto & item : v) {
             if(!item.second.marked()) {
                 newv.emplace(item.first, std::move(item.second));
@@ -1308,7 +1310,7 @@ template<class htype>
 class Component {
 private:
     SparseDBG<htype> & graph;
-    std::unordered_set<htype> v;
+    std::unordered_set<htype, alt_hasher<htype>> v;
     struct EdgeRec {
         Vertex<htype> * start;
         Vertex<htype> * end;
@@ -1357,7 +1359,7 @@ public:
 
     template<class I>
     static Component<htype> neighbourhood(SparseDBG<htype> &graph, I begin, I end, size_t radius, size_t min_coverage = 0) {
-        std::unordered_set<htype> v;
+        std::unordered_set<htype, alt_hasher<htype>> v;
         std::priority_queue<std::pair<size_t, htype>> queue;
         while(begin != end) {
             queue.emplace(0, *begin);

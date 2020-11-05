@@ -40,6 +40,9 @@ std::vector<htype> constructMinimizers(logging::Logger &logger, const io::Librar
 //    __gnu_parallel::sort(hash_list.begin(), hash_list.end());
 //    hash_list.erase(std::unique(hash_list.begin(), hash_list.end()), hash_list.end());
     logger << "Finished sorting. Total distinct minimizers: " << hash_list.size() << std::endl;
+    if (hash_list.size() == 0) {
+        logger << "WARNING: no reads passed the length filter " << min_read_size << "." << std::endl;
+    }
     return hash_list;
 }
 

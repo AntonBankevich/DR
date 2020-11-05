@@ -5,6 +5,20 @@
 #pragma once
 typedef unsigned __int128 htype128;
 
+template<class Key>
+struct alt_hasher {
+    size_t operator()( const Key& k ) const;
+};
+
+template <>
+struct alt_hasher<htype128>
+{
+    size_t operator()( const htype128& x ) const
+    {
+        return (size_t(x) * 31) ^ size_t(x >> 64u);
+    }
+};
+
 inline std::ostream &operator<<(std::ostream &os, htype128 val) {
     std::vector<size_t> res;
     while(val != 0) {

@@ -19,7 +19,7 @@ template<typename htype>
 std::vector<htype> findJunctions(logging::Logger & logger, const std::vector<Sequence>& disjointigs,
                                  const RollingHash<htype> &hasher, size_t threads) {
     bloom_parameters parameters;
-    parameters.projected_element_count = total_size(disjointigs) - hasher.k * disjointigs.size();
+    parameters.projected_element_count = std::max(total_size(disjointigs) - hasher.k * disjointigs.size(), size_t(1000));
     parameters.false_positive_probability = 0.0001;
     VERIFY(!!parameters);
     parameters.compute_optimal_parameters();
