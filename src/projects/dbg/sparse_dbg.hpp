@@ -1310,7 +1310,7 @@ template<class htype>
 class Component {
 private:
     SparseDBG<htype> & graph;
-    std::unordered_set<htype> v;
+    std::unordered_set<htype, alt_hasher<htype>> v;
     struct EdgeRec {
         Vertex<htype> * start;
         Vertex<htype> * end;
@@ -1359,7 +1359,7 @@ public:
 
     template<class I>
     static Component<htype> neighbourhood(SparseDBG<htype> &graph, I begin, I end, size_t radius, size_t min_coverage = 0) {
-        std::unordered_set<htype> v;
+        std::unordered_set<htype, alt_hasher<htype>> v;
         std::priority_queue<std::pair<size_t, htype>> queue;
         while(begin != end) {
             queue.emplace(0, *begin);
