@@ -129,7 +129,7 @@ void handleSimpleBulge(Vertex<htype128> &v, std::unordered_map<const Edge<htype1
                   logging::Logger &logger) {
     Edge<htype128> &edge1 = v.getOutgoing()[0].getCoverage() < v.getOutgoing()[1].getCoverage() ? v.getOutgoing()[0] : v.getOutgoing()[1];
     Edge<htype128> &edge2 = v.getOutgoing()[0].getCoverage() < v.getOutgoing()[1].getCoverage() ? v.getOutgoing()[1] : v.getOutgoing()[0];
-    logger << "Handling simple bulge " << v.hash() << v.isCanonical() << " " << edge1.end()->hash() << edge1.end()->isCanonical() << std::endl;
+    logger.info() << "Handling simple bulge " << v.hash() << v.isCanonical() << " " << edge1.end()->hash() << edge1.end()->isCanonical() << std::endl;
     Edge<htype128> &edge0 = v.rc().rcEdge(v.rc().getOutgoing()[0]);
     bool c1 = edge0.getCoverage() < avg_cov * 3 / 2 && edge1.getCoverage() + edge2.getCoverage() < avg_cov * 3 / 2;
     bool c2 = edge0.size() > 20000 && edge0.getCoverage() < avg_cov * 3 / 2;
@@ -184,7 +184,7 @@ std::vector<Edge<htype128> *> choosePath(Vertex<htype128> &start, Edge<htype128>
 
 void handleComplexBulge(Vertex<htype128> &v, std::unordered_set<const Edge<htype128> *> &to_skip, std::unordered_map<const Edge<htype128> *, Sequence> &edge_map, double avg_cov,
                        logging::Logger &logger) {
-    logger << "Handling complex bulge " << v.hash() << v.isCanonical() << std::endl;
+    logger.info() << "Handling complex bulge " << v.hash() << v.isCanonical() << std::endl;
     Edge<htype128> &edge1 = v.getOutgoing()[0].getCoverage() < v.getOutgoing()[1].getCoverage() ? v.getOutgoing()[0] : v.getOutgoing()[1];
     Edge<htype128> &edge2 = v.getOutgoing()[0].getCoverage() < v.getOutgoing()[1].getCoverage() ? v.getOutgoing()[1] : v.getOutgoing()[0];
     Edge<htype128> &edge0 = v.rc().rcEdge(v.rc().getOutgoing()[0]);
@@ -202,12 +202,12 @@ void handleComplexBulge(Vertex<htype128> &v, std::unordered_set<const Edge<htype
             alt = &edge1;
         }
         if (bulge == nullptr) {
-            logger << "Finished handling complex bulge " << std::endl;
+            logger.info() << "Finished handling complex bulge " << std::endl;
             return;
         }
         std::vector<Edge<htype128> *> path = choosePath(v, *bulge, *alt);
         if(path.empty()) {
-            logger << "Finished handling complex bulge " << std::endl;
+            logger.info() << "Finished handling complex bulge " << std::endl;
             return;
         }
         if(bulge->getCoverage() < avg_cov / 2) {
@@ -221,26 +221,26 @@ void handleComplexBulge(Vertex<htype128> &v, std::unordered_set<const Edge<htype
             edge_map[&v.rcEdge(*bulge)] = !bseq;
             logger  << "New complex bulge mapped "  << v.hash() << v.isCanonical() << " " << bulge->getCoverage();
             for(Edge<htype128> * edge : path) {
-                logger.noTimeSpace() << " " << edge->end()->hash() << edge->end()->isCanonical() << "(" << edge->getCoverage() << ")";
+                logger << " " << edge->end()->hash() << edge->end()->isCanonical() << "(" << edge->getCoverage() << ")";
             }
-            logger.noTimeSpace() << std::endl;
+            logger << std::endl;
         } else {
             logger  << "New complex bulge removed "  << v.hash() << v.isCanonical() << " " << bulge->getCoverage();
             for(size_t i = 0; i < path.size(); i++) {
                 Edge<htype128> * edge = path[i];
                 if(edge->getCoverage() < avg_cov / 2) {
-                    logger.noTimeSpace() << " " << edge->end()->hash() << edge->end()->isCanonical() << "(" << edge->getCoverage() << ")";
+                    logger << " " << edge->end()->hash() << edge->end()->isCanonical() << "(" << edge->getCoverage() << ")";
                     to_skip.emplace(edge);
                     if (i == 0)
                         to_skip.emplace(&v.rcEdge(*edge));
                     else
                         to_skip.emplace(&(*path[i - 1]->end()).rcEdge(*edge));
                 }
-                logger.noTimeSpace() << std::endl;
+                logger << std::endl;
             }
         }
     }
-    logger << "Finished handling complex bulge " << std::endl;
+    logger.info() << "Finished handling complex bulge " << std::endl;
 }
 
 
@@ -298,7 +298,7 @@ bool checkComponent(Vertex<htype128> *start, Vertex<htype128> *end, const std::v
 
 bool handleSubcomponent(Vertex<htype128> &v, double avg_cov, std::unordered_map<const Edge<htype128> *, Sequence> &edge_map,
                         std::unordered_set<const Edge<htype128> *> &to_skip, logging::Logger &logger) {
-    logger << "Handling component " << v.hash() << v.isCanonical() << std::endl;
+    logger.info() << "Handling component " << v.hash() << v.isCanonical() << std::endl;
     std::vector<Edge<htype128> *> path;
     std::vector<Edge<htype128> *> rc_path;
     size_t plen = 0;
@@ -311,7 +311,7 @@ bool handleSubcomponent(Vertex<htype128> &v, double avg_cov, std::unordered_map<
             }
         }
         if(next == nullptr) {
-            logger << "Finished handling component " << std::endl;
+            logger.info() << "Finished handling component " << std::endl;
             return false;
         }
         path.push_back(next);
@@ -319,7 +319,7 @@ bool handleSubcomponent(Vertex<htype128> &v, double avg_cov, std::unordered_map<
         rc_path.push_back(&cv->rcEdge(*next));
         cv = next->end();
         if(plen >= v.seq.size() * 2) {
-            logger << "Finished handling component " << std::endl;
+            logger.info() << "Finished handling component " << std::endl;
             return false;
         }
         if (checkComponent(&v, path.back()->end(), path, to_skip)) {
@@ -329,16 +329,16 @@ bool handleSubcomponent(Vertex<htype128> &v, double avg_cov, std::unordered_map<
                 edge_map[edge] = rc_path[i]->end()->rc().seq + edge->seq;
                 edge_map[rcedge] = !(rc_path[i]->end()->rc().seq + edge->seq);
             }
-            logger << "Removed new subcomponent. Retained path " << v.hash() << v.isCanonical();
+            logger.info() << "Removed new subcomponent. Retained path " << v.hash() << v.isCanonical();
             for(Edge<htype128> * edge : path) {
-                logger.noTimeSpace() << " " << edge->end()->hash() << edge->end()->isCanonical() << "(" << edge->getCoverage() << ")";
+                logger << " " << edge->end()->hash() << edge->end()->isCanonical() << "(" << edge->getCoverage() << ")";
             }
-            logger.noTimeSpace() << std::endl;
-            logger << "Finished handling component " << std::endl;
+            logger << std::endl;
+            logger.info() << "Finished handling component " << std::endl;
             return true;
         }
     }
-    logger << "Finished handling component " << std::endl;
+    logger.info() << "Finished handling component " << std::endl;
     return  false;
 }
 
@@ -346,18 +346,18 @@ std::experimental::filesystem::path CrudeCorrect(logging::Logger &logger, Sparse
                                                  const std::experimental::filesystem::path &dir,
                                                  const size_t w, const io::Library &reads_lib, size_t threads, size_t threshold) {
     const RollingHash<htype128> &hasher = dbg.hasher();
-    logger << "Crude error correction based of removing low covered edges and heterozygous bulges" << std::endl;
-    logger << "Removing tips and low covered edges" << std::endl;
+    logger.info() << "Crude error correction based of removing low covered edges and heterozygous bulges" << std::endl;
+    logger.info() << "Removing tips and low covered edges" << std::endl;
     double avg_cov = avgCoverage(dbg);
-    logger << "Estimated average coverage as " << avg_cov << std::endl;
+    logger.info() << "Estimated average coverage as " << avg_cov << std::endl;
     std::unordered_set<const Edge<htype128> *> to_skip = filterEdges(dbg, threshold, avg_cov);
     SparseDBG<htype128> simp_dbg(simplifyGraph(logger, dbg, to_skip, threads));
-    logger << "Printing initial simplified graph to fasta" << std::endl;
+    logger.info() << "Printing initial simplified graph to fasta" << std::endl;
     std::ofstream simp_os;
     simp_os.open(dir / "simp_graph.fasta");
     simp_dbg.printFasta(simp_os);
     simp_os.close();
-    logger << "Printing initial simplified graph to dot" << std::endl;
+    logger.info() << "Printing initial simplified graph to dot" << std::endl;
     std::ofstream dot;
     dot.open(dir / "simp_graph.dot");
     simp_dbg.printDot(dot, true);
@@ -385,11 +385,11 @@ std::experimental::filesystem::path CrudeCorrect(logging::Logger &logger, Sparse
         }
     }
 
-    logger << "Finished graph correction. Correcting reads." << std::endl;
+    logger.info() << "Finished graph correction. Correcting reads." << std::endl;
     ParallelRecordCollector<Contig> alignment_results(threads);
 
     std::function<void(StringContig &)> task = [&simp_dbg, &dbg, &to_skip, &alignment_results, &hasher, &threshold, w, &edge_map](StringContig & contig) {
-        Contig read = contig.makeCompressedContig();
+        Contig read = contig.makeContig();
         if(read.size() < w + hasher.k - 1)
             return;
         GraphAlignment<htype128> old_al = dbg.align(read.seq);

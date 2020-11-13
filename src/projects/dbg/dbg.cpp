@@ -15,6 +15,7 @@
 #include "common/logging.hpp"
 #include "crude_correct.hpp"
 #include "hash_utils.hpp"
+#include "initial_correction.hpp"
 #include <iostream>
 #include <queue>
 #include <omp.h>
@@ -87,15 +88,15 @@ struct hash_pair {
 
 void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, const std::experimental::filesystem::path &path_dump,
                    const std::experimental::filesystem::path &mult_dump, Logger &logger) {
-    logger << "Reading reference" << std::endl;
+    logger.info() << "Reading reference" << std::endl;
     std::vector<StringContig> ref = io::SeqReader(ref_file).readAll();
-    logger << "Finished reading reference. Starting alignment" << std::endl;
+    logger.info() << "Finished reading reference. Starting alignment" << std::endl;
     std::vector<Segment<Edge<htype128>>> path;
     std::ofstream os;
     os.open(path_dump);
     size_t cur = 0;
     for(StringContig & contig : ref) {
-        auto tmp = dbg.align(contig.makeCompressedSequence());
+        auto tmp = dbg.align(contig.makeSequence());
         os << "New chromosome " << contig.id << std::endl;
         for(size_t i = 0; i < tmp.size(); i++) {
             const Segment<Edge<htype128>> &seg = tmp[i];
@@ -105,11 +106,11 @@ void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, const 
                << seg.size() << " " << seg.contig().getCoverage() << std::endl;
             cur += seg.size();
         }
-        logger << "Aligned chromosome " << contig.id << " . Path length " << tmp.size() << std::endl;
+        logger.info() << "Aligned chromosome " << contig.id << " . Path length " << tmp.size() << std::endl;
         path.insert(path.end(), tmp.begin(), tmp.end());
     }
     os.close();
-    logger << "Reference path consists of " << path.size() << " edges" << std::endl;
+    logger.info() << "Reference path consists of " << path.size() << " edges" << std::endl;
 //    std::vector<size_t> fill_distr(11);
 //    std::vector<size_t> fill_distr_len(11);
 //    for(const std::pair<const Edge<htype128> *, size_t> & val : path) {
@@ -117,8 +118,8 @@ void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, const 
 //        fill_distr[ind] += 1;
 //        fill_distr_len[ind] += 1;
 //    }
-//    logger << "Edge filling distribution" <<std::endl;
-//    logger.noTimeSpace() << fill_distr << std::endl << fill_distr_len << std::endl;
+//    logger.info() << "Edge filling distribution" <<std::endl;
+//    logger << fill_distr << std::endl << fill_distr_len << std::endl;
     size_t max_cov = 50;
     std::vector<size_t> cov(max_cov + 1);
     std::vector<size_t> cov_len(max_cov + 1);
@@ -152,16 +153,16 @@ void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, const 
             cov_len[cov_val] += edge.size();
         }
     }
-    logger << "All coverages" << std::endl;
-    logger.noTimeSpace() << cov << std::endl << cov_len << std::endl;
-    logger << "Coverages of edges in genome path" << std::endl;
-    logger.noTimeSpace() << cov_good << std::endl << cov_good_len << std::endl;
-    logger << "Coverages of edges outside genome path" << std::endl;
-    logger.noTimeSpace() << cov_bad << std::endl << cov_bad_len << std::endl;
+    logger.info() << "All coverages" << std::endl;
+    logger << cov << std::endl << cov_len << std::endl;
+    logger.info() << "Coverages of edges in genome path" << std::endl;
+    logger << cov_good << std::endl << cov_good_len << std::endl;
+    logger.info() << "Coverages of edges outside genome path" << std::endl;
+    logger << cov_bad << std::endl << cov_bad_len << std::endl;
 }
 
 void LoadCoverage(const std::experimental::filesystem::path &fname, Logger &logger, SparseDBG<htype128> &dbg) {
-    logger << "Loading edge coverages." << std::endl;
+    logger.info() << "Loading edge coverages." << std::endl;
     std::ifstream is;
     is.open(fname);
     size_t n;
@@ -184,13 +185,14 @@ void LoadCoverage(const std::experimental::filesystem::path &fname, Logger &logg
         }
     }
     is.close();
-    logger << "Finished loading edge coverages." << std::endl;
+    logger.info() << "Finished loading edge coverages." << std::endl;
 }
 
 int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "coverages=none", "segments=none", "dbg=none", "output-dir=",
                      "threads=16", "k-mer-size=5000", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
-                     "correct", "simplify", "coverage", "cov-threshold=2", "tip-correct", "crude-correct"},
+                     "correct", "simplify", "coverage", "cov-threshold=2", "tip-correct", "crude-correct", "initial-correct",
+                     "nocompress"},
                     {"reads", "align"},
             {"o=output-dir", "t=threads", "k=k-mer-size","w=window"});
     parser.parseCL(argc, argv);
@@ -199,18 +201,20 @@ int main(int argc, char **argv) {
         std::cout << parser.check() << std::endl;
         return 1;
     }
+    if(parser.getCheck("nocompress"))
+        StringContig::needs_compressing = false;
     const std::experimental::filesystem::path dir(parser.getValue("output-dir"));
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");
     Logger logger;
     logger.addLogFile(ls.newLoggerFile());
     for(size_t i = 0; i < argc; i++) {
-        logger.noTimeSpace() << argv[i] << " ";
+        logger << argv[i] << " ";
     }
-    logger.noTimeSpace() << std::endl;
+    logger << std::endl;
     size_t k = std::stoi(parser.getValue("k-mer-size"));
     if (k % 2 == 0) {
-        logger << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
+        logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
         k += 1;
     }
     RollingHash<htype128> hasher(k, std::stoi(parser.getValue("base")));
@@ -218,7 +222,7 @@ int main(int argc, char **argv) {
     io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     io::Library reads_lib = lib;
     if (parser.getValue("reference") != "none") {
-        logger << "Added reference to graph construction. Careful, some edges may have coverage 0" << std::endl;
+        logger.info() << "Added reference to graph construction. Careful, some edges may have coverage 0" << std::endl;
         lib.insert(lib.begin(), std::experimental::filesystem::path(parser.getValue("reference")));
     }
     size_t threads = std::stoi(parser.getValue("threads"));
@@ -231,15 +235,15 @@ int main(int argc, char **argv) {
             DBGPipeline(logger, hasher, w, lib, dir, threads, disjointigs_file, vertices_file) :
           SparseDBG<htype128>::loadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
 
-    if (!parser.getListValue("align").empty() || parser.getCheck("correct") || parser.getValue("segments") != "none"
-                || parser.getValue("reference") != "none" || parser.getCheck("coverage")
-                || parser.getCheck("simplify") || parser.getCheck("tip-correct") || parser.getCheck("crude-correct")) {
+    bool calculate_coverage = parser.getCheck("coverage") || parser.getCheck("simplify") ||
+            parser.getCheck("correct") || parser.getValue("segments") != "none" ||
+            parser.getValue("reference") != "none" || parser.getCheck("tip-correct") ||
+            parser.getCheck("crude-correct") || parser.getCheck("initial-correct");
+
+    if (!parser.getListValue("align").empty() || calculate_coverage) {
         dbg.fillAnchors(w, logger, threads);
     }
 
-    bool calculate_coverage = parser.getCheck("coverage") || parser.getCheck("simplify") ||
-            parser.getCheck("correct") || parser.getValue("segments") != "none" ||
-            parser.getValue("reference") != "none" || parser.getCheck("tip-correct") || parser.getCheck("crude-correct");
     if (calculate_coverage) {
         if (parser.getValue("coverages") == "none") {
             CalculateCoverage(dir, hasher, w, reads_lib, threads, logger, dbg);
@@ -248,13 +252,17 @@ int main(int argc, char **argv) {
         }
     }
 
+    if(parser.getCheck("initial-correct")) {
+        initialCorrect(dbg, logger, dir / "correction.txt", reads_lib, {parser.getValue("reference")}, threads, w + k - 1);
+    }
+
     if(parser.getValue("dbg") == "none") {
-        logger << "Printing graph to fasta file " << (dir / "graph.fasta") << std::endl;
+        logger.info() << "Printing graph to fasta file " << (dir / "graph.fasta") << std::endl;
         std::ofstream edges;
         edges.open(dir / "graph.fasta");
         dbg.printFasta(edges);
         edges.close();
-        logger << "Printing graph to dot file " << (dir / "graph.fasta") << std::endl;
+        logger.info() << "Printing graph to dot file " << (dir / "graph.fasta") << std::endl;
         std::ofstream dot;
         dot.open(dir / "graph.dot");
         dbg.printDot(dot, calculate_coverage);
@@ -262,12 +270,12 @@ int main(int argc, char **argv) {
     }
 
     if (parser.getCheck("tip-correct")) {
-        logger << "Removing tips from reads" << std::endl;
+        logger.info() << "Removing tips from reads" << std::endl;
         std::experimental::filesystem::path out = dir / "tip_correct.fasta";
         ParallelRecordCollector<Contig> alignment_results(threads);
 
         std::function<void(StringContig &)> task = [&dbg, &alignment_results, &hasher, w, &logger](StringContig & contig) {
-            Contig read = contig.makeCompressedContig();
+            Contig read = contig.makeContig();
             if(read.size() < w + hasher.k - 1)
                 return;
             GraphAlignment<htype128> gal = dbg.align(read.seq);
@@ -311,12 +319,12 @@ int main(int argc, char **argv) {
                                            dir / "corrected.fasta", dir / "bad.fasta", threads, w + hasher.k - 1);
     }
     if (parser.getValue("segments") != "none") {
-        logger << "Drawing components" << std::endl;
+        logger.info() << "Drawing components" << std::endl;
         io::SeqReader segs(parser.getValue("segments"));
         ensure_dir_existance(dir / "pictures");
         size_t cnt = 0;
         for(StringContig scontig : segs) {
-            Contig s = scontig.makeCompressedContig();
+            Contig s = scontig.makeContig();
             std::vector<std::pair<const Edge<htype128> *, size_t>> path = dbg.carefulAlign(s.seq);
             std::vector<htype128> hashs;
             hashs.reserve(path.size());
@@ -328,7 +336,7 @@ int main(int argc, char **argv) {
             os.open(dir/ "pictures" / (logging::itos(cnt) + ".dot"));
             comp.printCompressedDot(os, 2);
             os.close();
-            logger << cnt << " " << comp.size() << std::endl;
+            logger.info() << cnt << " " << comp.size() << std::endl;
             cnt += 1;
         }
     }
@@ -336,7 +344,7 @@ int main(int argc, char **argv) {
         analyseGenome(dbg, parser.getValue("reference"), dir / "ref.info", dir / "mult.info", logger);
     }
     if (parser.getCheck("simplify")) {
-        logger << "Removing low covered edges" << std::endl;
+        logger.info() << "Removing low covered edges" << std::endl;
         size_t threshold = std::stoull(parser.getValue("cov-threshold"));
         std::vector<Sequence> edges;
         std::vector<htype128> vertices_again;
@@ -385,6 +393,6 @@ int main(int argc, char **argv) {
         simp_dbg.printDot(dot, calculate_coverage);
         dot.close();
     }
-    logger << "DBG construction finished" << std::endl;
+    logger.info() << "DBG construction finished" << std::endl;
     return 0;
 }

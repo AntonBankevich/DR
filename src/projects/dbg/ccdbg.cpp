@@ -1,4 +1,3 @@
-
 #include "dbg_construction.hpp"
 #include "crude_correct.hpp"
 #include "rolling_hash.hpp"
@@ -25,12 +24,12 @@ int main(int argc, char **argv) {
     logging::Logger logger;
     logger.addLogFile(ls.newLoggerFile());
     for(size_t i = 0; i < argc; i++) {
-        logger.noTimeSpace() << argv[i] << " ";
+        logger << argv[i] << " ";
     }
-    logger.noTimeSpace() << std::endl;
+    logger << std::endl;
     size_t k = std::stoi(parser.getValue("k-mer-size"));
     if (k % 2 == 0) {
-        logger << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
+        logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
         k += 1;
     }
     RollingHash<htype128> hasher(k, std::stoi(parser.getValue("base")));
@@ -46,12 +45,12 @@ int main(int argc, char **argv) {
         CalculateCoverage(dir, hasher, w, lib, threads, logger, dbg);
 
         {
-            logger << "Printing initial graph to fasta file " << (initial_dir / "graph.fasta") << std::endl;
+            logger.info() << "Printing initial graph to fasta file " << (initial_dir / "graph.fasta") << std::endl;
             std::ofstream edges;
             edges.open(initial_dir / "graph.fasta");
             dbg.printFasta(edges);
             edges.close();
-            logger << "Printing graph to dot file " << (initial_dir / "graph.dot") << std::endl;
+            logger.info() << "Printing graph to dot file " << (initial_dir / "graph.dot") << std::endl;
             std::ofstream dot;
             dot.open(initial_dir / "graph.dot");
             dbg.printDot(dot, true);
@@ -62,17 +61,17 @@ int main(int argc, char **argv) {
 
     std::experimental::filesystem::path corrected_reads = dir / "corrected.fasta";
     io::Library corrected_lib = {corrected_reads};
-    logger << "Reconstructing dbg from corrected reads" << std::endl;
+    logger.info() << "Reconstructing dbg from corrected reads" << std::endl;
     SparseDBG<htype128> dbg_corrected = DBGPipeline(logger, hasher, w, corrected_lib, dir, threads);
     dbg_corrected.fillAnchors(w, logger, threads);
     CalculateCoverage(dir, hasher, w, corrected_lib, threads, logger, dbg_corrected);
     {
-        logger << "Printing graph to fasta file " << (dir / "graph.fasta") << std::endl;
+        logger.info() << "Printing graph to fasta file " << (dir / "graph.fasta") << std::endl;
         std::ofstream edges;
         edges.open(dir / "graph.fasta");
         dbg_corrected.printFasta(edges);
         edges.close();
-        logger << "Printing graph to dot file " << (dir / "graph.dot") << std::endl;
+        logger.info() << "Printing graph to dot file " << (dir / "graph.dot") << std::endl;
         std::ofstream dot;
         dot.open(dir / "graph.dot");
         dbg_corrected.printDot(dot, true);
@@ -81,10 +80,10 @@ int main(int argc, char **argv) {
 
     std::experimental::filesystem::path alignments_file = alignLib(logger, dbg_corrected, corrected_lib, hasher, w, dir, threads);
 
-    logger << "DBG construction finished" << std::endl;
-    logger << "Corrected DBG edges can be found in " << (dir/"graph.fasta") << std::endl;
-    logger << "Corrected DBG in dot format can be found in " << (dir/"graph.dot") << std::endl;
-    logger << "Corrected reads can be found in " << corrected_reads << std::endl;
-    logger << "Corrected reads alignments can be found in " << alignments_file << std::endl;
+    logger.info() << "DBG construction finished" << std::endl;
+    logger.info() << "Corrected DBG edges can be found in " << (dir/"graph.fasta") << std::endl;
+    logger.info() << "Corrected DBG in dot format can be found in " << (dir/"graph.dot") << std::endl;
+    logger.info() << "Corrected reads can be found in " << corrected_reads << std::endl;
+    logger.info() << "Corrected reads alignments can be found in " << alignments_file << std::endl;
     return 0;
 }

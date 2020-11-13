@@ -94,41 +94,15 @@ public:
     }
 };
 
-class Logger {
+class Logger :  public std::streambuf , public std::ostream {
 private:
     std::vector<std::ofstream *> oss;
     TimeSpace time;
-    class DummyLogger {
-    private:
-        Logger & logger_;
-    public:
-        explicit DummyLogger(Logger & logger): logger_(logger) {}
-        DummyLogger(const DummyLogger &) = delete;
-
-        template<class T>
-        DummyLogger &operator<<(const T &val) {
-            std::cout << val;
-            for(std::ofstream *os : logger_.oss) {
-                *os << val;
-            }
-            return *this;
-        }
-
-        DummyLogger&
-        operator<<(std::ostream& (*__pf)(std::ostream &))
-        {
-            std::cout << std::endl;
-            for(std::ofstream *os : logger_.oss) {
-                *os << std::endl;
-            }
-            return *this;
-        }
-
-    };
-    friend class DummyLogger;
-    DummyLogger dummyLogger;
+    Logger *empty_logger = nullptr;
+    bool add_cout;
+    bool debug;
 public:
-    Logger() : dummyLogger(*this) {
+    explicit Logger(bool _add_cout = true, bool _debug = false) : std::ostream(this), add_cout(_add_cout), debug(_debug) {
     }
 
     Logger(const Logger &) = delete;
@@ -138,24 +112,42 @@ public:
         oss.back()->open(fn.c_str());
     }
 
-    template<class T>
-    DummyLogger &operator<<(const T &val) {
-        std::cout << time.get() << val;
+//    template<class T>
+//    DummyLogger &operator<<(const T &val) {
+//        std::cout << time.get() << val;
+//        for(std::ofstream *os : oss) {
+//            *os << time.get() << val;
+//        }
+//        return dummyLogger;
+//    }
+
+    int overflow(int c) override {
+        std::cout.put(c);
         for(std::ofstream *os : oss) {
-            *os << time.get() << val;
+            os->put(c);
         }
-        return dummyLogger;
+        return 0;
     }
 
-    DummyLogger &noTimeSpace() {
-        return dummyLogger;
-    }
-
-    template<class T>
-    void log(const T &val) {
-        std::cout << time.get() << val << std::endl;
+    Logger & info() {
+        std::cout << time.get() << " INFO: ";
         for(std::ofstream *os : oss) {
-            *os << time.get() << val << std::endl;
+            *os << time.get() << " INFO: ";
+        }
+        return *this;
+    }
+
+    Logger & trace() {
+        if(debug) {
+            std::cout << time.get() << " TRACE: ";
+            for (std::ofstream *os : oss) {
+                *os << time.get() << " TRACE: ";
+            }
+            return *this;
+        } else {
+            if (!empty_logger)
+                empty_logger = new Logger(false);
+            return *empty_logger;
         }
     }
 
@@ -166,8 +158,11 @@ public:
         }
         oss.clear();
     }
-    ~Logger() {
+
+    ~Logger() override {
         closeAll();
+        if(empty_logger)
+            delete empty_logger;
     }
 };
 //

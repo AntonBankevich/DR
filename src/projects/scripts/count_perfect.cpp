@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
     size_t threads = std::stoi(parser.getValue("threads"));
     omp_set_num_threads(threads);
     logging::Logger logger;
-    logger << "Reading genome" << std::endl;
+    logger.info() << "Reading genome" << std::endl;
     std::vector<Contig> ref = io::SeqReader(parser.getValue("reference")).readAllCompressedContigs();
     SequenceBuilder sb;
     sb.appendAll(ref.begin(), ref.end());
@@ -95,12 +95,12 @@ int main(int argc, char **argv) {
     ref.clear();
     ref.push_back(concatRef);
     ref.push_back(concatRef.RC());
-    logger << "Finished reading genome" << std::endl;
-    logger << "Building minimap index of reference" << std::endl;
+    logger.info() << "Finished reading genome" << std::endl;
+    logger.info() << "Building minimap index of reference" << std::endl;
     RawAligner<Contig> aligner(ref, threads, "ava-hifi");
-    logger << "Aligner parts " << aligner.index.size() << std::endl;
-    logger << "Finished building minimap index" << std::endl;
-    logger << "Aligning and analysing reads" << std::endl;
+    logger.info() << "Aligner parts " << aligner.index.size() << std::endl;
+    logger.info() << "Finished building minimap index" << std::endl;
+    logger.info() << "Aligning and analysing reads" << std::endl;
     io::Library libReads = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     io::SeqReader reads(libReads);
     ParallelCounter perfect_reads(threads);
@@ -139,10 +139,10 @@ int main(int argc, char **argv) {
         }
         alignment_recipes::AlignAndProcess(readSeqs.begin(), readSeqs.end(), aligner, compare_task, logger, threads);
     }
-    logger << "Perfect " << perfect_reads.get() << std::endl;
-    logger << "Errors " << errors.get() << std::endl;
-    logger << "Errorrate " << double(errors.get()) / len.get() << std::endl;
-    logger << "All " << all_reads.get() << std::endl;
+    logger.info() << "Perfect " << perfect_reads.get() << std::endl;
+    logger.info() << "Errors " << errors.get() << std::endl;
+    logger.info() << "Errorrate " << double(errors.get()) / len.get() << std::endl;
+    logger.info() << "All " << all_reads.get() << std::endl;
     std::vector<size_t> h(30);
     for (size_t e : hist) {
         h[std::min(h.size() - 1, e)] += 1;

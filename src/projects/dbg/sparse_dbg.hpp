@@ -283,24 +283,24 @@ public:
         return vend.getOutgoing(c);
     }
 
-    Sequence pathSeq(const std::vector<Edge<htype>> & path) const {
+    Sequence pathSeq(const std::vector<Edge<htype> *> & path) const {
         SequenceBuilder sb;
         sb.append(seq);
-        for(const Edge<htype> &e : path) {
-            sb.append(e.seq);
+        for(const Edge<htype> *e : path) {
+            sb.append(e->seq);
         }
         return sb.BuildSequence();
     }
 
-    std::vector<Edge<htype>> walkForward(const Edge<htype> & edge) const {
-        std::vector<Edge<htype>> res;
-        res.push_back(edge);
+    std::vector<Edge<htype>*> walkForward(Edge<htype> & edge) {
+        std::vector<Edge<htype>*> res;
+        res.push_back(&edge);
         Vertex<htype> *next = edge.end();
         while(next != nullptr && next != this && !next->isJunction()) {
-            res.push_back(next->getOutgoing()[0]);
+            res.push_back(&next->getOutgoing()[0]);
             next = next->getOutgoing()[0].end();
         }
-        return res;
+        return std::move(res);
     }
 
     void setSequence(const Sequence &_seq) {
@@ -444,18 +444,18 @@ template<typename htype>
 class Path {
 private:
     Vertex<htype> *start_;
-    std::vector<Edge<htype>> path;
+    std::vector<Edge<htype> *> path;
 public:
-    Path(Vertex<htype> &_start, std::vector<Edge<htype>> _path) : start_(&_start), path(std::move(_path)){}
+    Path(Vertex<htype> &_start, std::vector<Edge<htype> *> _path) : start_(&_start), path(std::move(_path)){}
 
     Path<htype> subPath(size_t from, size_t to) {
-        return Path(getVertex(from), std::vector<Edge<htype>>(path.begin() + from, path.begin() + to));
+        return Path(getVertex(from), std::vector<Edge<htype> *>(path.begin() + from, path.begin() + to));
     }
 
     Path<htype> RC() {
-        std::vector<Edge<htype>> rcPath;
+        std::vector<Edge<htype> *> rcPath;
         for(size_t i = path.size(); i > 0; i--) {
-            rcPath.emplace_back(getVertex(i - 1).rcEdge(path[i - 1]));
+            rcPath.emplace_back(&getVertex(i - 1).rcEdge(*path[i - 1]));
         }
         return Path(back().end()->rc(), rcPath);
     }
@@ -465,7 +465,7 @@ public:
     }
 
     Edge<htype> &operator[](size_t i) {
-        return path[i];
+        return *path[i];
     }
 
     Vertex<htype> &getVertex(size_t i) {
@@ -473,7 +473,7 @@ public:
         if(i == 0)
             return *start_;
         else
-            return *path[i - 1].end();
+            return *path[i - 1]->end();
     }
 
     const Vertex<htype> &getVertex(size_t i) const {
@@ -481,7 +481,7 @@ public:
         if(i == 0)
             return *start_;
         else
-            return *path[i - 1].end();
+            return *path[i - 1]->end();
     }
 
     Vertex<htype> &start() {
@@ -489,23 +489,38 @@ public:
     }
 
     Vertex<htype> &finish() {
-        return *path.back().end();
+        return *path.back()->end();
     }
 
     Edge<htype> &back() {
-        return path.back();
+        return *path.back();
     }
 
     Edge<htype> &front() {
-        return path.front();
+        return *path.front();
     }
 
     Sequence Seq() const {
         return start_->pathSeq(path);
     }
 
+    Sequence truncSeq() const {
+        SequenceBuilder sb;
+        for(const Edge<htype> *e : path) {
+            sb.append(e->seq);
+        }
+        return sb.BuildSequence();
+    }
+
     size_t size() const {
         return path.size();
+    }
+
+    size_t len() const {
+        size_t res = 0;
+        for(Edge<htype> *edge : path)
+            res += edge->size();
+        return res;
     }
 };
 
@@ -515,10 +530,119 @@ private:
     Vertex<htype> *start_;
     std::vector<Segment<Edge<htype>>> als;
 public:
+//    TODO change interface
     GraphAlignment(Vertex<htype> *_start, std::vector<Segment<Edge<htype>>> &&_path) : start_(_start), als(std::move(_path)){}
+
+    explicit GraphAlignment(Vertex<htype> &_start) : start_(&_start) {}
+
+    GraphAlignment() : start_(nullptr) {}
+
+    GraphAlignment RC() {
+        std::vector<Segment<Edge<htype>>> path;
+        for(size_t i = 0; i < als.size(); i++) {
+            Edge<htype> &rc_edge = getVertex(i).rcEdge(als[i].contig());
+            path.emplace_back(rc_edge, rc_edge.size() - als[i].right, rc_edge.size() - als[i].left);
+        }
+        GraphAlignment<htype> res= {&finish().rc(), {path.rbegin(), path.rend()}};
+        return res;
+    }
+
+    void invalidate() {
+        start_ = nullptr;
+        als.clear();
+    }
+
+    bool valid() const {
+        return start_ != nullptr;
+    }
 
     GraphAlignment<htype> subalignment(size_t from, size_t to) {
         return {&getVertex(from), std::vector<Segment<Edge<htype>>>(als.begin() + from, als.begin() + to)};
+    }
+
+    GraphAlignment &addStep() {
+        als.back().right += 1;
+        return *this;
+    }
+
+    GraphAlignment & addStep(Edge<htype> &edge) {
+        als.emplace_back(edge, 0, 1);
+        return *this;
+    }
+
+    GraphAlignment & extend(const Sequence &seq) {
+        VERIFY(valid());
+        for(size_t cpos = 0; cpos < seq.size(); cpos++) {
+            unsigned char c = seq[cpos];
+            if(endClosed()) {
+                Vertex<htype> &v = finish();
+                if(v.hasOutgoing(c)) {
+                    Edge<htype> &edge = v.getOutgoing(c);
+                    addStep(edge);
+                } else {
+                    invalidate();
+                    return *this;
+                }
+            } else {
+                if(als.back().contig().seq[als.back().right] == c) {
+                    addStep();
+                } else {
+                    invalidate();
+                    return *this;
+                }
+            }
+        }
+        return *this;
+    }
+
+    bool endClosed() const {
+        return start_ != nullptr && (als.size() == 0 || als.back().right == als.back().contig().size());
+    }
+
+    bool startClosed() const {
+        return start_ != nullptr && (als.size() == 0 || als.front().left == 0);
+    }
+
+    unsigned char lastNucl() const {
+        VERIFY(als.back().size() > 0);
+        return als.back().contig().seq[als.back().right - 1];
+    }
+
+    size_t leftSkip() const {
+        return als.size() == 0 ? 0 : als.front().left;
+    }
+
+    size_t rightSkip() const {
+        return als.size() == 0 ? 0 : als.back().size() - als.back().right;
+    }
+
+    std::vector<GraphAlignment<htype>> allSteps() {
+        if(als.size() != 0 && als.back().right < als.back().contig().size()) {
+            GraphAlignment<htype> copy = *this;
+            return {std::move(copy.addStep())};
+        }
+        std::vector<GraphAlignment<htype>> res;
+        Vertex<htype> &end = als.size() == 0 ? *start_ : *back().contig().end();
+        for(Edge<htype> &edge : end.getOutgoing()) {
+            GraphAlignment<htype> copy = *this;
+            res.emplace_back(std::move(copy.addStep(edge)));
+        }
+        return res;
+    }
+
+    std::vector<GraphAlignment<htype>> allExtensions(size_t len) {
+        std::vector<GraphAlignment<htype>> res = {*this};
+        size_t left = 0;
+        size_t right = 1;
+        for(size_t l = 0; l < len; l++) {
+            for(size_t i = left; i < right; i++) {
+                std::vector<GraphAlignment<htype>> tmp = res[i].allSteps();
+                res.insert(res.end(), tmp.begin(), tmp.end());
+            }
+            left = right;
+            right = res.size();
+        }
+        return std::move(res);
     }
 
     Sequence map(std::unordered_map<const Edge<htype128> *, Sequence> &edge_map) {
@@ -571,13 +695,20 @@ public:
         }
         return sb.BuildSequence();
     }
+    Sequence truncSeq()const {
+        SequenceBuilder sb;
+        for(size_t i = 0; i < als.size(); i++) {
+            sb.append(als[i].seq());
+        }
+        return sb.BuildSequence();
+    }
 
     Vertex<htype> &start() {
         return *start_;
     }
 
     Vertex<htype> &finish() {
-        return *als.back().contig().end();
+        return als.size() == 0 ? *start_ : *als.back().contig().end();
     }
 
     Segment<Edge<htype>> &back() {
@@ -589,6 +720,10 @@ public:
     }
 
     const Segment<Edge<htype>> &operator[](size_t i) const {
+        return als[i];
+    }
+
+    Segment<Edge<htype>> &operator[](size_t i) {
         return als[i];
     }
 
@@ -625,9 +760,9 @@ public:
     }
 
     Path<htype> path() {
-        std::vector<Edge<htype>> res;
+        std::vector<Edge<htype>*> res;
         for(auto & seg : als) {
-            res.push_back(seg.contig());
+            res.push_back(&seg.contig());
         }
         return {*start_, res};
     }
@@ -636,6 +771,66 @@ public:
         return als.size();
     }
 };
+
+template<typename htype>
+struct EdgePosition {
+    Vertex<htype> *start;
+    Edge<htype> *edge;
+    size_t pos;
+
+    EdgePosition(Vertex<htype> &_start, Edge<htype> &_edge, size_t _pos) : start(_start), edge(*_edge), pos(_pos) {
+        VERIFY(pos > 0);
+    }
+
+    EdgePosition() : start(nullptr), edge(nullptr), pos(0) {
+    }
+
+    GraphAlignment<htype> align(const Sequence &seq) {
+        GraphAlignment<htype> res(*start, {*edge, pos, pos});
+        Edge<htype> *cedge = edge;
+        size_t epos = pos;
+        for(size_t cpos = 0; cpos < seq.size(); cpos++) {
+            unsigned char c = seq[cpos];
+            if(epos == cedge->size()) {
+                Vertex<htype> &v = *cedge->end();
+                if(v.hasOutgoing(c)) {
+                    cedge = &v.getOutgoing(c);
+                    res.addStep(cedge);
+                    epos = 1;
+                } else {
+                    return {};
+                }
+            } else {
+                if(cedge->seq[epos] == c) {
+                    res.addStep();
+                    epos += 1;
+                } else {
+                    return {};
+                }
+            }
+        }
+        return std::move(res);
+    }
+
+    std::vector<EdgePosition> step() {
+        if(pos == edge->size()) {
+            std::vector<EdgePosition> res;
+            Vertex<htype> &v = *edge->end();
+            for(Edge<htype> &next : v.getOutgoing()) {
+                res.emplace_back(v, next, 1);
+            }
+            return std::move(res);
+        } else {
+            return {start, *edge, pos + 1};
+        }
+    }
+
+    unsigned char lastNucl() const {
+        return edge->seq[pos - 1];
+    }
+};
+
+
 
 template<typename htype>
 class SparseDBG {
@@ -710,7 +905,7 @@ public:
     }
 
     void checkConsistency(size_t threads, logging::Logger &logger) {
-        logger << "Checking consistency" << std::endl;
+        logger.info() << "Checking consistency" << std::endl;
         std::function<void(std::pair<const htype, Vertex<htype>> &)> task =
                 [this](std::pair<const htype, Vertex<htype>> & pair) {
                     const Vertex<htype> & vert = pair.second;
@@ -718,29 +913,29 @@ public:
                     vert.rc().checkConsistency();
                 };
         processObjects(v.begin(), v.end(), logger, threads, task);
-        logger << "Consistency check success" << std::endl;
+        logger.info() << "Consistency check success" << std::endl;
     }
 
     void checkSeqFilled(size_t threads, logging::Logger &logger) {
-        logger << "Checking vertex sequences" << std::endl;
+        logger.info() << "Checking vertex sequences" << std::endl;
         std::function<void(std::pair<const htype, Vertex<htype>> &)> task =
                 [&logger](std::pair<const htype, Vertex<htype>> & pair) {
                     const Vertex<htype> & vert = pair.second;
                     if(vert.seq.empty() || vert.rc().seq.empty()) {
-                        logger << "Sequence not filled " << pair.first << std::endl;
+                        logger.info() << "Sequence not filled " << pair.first << std::endl;
                         VERIFY(false);
                     }
                     if(!vert.isCanonical()) {
-                        logger << "Canonical vertex marked not canonical " << pair.first << std::endl;
+                        logger.info() << "Canonical vertex marked not canonical " << pair.first << std::endl;
                         VERIFY(false);
                     }
                     if(vert.rc().isCanonical()) {
-                        logger << "Noncanonical vertex marked canonical " << pair.first << std::endl;
+                        logger.info() << "Noncanonical vertex marked canonical " << pair.first << std::endl;
                         VERIFY(false);
                     }
                 };
         processObjects(v.begin(), v.end(), logger, threads, task);
-        logger << "Vertex sequence check success" << std::endl;
+        logger.info() << "Vertex sequence check success" << std::endl;
     }
 
     const RollingHash<htype> &hasher() const {
@@ -792,7 +987,7 @@ public:
     }
 
     void fillAnchors(size_t w, logging::Logger &logger, size_t threads) {
-        logger << "Adding anchors from long edges for alignment" << std::endl;
+        logger.info() << "Adding anchors from long edges for alignment" << std::endl;
         ParallelRecordCollector<std::pair<const htype, EdgePosition>> res(threads);
         std::function<void(std::pair<const htype, Vertex<htype>> &)> task = [&res, w, this] (std::pair<const htype, Vertex<htype>> &iter) {
             Vertex<htype> &vertex = iter.second;
@@ -833,7 +1028,7 @@ public:
         for(auto & tmp : res) {
             anchors.emplace(tmp);
         }
-        logger << "Added " << anchors.size() << " anchors" << std::endl;
+        logger.info() << "Added " << anchors.size() << " anchors" << std::endl;
     }
 
     bool isAnchor(htype hash) const {
@@ -891,8 +1086,6 @@ public:
 //                if(vertex.hasOutgoing(seq[kmer.pos + hasher_.k])) {
 //                    const Edge<htype> &edge = vertex.getOutgoing(seq[kmer.pos + hasher_.k]);
 //                    Segment<Edge<htype>> seg(edge, 0, std::min(seq.size() - kmer.pos - hasher_.k, edge.size()));
-//                    std::cout << "gopa1 " << seg.seq() << std::endl;
-//                    std::cout << "gopa2 " << seq.Subseq(kmer.pos, std::min(kmer.pos + seg.size(), seq.size())) << std::endl;
 //                    if(seg.seq() == seq.Subseq(kmer.pos + hasher_.k, std::min(kmer.pos + hasher_.k + seg.size(), seq.size()))){
 //                        if (res.empty())
 //                            prestart = &vertex;
@@ -931,23 +1124,23 @@ public:
         }
         Vertex<htype> *prestart = &getVertex(kmers.front());
         if (kmers.front().pos > 0) {
-            const Vertex<htype> &rcstart = prestart->rc();
+            Vertex<htype> &rcstart = prestart->rc();
             if(!rcstart.hasOutgoing(seq[kmers.front().pos - 1] ^ 3)) {
                 std::cout << "No outgoing for start" << std::endl << seq << std::endl <<
                         kmers.front().pos << " " << seq[kmers.front().pos - 1] << std::endl
                         << kmers.front().getSeq() << std::endl;
                 VERIFY(false);
             }
-            const Edge<htype> &rcedge = rcstart.getOutgoing(seq[kmers.front().pos - 1] ^ 3);
+            Edge<htype> &rcedge = rcstart.getOutgoing(seq[kmers.front().pos - 1] ^ 3);
             prestart = &rcedge.end()->rc();
-            const Edge<htype> &edge = rcstart.rcEdge(rcedge);
+            Edge<htype> &edge = rcstart.rcEdge(rcedge);
             VERIFY(edge.size() >= kmers.front().pos);
             Segment<Edge<htype>> seg(edge, edge.size() - kmers.front().pos, edge.size());
             res.emplace_back(seg);
         }
         for(const KWH<htype> & kmer : kmers) {
             if (kmer.pos + hasher_.k < seq.size()) {
-                const Vertex<htype> &vertex = getVertex(kmer);
+                Vertex<htype> &vertex = getVertex(kmer);
                 if(!vertex.hasOutgoing(seq[kmer.pos + hasher_.k])) {
                     std::cout << "No outgoing for middle" << std::endl << seq << std::endl <<
                               kmer.pos << " " << size_t(seq[kmer.pos + hasher_.k]) << std::endl
@@ -958,7 +1151,7 @@ public:
                     }
                     VERIFY(false);
                 }
-                const Edge<htype> &edge = vertex.getOutgoing(seq[kmer.pos + hasher_.k]);
+                Edge<htype> &edge = vertex.getOutgoing(seq[kmer.pos + hasher_.k]);
                 Segment<Edge<htype>> seg(edge, 0, std::min(seq.size() - kmer.pos - hasher_.k, edge.size()));
                 res.emplace_back(seg);
             }
@@ -1075,7 +1268,7 @@ public:
         return v.size();
     }
 
-    void printStats(logging::Logger &logger) const {
+    void printStats(logging::Logger &logger) {
         std::vector<size_t> arr(10);
         size_t isolated = 0;
         size_t isolatedSize = 0;
@@ -1086,23 +1279,23 @@ public:
         size_t e = 0;
         std::vector<size_t> inout(25);
         for(auto &val: v) {
-            const Vertex<htype> &tmp = val.second;
+            Vertex<htype> &tmp = val.second;
             if (tmp.inDeg() == 0 && tmp.outDeg() == 1) {
-                std::vector<Edge<htype>> path = tmp.walkForward(tmp.getOutgoing()[0]);
-                if (path.back().end() != nullptr && path.back().end()->outDeg() == 0 && path.back().end()->inDeg() == 1) {
+                std::vector<Edge<htype> *> path = tmp.walkForward(tmp.getOutgoing()[0]);
+                if (path.back()->end() != nullptr && path.back()->end()->outDeg() == 0 && path.back()->end()->inDeg() == 1) {
                     isolated += 1;
-                    for(auto & edge : path) {
-                        isolatedSize += edge.size();
+                    for(Edge<htype> * edge : path) {
+                        isolatedSize += edge->size();
                     }
                     isolatedSize += hasher().k;
                 }
             }
             if (tmp.inDeg() == 1 && tmp.outDeg() == 0) {
-                std::vector<Edge<htype>> path = tmp.rc().walkForward(tmp.rc().getOutgoing()[0]);
-                if (path.back().end() != nullptr && path.back().end()->outDeg() == 0 && path.back().end()->inDeg() == 1) {
+                std::vector<Edge<htype>*> path = tmp.rc().walkForward(tmp.rc().getOutgoing()[0]);
+                if (path.back()->end() != nullptr && path.back()->end()->outDeg() == 0 && path.back()->end()->inDeg() == 1) {
                     isolated += 1;
-                    for(auto & edge : path) {
-                        isolatedSize += edge.size();
+                    for(Edge<htype> * edge : path) {
+                        isolatedSize += edge->size();
                     }
                     isolatedSize += hasher().k;
                 }
@@ -1139,21 +1332,21 @@ public:
                 e += 1;
             }
         }
-        logger.noTimeSpace() << "Graph statistics:" << std::endl;
-        logger.noTimeSpace() << "Total edges: " << e / 2 << std::endl;
-        logger.noTimeSpace() << "Total vertices: " << v.size() << std::endl;
-        logger.noTimeSpace() << "Number of end vertices: " << n01 << std::endl;
-        logger.noTimeSpace() << "Number of unbranching vertices: " << n11 << std::endl;
-        logger.noTimeSpace() << "Number of isolated edges " << isolated << " " << isolatedSize << std::endl;
-        logger.noTimeSpace() << "Distribution of degrees:" << std::endl;
+        logger << "Graph statistics:" << std::endl;
+        logger << "Total edges: " << e / 2 << std::endl;
+        logger << "Total vertices: " << v.size() << std::endl;
+        logger << "Number of end vertices: " << n01 << std::endl;
+        logger << "Number of unbranching vertices: " << n11 << std::endl;
+        logger << "Number of isolated edges " << isolated << " " << isolatedSize << std::endl;
+        logger << "Distribution of degrees:" << std::endl;
         for(size_t i = 0; i < arr.size(); i++) {
-            logger.noTimeSpace() << i << " " << arr[i] << std::endl;
+            logger << i << " " << arr[i] << std::endl;
         }
-        logger.noTimeSpace() << "Distribution of in/out degrees:" << std::endl;
+        logger << "Distribution of in/out degrees:" << std::endl;
         for(size_t i = 0; i < inout.size(); i++) {
-            logger.noTimeSpace() << inout[i] << " ";
+            logger << inout[i] << " ";
             if(i % 5 == 4)
-                logger.noTimeSpace() << std::endl;
+                logger << std::endl;
         }
     }
 
@@ -1193,18 +1386,18 @@ public:
                 }
             }
         }
-//        logger << "Distribution of coverages:" << std::endl;
+//        logger.info() << "Distribution of coverages:" << std::endl;
 //        for(size_t i = 0; i < cov.size(); i++) {
-//            logger.noTimeSpace() << i << " " << cov[i] << " " << covLen[i];
+//            logger << i << " " << cov[i] << " " << covLen[i];
 //            for(size_t val : cov_ldist[i]) {
-//                logger.noTimeSpace() << " " << val;
+//                logger << " " << val;
 //            }
-//            logger.noTimeSpace() << std::endl;
-//            logger.noTimeSpace() << i << " " << cov_tips[i] << " " << covLen_tips[i];
+//            logger << std::endl;
+//            logger << i << " " << cov_tips[i] << " " << covLen_tips[i];
 //            for(size_t val : cov_ldist_tips[i]) {
-//                logger.noTimeSpace() << " " << val;
+//                logger << " " << val;
 //            }
-//            logger.noTimeSpace() << std::endl;
+//            logger << std::endl;
 //        }
     }
 
@@ -1274,23 +1467,23 @@ public:
     template<class Iterator>
     void fillSparseDBGEdges(Iterator begin, Iterator end, logging::Logger &logger, size_t threads, const size_t min_read_size) {
         typedef typename Iterator::value_type ContigType;
-        logger << "Starting to fill edges" << std::endl;
+        logger.info() << "Starting to fill edges" << std::endl;
         std::function<void(ContigType &)> task = [this, min_read_size](ContigType & contig) {
-            Sequence seq = contig.makeCompressedSequence();
+            Sequence seq = contig.makeSequence();
             if(seq.size() >= min_read_size)
                 processRead(seq);
         };
         processRecords(begin, end, logger, threads, task);
-        logger << "Sparse graph edges filled." << std::endl;
+        logger.info() << "Sparse graph edges filled." << std::endl;
     }
 
     static SparseDBG<htype> loadDBGFromFasta(const io::Library &lib, RollingHash<htype> & hasher, logging::Logger &logger, size_t threads) {
-        logger << "Loading graph from fasta" << std::endl;
+        logger.info() << "Loading graph from fasta" << std::endl;
         io::SeqReader reader(lib);
         ParallelRecordCollector<Sequence> sequences(threads);
         ParallelRecordCollector<htype> vertices(threads);
         std::function<void(StringContig &)> collect_task = [&sequences, &vertices, hasher] (StringContig &contig){
-            Sequence seq = contig.makeCompressedSequence();
+            Sequence seq = contig.makeSequence();
             KWH<htype> start(hasher, seq, 0);
             KWH<htype> end(hasher, !seq, 0);
             vertices.add(start.hash());
@@ -1301,7 +1494,7 @@ public:
         SparseDBG<htype> res(vertices.begin(), vertices.end(), hasher);
         reader.reset();
         res.fillSparseDBGEdges(reader.begin(), reader.end(), logger, threads, hasher.k + 1);
-        logger << "Finished loading graph" << std::endl;
+        logger.info() << "Finished loading graph" << std::endl;
         return std::move(res);
     }
 };
@@ -1342,12 +1535,12 @@ private:
     }
 
     Path<htype> unbranching(Vertex<htype> &vert, Edge<htype> &edge, size_t minCov) {
-        std::vector<Edge<htype>> res;
-        res.push_back(edge);
+        std::vector<Edge<htype>*> res;
+        res.push_back(&edge);
         Vertex<htype> *cur = edge.end();
         while (cur != &vert && isUnbranching(*cur, minCov)) {
-            res.push_back(getOut(*cur, minCov));
-            cur = res.back().end();
+            res.push_back(&getOut(*cur, minCov));
+            cur = res.back()->end();
         }
         return Path<htype>(vert, res);
     }
@@ -1481,10 +1674,10 @@ template<typename htype, class Iterator>
 void fillCoverage(SparseDBG<htype> &sdbg, logging::Logger &logger, Iterator begin, Iterator end, size_t threads,
                         const RollingHash<htype> &hasher, const size_t min_read_size) {
     typedef typename Iterator::value_type ContigType;
-    logger << "Starting to fill edge coverages" << std::endl;
+    logger.info() << "Starting to fill edge coverages" << std::endl;
     ParallelRecordCollector<size_t> lens(threads);
     std::function<void(ContigType &)> task = [&sdbg, &lens, min_read_size](ContigType & contig) {
-        Sequence seq = std::move(contig.makeCompressedSequence());
+        Sequence seq = std::move(contig.makeSequence());
         if(seq.size() >= min_read_size) {
             GraphAlignment<htype> path = sdbg.align(seq);
             lens.add(path.size());
@@ -1498,12 +1691,12 @@ void fillCoverage(SparseDBG<htype> &sdbg, logging::Logger &logger, Iterator begi
         }
     };
     processRecords(begin, end, logger, threads, task);
-    logger << "Edge coverage calculated." << std::endl;
+    logger.info() << "Edge coverage calculated." << std::endl;
     std::vector<size_t> lens_distr(1000);
     for(size_t l : lens) {
         lens_distr[std::min(l, lens_distr.size() - 1)] += 1;
     }
-//    logger << "Distribution of path sizes." << std::endl;
+//    logger.info() << "Distribution of path sizes." << std::endl;
 //    for(size_t i = 0; i < lens_distr.size(); i++)
 //        std::cout << i << " " << lens_distr[i] << std::endl;
 }
@@ -1511,10 +1704,10 @@ void fillCoverage(SparseDBG<htype> &sdbg, logging::Logger &logger, Iterator begi
 template<typename htype>
 SparseDBG<htype> constructSparseDBGFromReads(logging::Logger & logger, const io::Library &reads_file, size_t threads, const RollingHash<htype> &hasher,
                                        const std::vector<htype> &hash_list, const size_t w) {
-    logger << "Starting construction of sparse de Bruijn graph" << std::endl;
+    logger.info() << "Starting construction of sparse de Bruijn graph" << std::endl;
     SparseDBG<htype> sdbg(hash_list.begin(), hash_list.end(), hasher);
-    logger << "Vertex map constructed." << std::endl;
-    io::SeqReader reader(reads_file);
+    logger.info() << "Vertex map constructed." << std::endl;
+    io::SeqReader reader(reads_file, (hasher.k + w) * 10, hasher.k + 1);
     sdbg.fillSparseDBGEdges(reader.begin(), reader.end(), logger, threads, w + hasher.k - 1);
     return std::move(sdbg);
 }
@@ -1522,7 +1715,7 @@ SparseDBG<htype> constructSparseDBGFromReads(logging::Logger & logger, const io:
 
 template<typename htype>
 void tieTips(logging::Logger &logger, SparseDBG<htype> &sdbg, size_t w, size_t threads) {
-    logger << " Collecting tips " << std::endl;
+    logger.info() << " Collecting tips " << std::endl;
 //    TODO reduce memory consumption!! A lot of duplicated k-mer storing
     ParallelRecordCollector<Sequence> old_edges(threads);
     ParallelRecordCollector<htype> new_minimizers(threads);
@@ -1586,15 +1779,15 @@ void tieTips(logging::Logger &logger, SparseDBG<htype> &sdbg, size_t w, size_t t
 //            }
 //        }
 //    }
-    logger << "Added " << new_minimizers.size() << " artificial minimizers from tips." << std::endl;
-    logger << "Collected " << old_edges.size() << " old edges." << std::endl;
+    logger.info() << "Added " << new_minimizers.size() << " artificial minimizers from tips." << std::endl;
+    logger.info() << "Collected " << old_edges.size() << " old edges." << std::endl;
     for(auto it = new_minimizers.begin(); it != new_minimizers.end(); ++it) {
         sdbg.addVertex(*it);
     }
-    logger << "New minimizers added to sparse graph." << std::endl;
-    logger << "Refilling graph with edges." << std::endl;
+    logger.info() << "New minimizers added to sparse graph." << std::endl;
+    logger.info() << "Refilling graph with edges." << std::endl;
     sdbg.fillSparseDBGEdges(old_edges.begin(), old_edges.end(), logger, threads, sdbg.hasher().k + 1);
-    logger << "Finished fixing sparse de Bruijn graph." << std::endl;
+    logger.info() << "Finished fixing sparse de Bruijn graph." << std::endl;
 }
 
 template<typename htype>
@@ -1615,7 +1808,7 @@ void UpdateVertexTips(Vertex<htype> &rec, ParallelRecordCollector<Vertex<htype> 
 
 template<typename htype>
 void findTips(logging::Logger &logger, SparseDBG<htype> &sdbg, size_t threads) {
-    logger << " Finding tips " << std::endl;
+    logger.info() << " Finding tips " << std::endl;
 //    TODO reduce memory consumption!! A lot of duplicated k-mer storing
     ParallelRecordCollector<Vertex<htype> *> queue(threads);
 #pragma omp parallel default(none) shared(sdbg, logger, queue)
@@ -1633,10 +1826,10 @@ void findTips(logging::Logger &logger, SparseDBG<htype> &sdbg, size_t threads) {
             }
         }
     }
-    logger << "Found initial tips. Looking for iterative tips" << std::endl;
+    logger.info() << "Found initial tips. Looking for iterative tips" << std::endl;
     size_t cnt = 0;
     while(!queue.empty()) {
-        logger << "Iteration " << cnt << ". Queue size " << queue.size() << std::endl;
+        logger.info() << "Iteration " << cnt << ". Queue size " << queue.size() << std::endl;
         std::vector<Vertex<htype> *> prev_queue = queue.collectUnique();
         queue.clear();
 #pragma omp parallel default(none) shared(sdbg, logger, prev_queue, queue)
@@ -1654,35 +1847,35 @@ void findTips(logging::Logger &logger, SparseDBG<htype> &sdbg, size_t threads) {
             }
         }
     }
-    logger << "Tip finding finished" << std::endl;
+    logger.info() << "Tip finding finished" << std::endl;
 }
 
 
 template<typename htype>
-void mergeLoop(Vertex<htype> &start, std::vector<Edge<htype>> &path) {
-    VERIFY(*path.back().end() == start)
-    if(path.size() % 2 == 0 && *path[path.size() / 2].end() == start.rc()) {
-        path =std::vector<Edge<htype>>(path.begin(), path.begin() + path.size() / 2);
+void mergeLoop(Vertex<htype> &start, std::vector<Edge<htype>*> &path) {
+    VERIFY(*path.back()->end() == start)
+    if(path.size() % 2 == 0 && *path[path.size() / 2]->end() == start.rc()) {
+        path =std::vector<Edge<htype>*>(path.begin(), path.begin() + path.size() / 2);
     }
     Sequence newSeq(start.pathSeq(path));
     size_t cov = 0;
-    for(const Edge<htype> &e : path) {
-        if (e.end()->hash() != start.hash()) {
-            e.end()->mark();
-            e.end()->rc().mark();
+    for(const Edge<htype> *e : path) {
+        if (e->end()->hash() != start.hash()) {
+            e->end()->mark();
+            e->end()->rc().mark();
         }
-        cov += e.intCov();
+        cov += e->intCov();
     }
-    Edge<htype> &new_edge = start.addEdgeLockFree(Edge<htype>(path.back().end(), newSeq.Subseq(start.seq.size())));
+    Edge<htype> &new_edge = start.addEdgeLockFree(Edge<htype>(path.back()->end(), newSeq.Subseq(start.seq.size())));
     new_edge.incCov(cov - new_edge.intCov());
-    Edge<htype> &rc_new_edge = path.back().end()->rc().addEdgeLockFree(Edge<htype>(&start.rc(), (!newSeq).Subseq(start.seq.size())));
+    Edge<htype> &rc_new_edge = path.back()->end()->rc().addEdgeLockFree(Edge<htype>(&start.rc(), (!newSeq).Subseq(start.seq.size())));
     rc_new_edge.incCov(cov - rc_new_edge.intCov());
 }
 
 template<class htype>
-void MergeEdge(SparseDBG<htype> &sdbg, Vertex<htype> &start, const Edge<htype> &edge) {
-    std::vector<Edge<htype>> path = start.walkForward(edge);
-    Vertex<htype> &end = path.back().end()->rc();
+void MergeEdge(SparseDBG<htype> &sdbg, Vertex<htype> &start, Edge<htype> &edge) {
+    std::vector<Edge<htype>*> path = start.walkForward(edge);
+    Vertex<htype> &end = path.back()->end()->rc();
     if (path.size() > 1 && end.hash() >= start.hash()) {
         VERIFY(start.seq.size() > 0)
         VERIFY(end.seq.size() > 0);
@@ -1692,11 +1885,11 @@ void MergeEdge(SparseDBG<htype> &sdbg, Vertex<htype> &start, const Edge<htype> &
         size_t cov = 0;
         for(size_t i = 0; i + 1 < path.size(); i++) {
 //            path[i].end()->clear();
-            path[i].end()->mark();
-            path[i].end()->rc().mark();
-            cov += path[i].intCov();
+            path[i]->end()->mark();
+            path[i]->end()->rc().mark();
+            cov += path[i]->intCov();
         }
-        cov += path.back().intCov();
+        cov += path.back()->intCov();
         Edge<htype> &new_edge = start.addEdgeLockFree(Edge<htype>(&end.rc(), newSeq.Subseq(start.seq.size())));
         Edge<htype> &rc_new_edge = end.addEdgeLockFree(Edge<htype>(&start.rc(), (!newSeq).Subseq(start.seq.size())));
         new_edge.incCov(cov - new_edge.intCov());
@@ -1708,19 +1901,19 @@ void MergeEdge(SparseDBG<htype> &sdbg, Vertex<htype> &start, const Edge<htype> &
 
 template<class htype>
 void mergeLinearPaths(logging::Logger & logger, SparseDBG<htype> &sdbg, size_t threads) {
-    logger << "Merging linear unbranching paths" << std::endl;
+    logger.info() << "Merging linear unbranching paths" << std::endl;
     std::function<void(std::pair<const htype, Vertex<htype>> &)> task =
             [&sdbg](std::pair<const htype, Vertex<htype>> & pair) {
                 Vertex<htype> &start = pair.second;
                 if (!start.isJunction())
                     return;
                 start.lock();
-                for (const Edge<htype> &edge: start.getOutgoing()) {
+                for (Edge<htype> &edge: start.getOutgoing()) {
                     MergeEdge(sdbg, start, edge);
                 }
                 start.unlock();
                 start.rc().lock();
-                for (const Edge<htype> &edge: start.rc().getOutgoing()) {
+                for (Edge<htype> &edge: start.rc().getOutgoing()) {
                     MergeEdge(sdbg, start.rc(), edge);
                 }
                 start.rc().unlock();
@@ -1751,12 +1944,12 @@ void mergeLinearPaths(logging::Logger & logger, SparseDBG<htype> &sdbg, size_t t
 //            }
 //        }
 //    }
-    logger << "Finished merging linear unbranching paths" << std::endl;
+    logger.info() << "Finished merging linear unbranching paths" << std::endl;
 }
 
 template<class htype>
 void mergeCyclicPaths(logging::Logger & logger, SparseDBG<htype> &sdbg, size_t threads) {
-    logger << "Merging cyclic paths" << std::endl;
+    logger.info() << "Merging cyclic paths" << std::endl;
     ParallelRecordCollector<htype> loops(threads);
     std::function<void(std::pair<const htype, Vertex<htype>> &)> task =
             [&sdbg, &loops](std::pair<const htype, Vertex<htype>> & pair) {
@@ -1764,11 +1957,11 @@ void mergeCyclicPaths(logging::Logger & logger, SparseDBG<htype> &sdbg, size_t t
                 if(start.isJunction() || start.marked()) {
                     return;
                 }
-                std::vector<Edge<htype>> path = start.walkForward(start.getOutgoing()[0]);
-                VERIFY(*path.back().end() == start);
+                std::vector<Edge<htype>*> path = start.walkForward(start.getOutgoing()[0]);
+                VERIFY(*path.back()->end() == start);
                 bool ismin = true;
-                for (const Edge<htype> &e : path) {
-                    if (e.end()->hash() < start.hash()) {
+                for (const Edge<htype> *e : path) {
+                    if (e->end()->hash() < start.hash()) {
                         ismin = false;
                         break;
                     }
@@ -1779,32 +1972,32 @@ void mergeCyclicPaths(logging::Logger & logger, SparseDBG<htype> &sdbg, size_t t
                 start.unlock();
             };
     processObjects(sdbg.begin(), sdbg.end(), logger, threads, task);
-    logger << "Found " << loops.size() << " perfect loops" << std::endl;
+    logger.info() << "Found " << loops.size() << " perfect loops" << std::endl;
     for(htype loop : loops) {
         Vertex<htype> &start = sdbg.getVertex(loop);
-        std::vector<Edge<htype>> path = start.walkForward(start.getOutgoing()[0]);
+        std::vector<Edge<htype>*> path = start.walkForward(start.getOutgoing()[0]);
         mergeLoop(start, path);
     }
-    logger << "Finished merging cyclic paths" << std::endl;
+    logger.info() << "Finished merging cyclic paths" << std::endl;
 }
 
 template<class htype>
 void mergeAll(logging::Logger & logger, SparseDBG<htype> &sdbg, size_t threads) {
-    logger << "Merging unbranching paths" << std::endl;
+    logger.info() << "Merging unbranching paths" << std::endl;
     mergeLinearPaths(logger, sdbg, threads);
 //    sdbg.checkConsistency(threads, logger);
     mergeCyclicPaths(logger, sdbg, threads);
 //    sdbg.checkConsistency(threads, logger);
-    logger << "Removing isolated vertices" << std::endl;
+    logger.info() << "Removing isolated vertices" << std::endl;
     sdbg.removeMarked();
-    logger << "Finished removing isolated vertices" << std::endl;
+    logger.info() << "Finished removing isolated vertices" << std::endl;
 //    sdbg.checkConsistency(threads, logger);
 }
 
 template<class htype>
 void CalculateCoverage(const std::experimental::filesystem::path &dir, const RollingHash<htype> &hasher, const size_t w,
                   const io::Library &lib, size_t threads, logging::Logger &logger, SparseDBG<htype> &dbg) {
-    logger << "Calculating edge coverage." << std::endl;
+    logger.info() << "Calculating edge coverage." << std::endl;
     io::SeqReader reader(lib);
     fillCoverage(dbg, logger, reader.begin(), reader.end(), threads, hasher, w + hasher.k - 1);
     std::ofstream os;
@@ -1827,12 +2020,12 @@ void CalculateCoverage(const std::experimental::filesystem::path &dir, const Rol
 template<typename htype>
 std::experimental::filesystem::path alignLib(logging::Logger &logger, SparseDBG<htype> &dbg, const io::Library &align_lib, const RollingHash<htype> &hasher,
               const size_t w, const std::experimental::filesystem::path &dir, size_t threads) {
-    logger << "Aligning reads" << std::endl;
+    logger.info() << "Aligning reads" << std::endl;
     ParallelRecordCollector<std::string> alignment_results(threads);
     std::string acgt = "ACGT";
 
     std::function<void(StringContig &)> task = [&dbg, &alignment_results, &hasher, w, acgt](StringContig & contig) {
-        Contig read = contig.makeCompressedContig();
+        Contig read = contig.makeContig();
         if(read.size() < w + hasher.k - 1)
             return;
         Path<htype> path = dbg.align(read.seq).path();
@@ -1859,6 +2052,6 @@ std::experimental::filesystem::path alignLib(logging::Logger &logger, SparseDBG<
         os << rec << "\n";
     }
     os.close();
-    logger << "Finished read alignment. Results are in " << (dir / "alignments.txt") << std::endl;
+    logger.info() << "Finished read alignment. Results are in " << (dir / "alignments.txt") << std::endl;
     return alignments_file;
 }

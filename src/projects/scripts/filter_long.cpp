@@ -15,7 +15,7 @@ int main(int argc, char **argv) {
         return 1;
     }
     logging::Logger logger;
-    logger << "Reading and processing reads" << std::endl;
+    logger.info() << "Reading and processing reads" << std::endl;
     io::Library libReads = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     io::SeqReader reads(libReads);
     std::ofstream os;

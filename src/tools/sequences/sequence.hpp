@@ -70,13 +70,13 @@ class Sequence {
     void InitFromNucls(const S &s, bool rc = false) {
         size_t bytes_size = DataSize(size_);
         ST *bytes = data_->data();
-        if(!(is_dignucl(s[0]) || is_nucl(s[0]))) {
+        if(size_ > 0 && (!(is_dignucl(s[0]) || is_nucl(s[0])))) {
             std::cerr << "Bad nucleotide sequence " << size_ << " " << s << std::endl;
         }
-        VERIFY(is_dignucl(s[0]) || is_nucl(s[0]));
+        VERIFY(size_ == 0 || is_dignucl(s[0]) || is_nucl(s[0]));
 
         // Which symbols does our string contain : 0123 or ACGT?
-        bool digit_str = is_dignucl(s[0]);
+        bool digit_str = size_ == 0 || is_dignucl(s[0]);
 
         // data -- one temporary variable corresponding to the i-th array element
         // and some counters
@@ -307,12 +307,6 @@ public:
     Sequence makeSequence() {
         return *this;
     }
-
-
-//    Fake method to unify interface with ContigSequence
-    Sequence &makeCompressedSequence() {
-        return *this;
-    }
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Sequence &s);
@@ -325,6 +319,7 @@ inline std::ostream &operator<<(std::ostream &os, const Sequence &s);
 //including from, excluding to
 //safe if not #DEFINE NDEBUG
 Sequence Sequence::Subseq(size_t from, size_t to) const {
+    VERIFY(from <= to);
     if (rtl_) {
         return Sequence(*this, from_ + size_ - to, to - from, true);
     } else {
@@ -364,6 +359,7 @@ Sequence Sequence::operator+(const Sequence &s) const {
 }
 
 std::string Sequence::str() const {
+    VERIFY(size_ < 1000000000000ull);
     std::string res(size_, '-');
     for (size_t i = 0; i < size_; ++i) {
         res[i] = nucl(this->operator[](i));

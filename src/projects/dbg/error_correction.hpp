@@ -144,12 +144,12 @@ namespace error_correction {
     };
 
     template<typename htype>
-    std::vector<Edge<htype>> restoreResult(const std::unordered_map<State<htype>, ResRecord<htype>> stateMap,
+    std::vector<Edge<htype>*> restoreResult(const std::unordered_map<State<htype>, ResRecord<htype>> stateMap,
             ResRecord<htype> *resRecord) {
-        std::vector<Edge<htype>> res;
+        std::vector<Edge<htype>*> res;
         while(resRecord->prev != nullptr) {
             if (resRecord->last_edge != nullptr) {
-                res.push_back(*resRecord->last_edge);
+                res.push_back(resRecord->last_edge);
             }
             resRecord = resRecord->prev;
         }
@@ -297,7 +297,7 @@ namespace error_correction {
     //        threads = 1;
     //        omp_set_num_threads(1);
         typedef typename Iterator::value_type ContigType;
-        logger << "Starting to correct reads" << std::endl;
+        logger.info() << "Starting to correct reads" << std::endl;
         ParallelRecordCollector<size_t> times(threads);
         ParallelRecordCollector<size_t> scores(threads);
         ParallelRecordCollector<Contig> result(threads);
@@ -309,7 +309,7 @@ namespace error_correction {
         os.open(output_file);
 
         std::function<void(ContigType &)> task = [&sdbg, &times, &scores, min_read_size, &result,  &bad_reads](ContigType & contig) {
-            Sequence seq = contig.makeCompressedSequence();
+            Sequence seq = contig.makeSequence();
             if(seq.size() >= min_read_size) {
                 Path<htype> path = sdbg.align(seq).path();
                 CorrectionResult<htype> res = correct(path);
@@ -352,23 +352,23 @@ namespace error_correction {
         os.close();
         std::vector<size_t> time_hist = histogram(times.begin(), times.end(), 100000, 1000);
         std::vector<size_t> score_hist = histogram(scores.begin(), scores.end(), 100000, 1000);
-        logger << "Reader corrected" << std::endl;
-        logger << "Iterations" << std::endl;
+        logger.info() << "Reader corrected" << std::endl;
+        logger.info() << "Iterations" << std::endl;
         for(size_t i = 0; i < time_hist.size(); i++) {
-            logger.noTimeSpace() << i * 1000 << " " << time_hist[i] << std::endl;
+            logger << i * 1000 << " " << time_hist[i] << std::endl;
         }
-        logger << "Scores" << std::endl;
+        logger.info() << "Scores" << std::endl;
         for(size_t i = 0; i < score_hist.size(); i++) {
-            logger.noTimeSpace() << i * 1000 << " " << score_hist[i] << std::endl;
+            logger << i * 1000 << " " << score_hist[i] << std::endl;
         }
-        logger << "Printed corrected reads to " << output_file << std::endl;
-        logger << "Found " << bad_reads.size() << " bad reads" << std::endl;
+        logger.info() << "Printed corrected reads to " << output_file << std::endl;
+        logger.info() << "Found " << bad_reads.size() << " bad reads" << std::endl;
         std::ofstream bados;
         bados.open(bad_file);
         for(auto & contig : bad_reads) {
             bados << ">" << contig.first.id << " " << contig.second << "\n" << contig.first.seq << "\n";
         }
         bados.clear();
-        logger << "Printed bad reads to " << bad_file << std::endl;
+        logger.info() << "Printed bad reads to " << bad_file << std::endl;
     }
 }

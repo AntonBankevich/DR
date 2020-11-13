@@ -132,7 +132,7 @@ int main(int argc, char **argv) {
     logging::LoggerStorage ls(dir, "analysis");
     logging::Logger logger;
     logger.addLogFile(ls.newLoggerFile());
-    logger << "Reading genome" << std::endl;
+    logger.info() << "Reading genome" << std::endl;
     std::vector<Contig> ref = io::SeqReader(parser.getValue("reference")).readAllCompressedContigs();
     SequenceBuilder sb;
     sb.appendAll(ref.begin(), ref.end());
@@ -140,12 +140,12 @@ int main(int argc, char **argv) {
     ref.clear();
     ref.push_back(concatRef);
     ref.push_back(concatRef.RC());
-    logger << "Finished reading genome" << std::endl;
-    logger << "Building minimap index of reference" << std::endl;
+    logger.info() << "Finished reading genome" << std::endl;
+    logger.info() << "Building minimap index of reference" << std::endl;
     RawAligner<Contig> aligner(ref, threads, "ava-hifi");
-    logger << "Aligner parts " << aligner.index.size() << std::endl;
-    logger << "Finished building minimap index" << std::endl;
-    logger << "Aligning and analysing reads" << std::endl;
+    logger.info() << "Aligner parts " << aligner.index.size() << std::endl;
+    logger.info() << "Finished building minimap index" << std::endl;
+    logger.info() << "Aligning and analysing reads" << std::endl;
     io::Library libReads = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     io::Library libCorrected = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("corrected"));
     io::SeqReader reads(libReads);
@@ -161,14 +161,14 @@ int main(int argc, char **argv) {
 //    for(StringContig contig : corrected) {
 //        contigs.push_back(contig.makeCompressedContig());
 //    }
-//    logger << "Batch test" << std::endl;
+//    logger.info() << "Batch test" << std::endl;
 //    aligner.align1(contigs, threads);
-//    logger << "Sequential test" << std::endl;
+//    logger.info() << "Sequential test" << std::endl;
 //#pragma omp parallel for default(none) shared(aligner, contigs)
 //    for(size_t i = 0; i < contigs.size(); i++) {
 //        aligner.align(contigs[i]);
 //    }
-//    logger << "Done" << std::endl;
+//    logger.info() << "Done" << std::endl;
 //    corrected.reset();
     std::vector<double> pis;
     std::vector<Contig> initial;
@@ -236,27 +236,27 @@ int main(int argc, char **argv) {
     alignment_recipes::AlignAndProcess(reads.begin(), reads.end(), aligner, collect_task, logger, threads);
     alignment_recipes::AlignAndProcess(corrected.begin(), corrected.end(), aligner, compare_task, logger, threads);
 
-    logger << "Not aligned " << unaligned_reads.size() << std::endl;
-    logger << "Perfect " << perfect_reads.size() << std::endl;
-    logger << "Nonperfect " << nonperfect_reads.size() << std::endl;
-    logger << "Strange " << strange_reads.size() << std::endl;
-    logger << "Bad " << bad_reads.size() << std::endl;
+    logger.info() << "Not aligned " << unaligned_reads.size() << std::endl;
+    logger.info() << "Perfect " << perfect_reads.size() << std::endl;
+    logger.info() << "Nonperfect " << nonperfect_reads.size() << std::endl;
+    logger.info() << "Strange " << strange_reads.size() << std::endl;
+    logger.info() << "Bad " << bad_reads.size() << std::endl;
     PrintContigs(unaligned_reads, dir / "unaligned.fasta");
     PrintContigs(perfect_reads, dir / "perfect.fasta");
     PrintContigs(nonperfect_reads, dir / "nonperfect.fasta");
     PrintContigs(strange_reads, dir / "strange.fasta");
     PrintContigs(bad_reads, dir / "bad.fasta");
-    logger << "Printed contigs to files" << std::endl;
+    logger.info() << "Printed contigs to files" << std::endl;
 //    AlignmentStats res;
 //    for(const AlignmentStats & stat : stats) {
 //        res = res + stat;
 //    }
-//    logger << "No read alignment " << res.no_align << std::endl;
-//    logger << "Single read alignment " << res.single_align << std::endl;
-//    logger << "Single read alignment is end-to-end " << res.full_align << std::endl;
-//    logger << "Multiple read alignment " << res.multi_align << std::endl;
+//    logger.info() << "No read alignment " << res.no_align << std::endl;
+//    logger.info() << "Single read alignment " << res.single_align << std::endl;
+//    logger.info() << "Single read alignment is end-to-end " << res.full_align << std::endl;
+//    logger.info() << "Multiple read alignment " << res.multi_align << std::endl;
 //    for(size_t i = 0; i < res.readErrors.size(); i++) {
-//        logger << i << " " << res.readErrors[i] << std::endl;
+//        logger.info() << i << " " << res.readErrors[i] << std::endl;
 //    }
 //    std::ofstream os;
 //    os.open(dir / "ref_errors.info");

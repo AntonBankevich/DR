@@ -11,11 +11,11 @@
 
 template<typename htype>
 Sequence buildDisjointig(const Vertex<htype> &rec,
-                         const std::vector<Edge<htype>> &path) {
+                         const std::vector<Edge<htype>*> &path) {
     Sequence disjointig = rec.pathSeq(path);
-    const Vertex<htype> &last = path.back().end()->rc();
-    const Edge<htype> &lastEdge = path.size() > 1 ? path[path.size() - 2].end()->sparseRcEdge(path.back()) :
-            rec.sparseRcEdge(path.back());
+    const Vertex<htype> &last = path.back()->end()->rc();
+    const Edge<htype> &lastEdge = path.size() > 1 ? path[path.size() - 2]->end()->sparseRcEdge(*path.back()) :
+            rec.sparseRcEdge(*path.back());
 //    Sequence seq = rec.pathSeq(path);
 //    std::string kmer = "TCTGAGCACAGTGTGACACTCACTAGAGTGAGAGCAGATGATGCTCAGTGCTCACAGAGATGACACAGCACTCAGTCACTCACAGCATGAGTGTGCAGCTGAGAGAGCATCAGAGCTGACAGTCTCTCAGCTCAGCAGCTGAGCTGACAGCATCACTCAGTATAGATGCTCACTCTGTCAGTGAGCTCTGCAGTCAGTCAGAGACTGACAGCATGACTGTAGTGCTGTCTCAGACACAGACACATCTGACATCATCACATACACAGAGCTCTACAGTCACGAGACAGACACATGTGCAGAGAGACAGAGTGCAGAGCTGATGAGTCATATCACAGACAGATCTGCACTGCTGATCACACTCATCATCACTCAGTGAGAGACTGATCACAGATGAGCATCTGCACAGAGATACTATCAGTCACTATGATAGTGTGATGACTAGCTATCGAGTGTGACTCAGTCACGTACTCTACAGCAGATGATACAGTATCAGAGCTGTGTCAGCTATCGT";
 //    std::string kmer1 = "ACGATAGCTGACACAGCTCTGATACTGTATCATCTGCTGTAGAGTACGTGACTGAGTCACACTCGATAGCTAGTCATCACACTATCATAGTGACTGATAGTATCTCTGTGCAGATGCTCATCTGTGATCAGTCTCTCACTGAGTGATGATGAGTGTGATCAGCAGTGCAGATCTGTCTGTGATATGACTCATCAGCTCTGCACTCTGTCTCTCTGCACATGTGTCTGTCTCGTGACTGTAGAGCTCTGTGTATGTGATGATGTCAGATGTGTCTGTGTCTGAGACAGCACTACAGTCATGCTGTCAGTCTCTGACTGACTGCAGAGCTCACTGACAGAGTGAGCATCTATACTGAGTGATGCTGTCAGCTCAGCTGCTGAGCTGAGAGACTGTCAGCTCTGATGCTCTCTCAGCTGCACACTCATGCTGTGAGTGACTGAGTGCTGTGTCATCTCTGTGAGCACTGAGCATCATCTGCTCTCACTCTAGTGAGTGTCACACTGTGCTCAGA";
@@ -39,11 +39,11 @@ Sequence buildDisjointig(const Vertex<htype> &rec,
 //                        <<std::endl << last.getOutgoing()[i].seq << std::endl;
 //        }
 //    }
-    if(path[0].intCov() + lastEdge.intCov() + rec.seq.size() > disjointig.size())
+    if(path[0]->intCov() + lastEdge.intCov() + rec.seq.size() > disjointig.size())
         return Sequence{};
-    disjointig = disjointig.Subseq(path[0].intCov(), disjointig.size() - lastEdge.intCov());
+    disjointig = disjointig.Subseq(path[0]->intCov(), disjointig.size() - lastEdge.intCov());
     if (rec.inDeg() > 1 && rec.outDeg() == 1) {
-        VERIFY(path[0].intCov() == 0);
+        VERIFY(path[0]->intCov() == 0);
         const Edge<htype>& extra = rec.rc().getOutgoing()[0];
         disjointig = !(extra.seq.Subseq(0, extra.intCov())) + disjointig;
     }
@@ -57,10 +57,10 @@ Sequence buildDisjointig(const Vertex<htype> &rec,
 
 template<typename htype>
 void processVertex(Vertex<htype> &rec, ParallelRecordCollector<Sequence> &res) {
-    for(const Edge<htype> & edge : rec.getOutgoing()) {
+    for(Edge<htype> & edge : rec.getOutgoing()) {
         VERIFY(edge.end() != nullptr);
         VERIFY(!rec.seq.empty());
-        std::vector<Edge<htype>> path = rec.walkForward(edge);
+        std::vector<Edge<htype>*> path = rec.walkForward(edge);
 //        Vertex<htype> &rec1 = path.back().end()->rc();
 //        const Edge<htype> &edge1 = path.size() > 1 ? path[path.size() - 2].end()->sparseRcEdge(path.back()) :
 //                                   rec.sparseRcEdge(path.back());
@@ -77,10 +77,10 @@ void processVertex(Vertex<htype> &rec, ParallelRecordCollector<Sequence> &res) {
 //            std::cout << rec.pathSeq(path) << std::endl << !rec.pathSeq(path)<< std::endl << rec1.pathSeq(path1) << std::endl;
 //            VERIFY(false)
 //        }
-        if(rec < path.back().end()->rc() || (rec == path.back().end()->rc() && rec.pathSeq(path) <= !rec.pathSeq(path))) {
+        if(rec < path.back()->end()->rc() || (rec == path.back()->end()->rc() && rec.pathSeq(path) <= !rec.pathSeq(path))) {
             Sequence disjointig = buildDisjointig(rec, path);
             for(size_t i = 0; i + 1 < path.size(); i++) {
-                path[i].end()->clearSequence();
+                path[i]->end()->clearSequence();
             }
             if (!disjointig.empty())
                 res.add(disjointig.copy());
@@ -143,17 +143,17 @@ void extractCircularDisjointigs(SparseDBG<htype> &sdbg, ParallelRecordCollector<
                 htype hash = pair.first;
                 if(rec.isJunction() || rec.seq.empty())
                     return;
-                const Edge<htype> &edge = rec.getOutgoing()[0];
+                Edge<htype> &edge = rec.getOutgoing()[0];
                 VERIFY(edge.end() != nullptr);
-                std::vector<Edge<htype>> path = rec.walkForward(edge);
-                if(path.back().end() != &rec) {
-                    std::cout << path.back().end() << std::endl;
-                    std::cout << path.back().end()->hash() << std::endl;
+                std::vector<Edge<htype> *> path = rec.walkForward(edge);
+                if(path.back()->end() != &rec) {
+                    std::cout << path.back()->end() << std::endl;
+                    std::cout << path.back()->end()->hash() << std::endl;
                     std::cout << rec.seq << std::endl;
                 }
-                VERIFY(path.back().end() == &rec);
+                VERIFY(path.back()->end() == &rec);
                 for(size_t i = 0; i + 1 < path.size(); i++) {
-                    if(*(path[i].end()) < rec) {
+                    if(*(path[i]->end()) < rec) {
                         return;
                     }
                 }
@@ -167,19 +167,19 @@ void extractCircularDisjointigs(SparseDBG<htype> &sdbg, ParallelRecordCollector<
 
 template<typename htype>
 std::vector<Sequence> extractDisjointigs(logging::Logger & logger, SparseDBG<htype> &sdbg, size_t threads) {
-    logger << "Starting to extract disjointigs." << std::endl;
+    logger.info() << "Starting to extract disjointigs." << std::endl;
     ParallelRecordCollector<Sequence> res(threads);
-    logger << "Extracting linear disjointigs." << std::endl;
+    logger.info() << "Extracting linear disjointigs." << std::endl;
     extractLinearDisjointigs(sdbg, res, logger, threads);
-    logger << "Finished extracting linear disjointigs." << std::endl;
-    logger << "Extracting circular disjointigs." << std::endl;
+    logger.info() << "Finished extracting linear disjointigs." << std::endl;
+    logger.info() << "Extracting circular disjointigs." << std::endl;
     extractCircularDisjointigs(sdbg, res, logger, threads);
-    logger << "Finished extracting circular disjointigs." << std::endl;
+    logger.info() << "Finished extracting circular disjointigs." << std::endl;
     std::vector<Sequence> rres = res.collect();
     std::sort(rres.begin(), rres.end(), [] (const Sequence& lhs, const Sequence& rhs) {
         return lhs.size() > rhs.size();
     });
-    logger << "Finished extracting " << rres.size() << " disjointigs of total size " << total_size(rres) << std::endl;
+    logger.info() << "Finished extracting " << rres.size() << " disjointigs of total size " << total_size(rres) << std::endl;
     return rres;
 }
 
@@ -194,7 +194,7 @@ std::vector<Sequence> constructDisjointigs(const RollingHash<htype> &hasher, siz
 
     tieTips(logger, sdbg, w, threads);
     sdbg.checkSeqFilled(threads, logger);
-    logger << "Statistics for sparse de Bruijn graph:" << std::endl;
+    logger.info() << "Statistics for sparse de Bruijn graph:" << std::endl;
     sdbg.printStats(logger);
 //    std::ofstream os;
 //    os.open("sdbg.fasta");

@@ -20,6 +20,18 @@ std::vector<htype> findJunctions(logging::Logger & logger, const std::vector<Seq
                                  const RollingHash<htype> &hasher, size_t threads) {
     bloom_parameters parameters;
     parameters.projected_element_count = std::max(total_size(disjointigs) - hasher.k * disjointigs.size(), size_t(1000));
+    std::vector<Sequence> split_disjointigs;
+    for(const Sequence &seq : disjointigs) {
+        if(seq.size() > hasher.k * 20) {
+            size_t cur = 0;
+            while(cur + hasher.k < seq.size()) {
+                split_disjointigs.emplace_back(seq.Subseq(cur, std::min(seq.size(), cur + hasher.k * 20)));
+                cur += hasher.k * 19;
+            }
+        } else {
+            split_disjointigs.emplace_back(seq);
+        }
+    }
     parameters.false_positive_probability = 0.0001;
     VERIFY(!!parameters);
     parameters.compute_optimal_parameters();
@@ -37,11 +49,11 @@ std::vector<htype> findJunctions(logging::Logger & logger, const std::vector<Seq
             kmer = kmer.next();
         }
     };
-    logger << "Filling bloom filter with k+1-mers." << std::endl;
-    processRecords(disjointigs.begin(), disjointigs.end(), logger, threads, task);
+    logger.info() << "Filling bloom filter with k+1-mers." << std::endl;
+    processRecords(split_disjointigs.begin(), split_disjointigs.end(), logger, threads, task);
     std::pair<size_t, size_t> bits = filter.count_bits();
-    logger << "Filled " << bits.first << " bits out of " << bits.second << std::endl;
-    logger << "Finished filling bloom filter. Selecting junctions." << std::endl;
+    logger.info() << "Filled " << bits.first << " bits out of " << bits.second << std::endl;
+    logger.info() << "Finished filling bloom filter. Selecting junctions." << std::endl;
     ParallelRecordCollector<htype> junctions(threads);
     std::function<void(const Sequence &)> junk_task = [&filter, &hasher, &junctions](const Sequence & seq) {
         KWH<htype> kmer(hasher, seq, 0);
@@ -67,26 +79,26 @@ std::vector<htype> findJunctions(logging::Logger & logger, const std::vector<Seq
         }
     };
 
-    processRecords(disjointigs.begin(), disjointigs.end(), logger, threads, junk_task);
+    processRecords(split_disjointigs.begin(), split_disjointigs.end(), logger, threads, junk_task);
     std::vector<htype> res = junctions.collect();
     __gnu_parallel::sort(res.begin(), res.end());
     res.erase(std::unique(res.begin(), res.end()), res.end());
-    logger << "Collected " << res.size() << " junctions." << std::endl;
+    logger.info() << "Collected " << res.size() << " junctions." << std::endl;
     return res;
 }
 
 template<typename htype>
 SparseDBG<htype> constructDBG(logging::Logger & logger, const std::vector<htype> &vertices, const std::vector<Sequence> &disjointigs,
                                  const RollingHash<htype> &hasher, size_t threads) {
-    logger << "Starting DBG construction." << std::endl;
+    logger.info() << "Starting DBG construction." << std::endl;
     SparseDBG<htype> dbg(vertices.begin(), vertices.end(), hasher);
-    logger << "Vertices created." << std::endl;
+    logger.info() << "Vertices created." << std::endl;
     std::function<void(Sequence &)> edge_filling_task = [&dbg](Sequence & seq) {
         dbg.processRead(seq);
     };
     processRecords(disjointigs.begin(), disjointigs.end(), logger, threads, edge_filling_task);
 
-    logger << "Filled dbg edges. Adding hanging vertices " << std::endl;
+    logger.info() << "Filled dbg edges. Adding hanging vertices " << std::endl;
     ParallelRecordCollector<std::pair<Vertex<htype>*, Edge<htype> *>> tips(threads);
 
     std::function<void(std::pair<const htype, Vertex<htype>> &)> task =
@@ -107,16 +119,16 @@ SparseDBG<htype> constructDBG(logging::Logger & logger, const std::vector<htype>
     for(std::pair<Vertex<htype>*, Edge<htype> *> edge : tips) {
         Vertex<htype> & vertex = dbg.bindTip(*edge.first, *edge.second);
     }
-    logger << "Added " << tips.size() << " hanging vertices" << std::endl;
+    logger.info() << "Added " << tips.size() << " hanging vertices" << std::endl;
 
-    logger << "Constructed dbg of size " << dbg.size() << std::endl;
+    logger.info() << "Constructed dbg of size " << dbg.size() << std::endl;
 //    dbg.checkConsistency(threads, logger);
 //    dbg.printStats(logger);
-    logger << "Merging edges " << std::endl;
+    logger.info() << "Merging edges " << std::endl;
     mergeAll(logger, dbg, threads);
 //    dbg.checkConsistency(threads, logger);
-    logger << "Ended merging edges. Resulting size " << dbg.size() << std::endl;
-    logger << "Statistics for de Bruijn graph:" << std::endl;
+    logger.info() << "Ended merging edges. Resulting size " << dbg.size() << std::endl;
+    logger.info() << "Statistics for de Bruijn graph:" << std::endl;
     dbg.printStats(logger);
     return std::move(dbg);
 }
@@ -145,11 +157,11 @@ SparseDBG<htype> DBGPipeline(logging::Logger & logger, const RollingHash<htype> 
     } else {
         df = disjointigs_file;
     }
-    logger << "Loading disjointigs from file " << df << std::endl;
+    logger.info() << "Loading disjointigs from file " << df << std::endl;
     io::SeqReader reader(df);
     std::vector<Sequence> disjointigs;
     while(!reader.eof()) {
-        disjointigs.push_back(reader.read().makeCompressedSequence());
+        disjointigs.push_back(reader.read().makeSequence());
     }
     std::vector<htype> vertices;
     if (vertices_file == "none") {
@@ -159,7 +171,7 @@ SparseDBG<htype> DBGPipeline(logging::Logger & logger, const RollingHash<htype> 
         writeHashs(os, vertices);
         os.close();
     } else {
-        logger << "Loading vertex hashs from file " << vertices_file << std::endl;
+        logger.info() << "Loading vertex hashs from file " << vertices_file << std::endl;
         std::ifstream is;
         is.open(vertices_file);
         readHashs(is, vertices);

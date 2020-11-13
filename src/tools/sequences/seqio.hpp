@@ -36,8 +36,9 @@ namespace io {
                 isend = true;
             }
         }
+
         StringContig operator*() {
-            return std::move(reader.next);
+            return std::move(reader.get());
         }
 
         bool operator==(const ContigIterator &other) const {
@@ -67,9 +68,11 @@ namespace io {
                 isend = true;
             }
         }
+
         const Sequence &operator*() {
-            return reader.next.seq;
+            return reader.get().seq;
         }
+
         bool operator==(const SeqIterator &other) const {
             return isend == other.isend;
         }
@@ -84,6 +87,10 @@ namespace io {
         typedef ContigIterator<SeqReader> Iterator;
     private:
         void inner_read() {
+            if(cur_pos + split < next.size()) {
+                cur_pos += split - overlap;
+                return;
+            }
             while (stream != nullptr){
                 std::string id, seq;
                 std::getline(*stream, id);
@@ -102,6 +109,7 @@ namespace io {
                         cnt += 1;
                     }
                     next = {ss.str(), std::move(trim(id.substr(1, id.size() - 1)))};
+                    cur_pos = 0;
                     if(fastq) {
                         std::getline(*stream, id);
                         size_t qlen= 0;
@@ -118,6 +126,7 @@ namespace io {
                 nextFile();
             }
             next = StringContig();
+            cur_pos = 0;
         }
 
         void nextFile() {
@@ -137,18 +146,20 @@ namespace io {
             }
         }
 
-        std::function<void(std::string &)> transform;
         const Library lib;
         Library::const_iterator file_it;
         std::istream * stream{};
         StringContig next{};
         bool fastq{};
+        size_t cur_pos = 0;
+        size_t split;
+        size_t overlap;
     public:
         friend class ContigIterator<SeqReader>;
         friend class SeqIterator<SeqReader>;
 
-        explicit SeqReader(Library _lib, std::function<void(std::string &)> _transform = [](std::string &s) {}) :
-                    transform(std::move(_transform)), lib(std::move(_lib)), file_it(lib.begin()) {
+        explicit SeqReader(Library _lib, size_t _split = size_t(-1) / 2, size_t _overlap = size_t(-1) / 2) :
+                    lib(std::move(_lib)), file_it(lib.begin()), split(_split), overlap(_overlap) {
             nextFile();
             inner_read();
         }
@@ -156,12 +167,12 @@ namespace io {
         void reset() {
             file_it = lib.begin();
             nextFile();
+            cur_pos = 0;
             inner_read();
         }
 
-        explicit SeqReader(const std::experimental::filesystem::path & file_name,
-                  std::function<void(std::string &)> _transform = [](std::string &s) {}) :
-                  SeqReader(Library({file_name}), std::move(_transform)) {
+        explicit SeqReader(const std::experimental::filesystem::path & file_name) :
+                  SeqReader(Library({file_name})) {
         }
 
         SeqReader(SeqReader &&other) = default;
@@ -190,8 +201,23 @@ namespace io {
             return {*this, true};
         }
 
+        StringContig get() {
+            StringContig tmp;
+            if(cur_pos > 0 || next.size() > split) {
+                tmp = StringContig(next.seq.substr(cur_pos, std::min(next.seq.size() - cur_pos, split)), next.id + "_" + std::to_string(cur_pos));
+            } else {
+                tmp = std::move(next);
+            }
+            return std::move(tmp);
+        }
+
         StringContig read() {
-            StringContig tmp = std::move(next);
+            StringContig tmp;
+            if(cur_pos > 0 || next.size() > split) {
+                tmp = StringContig(next.seq.substr(cur_pos, std::min(next.seq.size() - cur_pos, split)), next.id + "_" + std::to_string(cur_pos));
+            } else {
+                tmp = std::move(next);
+            }
             inner_read();
             return std::move(tmp);
         }
@@ -217,7 +243,7 @@ namespace io {
         std::vector<Contig> readAllCompressedContigs() {
             std::vector<Contig> res;
             while(!eof()) {
-                res.emplace_back(std::move(next.makeCompressedContig()));
+                res.emplace_back(std::move(next.makeContig()));
                 inner_read();
             }
             return std::move(res);

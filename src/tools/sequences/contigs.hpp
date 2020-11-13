@@ -26,15 +26,15 @@ namespace basic {
 
 template<class T>
 class Segment{
-    const T *contig_ptr;
+    T *contig_ptr;
 public:
     size_t left;
     size_t right;
-    Segment(const T &contig_, size_t left_, size_t right_) : left(left_), right(right_), contig_ptr(&contig_){
+    Segment(T &contig_, size_t left_, size_t right_) : left(left_), right(right_), contig_ptr(&contig_){
         VERIFY(0 <= left and left <= right and right <= contig_ptr->size())
     }
 
-    const T &contig() const {
+    T &contig() const {
         return *contig_ptr;
     }
 
@@ -182,6 +182,7 @@ class StringContig {
 public:
     std::string id;
     std::string seq;
+    static bool needs_compressing;
 
     StringContig() : id(""), seq("") {
     }
@@ -198,22 +199,26 @@ public:
     }
 
     Contig makeContig() {
+        if(needs_compressing)
+            compress();
         return Contig(Sequence(seq), id);
     }
 
-    Contig makeCompressedContig() {
-        compress();
-        return makeContig();
-    }
+//    Contig makeCompressedContig() {
+//        compress();
+//        return makeContig();
+//    }
 
     Sequence makeSequence() {
+        if(needs_compressing)
+            compress();
         return Sequence(seq);
     }
 
-    Sequence makeCompressedSequence() {
-        compress();
-        return makeSequence();
-    }
+//    Sequence makeCompressedSequence() {
+//        compress();
+//        return makeSequence();
+//    }
 
     bool isNull() const {
         return id.empty() && seq.empty();
@@ -223,6 +228,7 @@ public:
         return seq.size();
     }
 };
+
 
 
 template <class T>

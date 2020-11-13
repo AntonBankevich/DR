@@ -246,7 +246,7 @@ namespace alignment_recipes {
     void AlignAndProcess(I begin, I end, RawAligner<Contig> &aligner,
                                const std::function<void(size_t, const Contig &, const std::vector<CigarAlignment<Contig, R>> &)>& task,
                                logging::Logger &logger, size_t threads, size_t max_records = size_t(-1)) {
-        logger << "Starting parallel alignment and processing" << std::endl;
+        logger.info() << "Starting parallel alignment and processing" << std::endl;
         omp_set_num_threads(threads);
         size_t bucket_length = 1024 * 1024;
         size_t buffer_size = 1024 * 1024;
@@ -266,7 +266,7 @@ namespace alignment_recipes {
                     {
                         size_t clen = 0;
                         while (begin != end && items.size() < buffer_size && clen < max_length) {
-                            items.emplace_back((*begin).makeCompressedContig());
+                            items.emplace_back((*begin).makeContig());
                             clen += items.back().size();
                             ++begin;
                         }
@@ -296,7 +296,7 @@ namespace alignment_recipes {
                 }
                 total_len += clen;
                 total += prev_items.size();
-                logger << prev_items.size() << " items of total length " << clen << " processed " << std::endl;
+                logger.info() << prev_items.size() << " items of total length " << clen << " processed " << std::endl;
             }
             std::swap(items, prev_items);
             if(total > max_records)
@@ -331,9 +331,9 @@ namespace alignment_recipes {
             }
             total_len += clen;
             total += prev_items.size();
-            logger << prev_items.size() << " items of total length " << clen << " processed " << std::endl;
+            logger.info() << prev_items.size() << " items of total length " << clen << " processed " << std::endl;
         }
-        logger << "Finished parallel alignment and processing. Processed " << total <<
+        logger.info() << "Finished parallel alignment and processing. Processed " << total <<
                " sequences with total length " << total_len << std::endl;
     }
 }

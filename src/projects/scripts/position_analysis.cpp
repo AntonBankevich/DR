@@ -132,7 +132,7 @@ int main(int argc, char **argv) {
     logging::LoggerStorage ls(dir, "analysis");
     logging::Logger logger;
     logger.addLogFile(ls.newLoggerFile());
-    logger << "Reading genome" << std::endl;
+    logger.info() << "Reading genome" << std::endl;
     std::vector<Contig> ref = io::SeqReader(parser.getValue("reference")).readAllCompressedContigs();
     SequenceBuilder sb;
     sb.appendAll(ref.begin(), ref.end());
@@ -140,11 +140,11 @@ int main(int argc, char **argv) {
     ref.clear();
     ref.push_back(concatRef);
     ref.push_back(concatRef.RC());
-    logger << "Finished reading genome" << std::endl;
-    logger << "Building minimap index of reference" << std::endl;
+    logger.info() << "Finished reading genome" << std::endl;
+    logger.info() << "Building minimap index of reference" << std::endl;
     RawAligner<Contig> aligner(ref, threads, "ava-hifi");
-    logger << "Finished building minimap index" << std::endl;
-    logger << "Aligning and analysing reads" << std::endl;
+    logger.info() << "Finished building minimap index" << std::endl;
+    logger.info() << "Aligning and analysing reads" << std::endl;
     io::Library libReads = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     io::Library libCorrected = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("corrected"));
     io::SeqReader reads(libReads);
@@ -161,7 +161,7 @@ int main(int argc, char **argv) {
             };
     alignment_recipes::AlignAndProcess(reads.begin(), reads.end(), aligner, collect_task, logger, threads);
 
-    logger << "Collecting events" << std::endl;
+    logger.info() << "Collecting events" << std::endl;
     std::vector<std::pair<size_t, int>> events;
     for(Segment<Contig> & seg : segs) {
         if(seg.contig() == concatRef){
@@ -172,13 +172,13 @@ int main(int argc, char **argv) {
             events.emplace_back(concatRef.size() - seg.left, -1);
         }
     }
-    logger << "Sorting events" << std::endl;
+    logger.info() << "Sorting events" << std::endl;
     std::sort(events.begin(), events.end(), [] (const std::pair<size_t, int> &e1, const std::pair<size_t, int> &e2)
               {
                     return e1.first < e2.first || (e1.first == e2.second && e1.second > e2.first);
               }
     );
-    logger << "Printing result" << std::endl;
+    logger.info() << "Printing result" << std::endl;
     size_t start = 0;
     int cov = 0;
     int max_cov = 0;
@@ -190,12 +190,12 @@ int main(int argc, char **argv) {
             if(max_cov > 3) {
                 double ratio = ( i - start + 1.0) / std::max(events[i].first - events[start].first - 8000, size_t(1));
                 bad.emplace_back(-ratio, concatRef.segment(events[start].first, events[i].first));
-                logger.noTimeSpace() << "New seg " << events[start].first << " " << events[i].first - events[start].first << " " << (i - start + 1) / 2<< std::endl;
+                logger << "New seg " << events[start].first << " " << events[i].first - events[start].first << " " << (i - start + 1) / 2<< std::endl;
                 for(size_t j = start; j <= i; j++) {
-                    logger.noTimeSpace() << events[j].first - events[start].first << " " << events[j].second << std::endl;
+                    logger << events[j].first - events[start].first << " " << events[j].second << std::endl;
                 }
             } else {
-                logger.noTimeSpace() << "Low covered seg " << events[start].first << " " << events[i].first - events[start].first << std::endl;
+                logger << "Low covered seg " << events[start].first << " " << events[i].first - events[start].first << std::endl;
             }
             start = i + 1;
             max_cov = 0;

@@ -3,6 +3,5 @@
 //
 
 #include "contigs.hpp"
-using std::min;
-using std::max;
 
+bool StringContig::needs_compressing = true;
