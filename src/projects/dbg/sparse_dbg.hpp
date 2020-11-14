@@ -131,6 +131,26 @@ public:
         return canonical;
     }
 
+    bool isCanonical(const Edge<htype> &edge) const {
+        const Vertex<htype> &other = edge.end()->rc();
+        if(hash() != other.hash())
+            return hash() < other.hash();
+        if (isCanonical() != other.isCanonical())
+            return isCanonical();
+        const Edge<htype> &rc_edge = rcEdge(edge);
+        return edge.seq < rc_edge.seq;
+    }
+
+    std::string edgeId(const Edge<htype> &edge) const {
+        std::stringstream ss;
+        if(isCanonical(edge)) {
+            ss << hash() << isCanonical() << "ACGT"[edge.seq[0]];
+            return ss.str();
+        } else {
+            return edge.end()->rc().edgeId(rcEdge(edge));
+        }
+    }
+
     void mark() {
         mark_ = true;
     }
@@ -1464,6 +1484,35 @@ public:
         }
     }
 
+    void printGFA(std::ostream &out) const {
+        out << "H\tVN:Z:1.0" << std::endl;
+        size_t cnt = 0;
+        for(const auto &it : v) {
+            for (const Vertex<htype> *pv : {&it.second, &it.second.rc()}) {
+                const Vertex<htype> &vertex = *pv;
+                VERIFY(!vertex.seq.empty());
+                for(const Edge<htype> & edge : vertex.getOutgoing()) {
+                    if(vertex.isCanonical(edge)) {
+                        out << "S\t" << vertex.edgeId(edge) << "\t" << vertex.seq << edge.seq << std::endl;
+                    }
+                }
+            }
+        }
+        for(const auto &it : v) {
+            const Vertex<htype> &vertex =it.second;
+            for(const Edge<htype> & out_edge : vertex.getOutgoing()) {
+                std::string outid = vertex.edgeId(out_edge);
+                bool outsign = vertex.isCanonical(out_edge);
+                for(const Edge<htype> & inc_edge : vertex.rc().getOutgoing()) {
+                    std::string incid = vertex.rc().edgeId(inc_edge);
+                    bool incsign = !vertex.rc().isCanonical(inc_edge);
+                    out << "L\t" << incid << "\t" << (incsign ? "+" : "-") << "\t" << outid << "\t"
+                        << (outsign ? "+" : "-") << "\t" << hasher_.k << "M" <<std::endl;
+                }
+            }
+        }
+    }
+
     template<class Iterator>
     void fillSparseDBGEdges(Iterator begin, Iterator end, logging::Logger &logger, size_t threads, const size_t min_read_size) {
         typedef typename Iterator::value_type ContigType;
@@ -1707,7 +1756,7 @@ SparseDBG<htype> constructSparseDBGFromReads(logging::Logger & logger, const io:
     logger.info() << "Starting construction of sparse de Bruijn graph" << std::endl;
     SparseDBG<htype> sdbg(hash_list.begin(), hash_list.end(), hasher);
     logger.info() << "Vertex map constructed." << std::endl;
-    io::SeqReader reader(reads_file, (hasher.k + w) * 10, hasher.k + 1);
+    io::SeqReader reader(reads_file, (hasher.k + w) * 10, hasher.k);
     sdbg.fillSparseDBGEdges(reader.begin(), reader.end(), logger, threads, w + hasher.k - 1);
     return std::move(sdbg);
 }

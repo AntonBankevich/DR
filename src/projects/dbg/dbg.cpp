@@ -262,7 +262,12 @@ int main(int argc, char **argv) {
         edges.open(dir / "graph.fasta");
         dbg.printFasta(edges);
         edges.close();
-        logger.info() << "Printing graph to dot file " << (dir / "graph.fasta") << std::endl;
+        logger.info() << "Printing graph to gfa file " << (dir / "graph.gfa") << std::endl;
+        std::ofstream gfa;
+        gfa.open(dir / "graph.gfa");
+        dbg.printGFA(gfa);
+        gfa.close();
+        logger.info() << "Printing graph to dot file " << (dir / "graph.dot") << std::endl;
         std::ofstream dot;
         dot.open(dir / "graph.dot");
         dbg.printDot(dot, calculate_coverage);

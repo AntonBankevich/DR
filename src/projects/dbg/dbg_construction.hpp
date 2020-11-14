@@ -136,7 +136,7 @@ SparseDBG<htype> constructDBG(logging::Logger & logger, const std::vector<htype>
 template<typename htype>
 SparseDBG<htype> DBGPipeline(logging::Logger & logger, const RollingHash<htype> &hasher, size_t w, const io::Library &lib,
                                 const std::experimental::filesystem::path &dir, size_t threads,
-                                std::string disjointigs_file = "none", const std::string &vertices_file = "none") {
+                                const std::string& disjointigs_file = "none", const std::string &vertices_file = "none") {
     std::experimental::filesystem::path df;
     if (disjointigs_file == "none") {
         std::function<void()> task = [&logger, &lib, &threads, &w, &dir, &hasher]() {
