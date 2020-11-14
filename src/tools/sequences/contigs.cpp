@@ -4,4 +4,4 @@
 
 #include "contigs.hpp"
 
-bool StringContig::needs_compressing = true;
+bool StringContig::needs_compressing = false;

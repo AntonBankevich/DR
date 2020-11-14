@@ -192,7 +192,7 @@ int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "coverages=none", "segments=none", "dbg=none", "output-dir=",
                      "threads=16", "k-mer-size=5000", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
                      "correct", "simplify", "coverage", "cov-threshold=2", "tip-correct", "crude-correct", "initial-correct",
-                     "nocompress"},
+                     "compress"},
                     {"reads", "align"},
             {"o=output-dir", "t=threads", "k=k-mer-size","w=window"});
     parser.parseCL(argc, argv);
@@ -201,8 +201,8 @@ int main(int argc, char **argv) {
         std::cout << parser.check() << std::endl;
         return 1;
     }
-    if(parser.getCheck("nocompress"))
-        StringContig::needs_compressing = false;
+    if(parser.getCheck("compress"))
+        StringContig::needs_compressing = true;
     const std::experimental::filesystem::path dir(parser.getValue("output-dir"));
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");
