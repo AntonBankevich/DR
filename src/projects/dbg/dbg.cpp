@@ -244,7 +244,7 @@ int main(int argc, char **argv) {
         dbg.fillAnchors(w, logger, threads);
     }
 
-    if (calculate_coverage) {
+    if (calculate_coverage && !parser.getCheck("initial-correct")) {
         if (parser.getValue("coverages") == "none") {
             CalculateCoverage(dir, hasher, w, reads_lib, threads, logger, dbg);
         } else {
@@ -253,7 +253,9 @@ int main(int argc, char **argv) {
     }
 
     if(parser.getCheck("initial-correct")) {
-        initialCorrect(dbg, logger, dir / "correction.txt", reads_lib, {parser.getValue("reference")}, threads, w + k - 1);
+        size_t threshold = std::stoull(parser.getValue("cov-threshold"));
+        initialCorrect(dbg, logger, dir / "correction.txt", reads_lib, {parser.getValue("reference")}, threshold,
+                       threads, w + k - 1);
     }
 
     if(parser.getValue("dbg") == "none") {

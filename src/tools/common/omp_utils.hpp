@@ -186,7 +186,7 @@ public:
                         size_t right = items.size();
                         size_t cur_length = 0;
                         while (begin != end && items.size() < buffer_size && clen < max_length && cur_length < bucket_length) {
-                            items.emplace_back(std::move(*begin));
+                            items.emplace_back(*begin);
                             ++begin;
                             right += 1;
                             V &item = items.back();

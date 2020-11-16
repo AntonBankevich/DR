@@ -272,6 +272,7 @@ private:
     std::vector<AlignedRead<htype>> reads;
     size_t min_len;
     size_t max_len;
+    bool track_cov;
     std::unordered_map<const Vertex<htype> *, VertexRecord<htype>> data;
 
     void processPath(const GraphAlignment<htype> &path, const std::function<void(Vertex<htype> &, const Sequence &)> &task,
@@ -293,7 +294,8 @@ private:
     }
 
     void processPath(CompactPath<htype> &cpath, const std::function<void(Vertex<htype> &, const Sequence &)> &task,
-                     size_t right = size_t(-1)) {
+                     const std::function<void(Segment<Edge<htype>>)> &edge_task = [](Segment<Edge<htype>>){},
+                     size_t left = 0, size_t right = size_t(-1)) {
         Vertex<htype> *left_vertex = &cpath.start();
         Vertex<htype> *right_vertex = &cpath.start();
         size_t j = 0;
@@ -308,15 +310,22 @@ private:
             }
             if (clen < min_len)
                 break;
-            task(*left_vertex, cpath.cpath().Subseq(i, j));
+            if(j > left)
+                task(*left_vertex, cpath.cpath().Subseq(i, j));
             Edge<htype> &edge = left_vertex->getOutgoing(cpath[i]);
+            if(i >= left) {
+                size_t seg_left = i == 0 ? cpath.leftSkip() : 0;
+                size_t seg_right = i == cpath.size() - 1 ? edge.size() - cpath.rightSkip() : edge.size();
+                edge_task(Segment<Edge<htype>>(edge, seg_left, seg_right));
+            }
             clen -= edge.size();
             left_vertex = edge.end();
         }
     }
 
 public:
-    RecordStorage(SparseDBG<htype> &_dbg, size_t _min_len, size_t _max_len) : dbg(_dbg), min_len(_min_len), max_len(_max_len) {
+    RecordStorage(SparseDBG<htype> &_dbg, size_t _min_len, size_t _max_len, bool _track_cov = false) :
+            dbg(_dbg), min_len(_min_len), max_len(_max_len), track_cov(_track_cov) {
         for(auto &it : dbg) {
             data.emplace(&it.second, VertexRecord<htype>(it.second));
             data.emplace(&it.second.rc(), VertexRecord<htype>(it.second.rc()));
@@ -327,29 +336,36 @@ public:
         return data.find(&v)->second;
     }
 
-    void addSubpath(const CompactPath<htype> &cpath, size_t right) {
+    void addSubpath(CompactPath<htype> &cpath, size_t left = 0, size_t right = size_t(-1)) {
         std::function<void(Vertex<htype> &, const Sequence &)> vertex_task = [this](Vertex<htype> &v, const Sequence &s) {
-            data[&v].addPath(s);
+            data.find(&v)->second.addPath(s);
         };
-        processPath(cpath, vertex_task, right);
+        std::function<void(Segment<Edge<htype>>)> edge_task = [](Segment<Edge<htype>> seg){};
+        if(track_cov)
+            edge_task = [](Segment<Edge<htype>> seg){
+                seg.contig().incCov(seg.size());
+            };
+        processPath(cpath, vertex_task, edge_task, left, right);
     }
 
-    void removeSubpath(const CompactPath<htype> &cpath, size_t right) {
+    void removeSubpath(CompactPath<htype> &cpath, size_t left = 0, size_t right = size_t(-1)) {
         std::function<void(Vertex<htype> &, const Sequence &)> vertex_task = [this](Vertex<htype> &v, const Sequence &s) {
-            data[&v].removePath(s);
+            data.find(&v)->second.removePath(s);
         };
-        processPath(cpath, vertex_task, right);
+        std::function<void(Segment<Edge<htype>>)> edge_task = [](Segment<Edge<htype>> seg){};
+        if(track_cov)
+            edge_task = [](Segment<Edge<htype>> seg) {
+                seg.contig().incCov(size_t(-seg.size()));
+            };
+        processPath(cpath, vertex_task, edge_task, left, right);
     }
 
     template<class I>
     void fill(I begin, I end, size_t min_read_size, logging::Logger &logger, size_t threads) {
         logger.info() << "Collecting alignments of sequences to the graph" << std::endl;
-        std::function<void(Vertex<htype> &, const Sequence &)> vertex_task = [this](Vertex<htype> &v, const Sequence &s) {
-            data.find(&v)->second.addPath(s);
-        };
         ParallelRecordCollector<AlignedRead<htype>> tmpReads(threads);
         ParallelCounter cnt(threads);
-        std::function<void(StringContig &)> read_task = [this, min_read_size, &vertex_task, &tmpReads, &cnt](StringContig & scontig) {
+        std::function<void(StringContig &)> read_task = [this, min_read_size, &tmpReads, &cnt](StringContig & scontig) {
             Contig contig = scontig.makeContig();
             if(contig.size() < min_read_size)
                 return;
@@ -357,14 +373,28 @@ public:
             GraphAlignment<htype> rcPath = path.RC();
             CompactPath<htype> cpath(path);
             CompactPath<htype> crcPath(rcPath);
-            this->processPath(cpath, vertex_task);
-            this->processPath(crcPath, vertex_task);
+            addSubpath(cpath);
+            addSubpath(crcPath);
             tmpReads.emplace_back(contig, cpath);
             cnt += cpath.size();
         };
         processRecords(begin, end, logger, threads, read_task);
         reads.insert(reads.end(), tmpReads.begin(), tmpReads.end());
         logger.info() << "Alignment collection finished. Total length of alignments is " << cnt.get() << std::endl;
+    }
+
+    void reroute(AlignedRead<htype> &alignedRead, GraphAlignment<htype> &initial, GraphAlignment<htype> &corrected) {
+        GraphAlignment<htype> rcInitial = initial.RC();
+        GraphAlignment<htype> rcCorrected = corrected.RC();
+        CompactPath<htype> cInitial(rcInitial);
+        CompactPath<htype> cCorrected(corrected);
+        CompactPath<htype> crcInitial(rcInitial);
+        CompactPath<htype> crcCorrected(rcCorrected);
+        this->removeSubpath(cInitial);
+        this->removeSubpath(crcInitial);
+        this->addSubpath(cCorrected);
+        this->addSubpath(crcCorrected);
+        alignedRead.path = cCorrected;
     }
 
     typedef typename std::vector<AlignedRead<htype>>::iterator iterator;

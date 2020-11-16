@@ -38,7 +38,7 @@ namespace io {
         }
 
         StringContig operator*() {
-            return std::move(reader.get());
+            return reader.get();
         }
 
         bool operator==(const ContigIterator &other) const {
@@ -89,7 +89,7 @@ namespace io {
 
         void choose_next_pos(size_t start) {
             cur_start = start;
-            if(next.size() - start > 2 * min_read_size - overlap) {
+            if(next.size() > start + 2 * min_read_size - overlap) {
                 cur_end = start + min_read_size;
             } else {
                 cur_end = next.size();
@@ -160,32 +160,33 @@ namespace io {
         const Library lib;
         Library::const_iterator file_it;
         std::istream * stream{};
-        StringContig next{};
         bool fastq{};
-        size_t cur_start = 0;
-        size_t cur_end = 0;
         size_t min_read_size;
         size_t overlap;
+        StringContig next{};
+        size_t cur_start = 0;
+        size_t cur_end = 0;
     public:
         friend class ContigIterator<SeqReader>;
         friend class SeqIterator<SeqReader>;
 
-        explicit SeqReader(Library _lib, size_t _split_read_size = size_t(-1) / 2, size_t _overlap = size_t(-1) / 8) :
-                lib(std::move(_lib)), file_it(lib.begin()), min_read_size(_split_read_size), overlap(_overlap) {
+        explicit SeqReader(Library _lib, size_t _min_read_size = size_t(-1) / 2, size_t _overlap = size_t(-1) / 8) :
+                lib(std::move(_lib)), file_it(lib.begin()), min_read_size(_min_read_size), overlap(_overlap) {
             VERIFY(min_read_size >= overlap * 2);
-            nextFile();
-            inner_read();
+            reset();
+        }
+
+        explicit SeqReader(const std::experimental::filesystem::path & file_name,
+                           size_t _min_read_size = size_t(-1) / 2, size_t _overlap = size_t(-1) / 8) :
+                           SeqReader(Library({file_name}), _min_read_size, _overlap) {
         }
 
         void reset() {
             file_it = lib.begin();
             nextFile();
             cur_start = 0;
+            cur_end = 0;
             inner_read();
-        }
-
-        explicit SeqReader(const std::experimental::filesystem::path & file_name) :
-                  SeqReader(Library({file_name})) {
         }
 
         SeqReader(SeqReader &&other) = default;

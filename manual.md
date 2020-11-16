@@ -60,6 +60,8 @@ To run de Bruijn graph construction use the following command line
 
 `-w <int>` (or `--window <int>`)
     The window size to be used for sparse de Bruijn graph construction. The default value is 2000. Note that all reads of length less than k + w are ignored during graph construction.
+ 
+ --compress Compress all homolopymers in reads.
     
 `--coverage
     Calculate edge coverage of edges in the constructed de Bruijn graph.

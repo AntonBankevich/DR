@@ -138,7 +138,7 @@ public:
         if (isCanonical() != other.isCanonical())
             return isCanonical();
         const Edge<htype> &rc_edge = rcEdge(edge);
-        return edge.seq < rc_edge.seq;
+        return edge.seq <= rc_edge.seq;
     }
 
     std::string edgeId(const Edge<htype> &edge) const {
@@ -1756,7 +1756,7 @@ SparseDBG<htype> constructSparseDBGFromReads(logging::Logger & logger, const io:
     logger.info() << "Starting construction of sparse de Bruijn graph" << std::endl;
     SparseDBG<htype> sdbg(hash_list.begin(), hash_list.end(), hasher);
     logger.info() << "Vertex map constructed." << std::endl;
-    io::SeqReader reader(reads_file, (hasher.k + w) * 10, hasher.k);
+    io::SeqReader reader(reads_file, (hasher.k + w) * 20, (hasher.k + w) * 4);
     sdbg.fillSparseDBGEdges(reader.begin(), reader.end(), logger, threads, w + hasher.k - 1);
     return std::move(sdbg);
 }
