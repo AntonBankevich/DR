@@ -467,9 +467,13 @@ private:
     std::vector<Edge<htype> *> path;
 public:
     Path(Vertex<htype> &_start, std::vector<Edge<htype> *> _path) : start_(&_start), path(std::move(_path)){}
+    explicit Path(Vertex<htype> &_start) : start_(&_start) {}
 
     Path<htype> subPath(size_t from, size_t to) {
-        return Path(getVertex(from), std::vector<Edge<htype> *>(path.begin() + from, path.begin() + to));
+        if(from == to)
+            return Path(getVertex(from));
+        else
+            return Path(getVertex(from), std::vector<Edge<htype> *>(path.begin() + from, path.begin() + to));
     }
 
     Path<htype> RC() {
@@ -480,8 +484,8 @@ public:
         return Path(back().end()->rc(), rcPath);
     }
 
-    const Edge<htype> &operator[](size_t i) const {
-        return path[i];
+    Edge<htype> &operator[](size_t i) const {
+        return *path[i];
     }
 
     Edge<htype> &operator[](size_t i) {
@@ -496,7 +500,7 @@ public:
             return *path[i - 1]->end();
     }
 
-    const Vertex<htype> &getVertex(size_t i) const {
+    Vertex<htype> &getVertex(size_t i) const {
         VERIFY(i <= path.size());
         if(i == 0)
             return *start_;
@@ -504,12 +508,15 @@ public:
             return *path[i - 1]->end();
     }
 
-    Vertex<htype> &start() {
+    Vertex<htype> &start() const {
         return *start_;
     }
 
-    Vertex<htype> &finish() {
-        return *path.back()->end();
+    Vertex<htype> &finish() const {
+        if(path.size() == 0)
+            return start();
+        else
+            return *path.back()->end();
     }
 
     Edge<htype> &back() {
@@ -518,6 +525,14 @@ public:
 
     Edge<htype> &front() {
         return *path.front();
+    }
+
+    double minCoverage() const {
+        double res = 100000;
+        for (const Edge<htype> *edge : path) {
+            res = std::min(edge->getCoverage(), res);
+        }
+        return res;
     }
 
     Sequence Seq() const {
@@ -536,13 +551,36 @@ public:
         return path.size();
     }
 
+    typedef typename std::vector<Edge<htype> *>::iterator iterator;
+    typedef typename std::vector<Edge<htype> *>::const_iterator const_iterator;
+    iterator begin() {
+        return path.begin();
+    }
+    iterator end() {
+        return path.end();
+    }
+    const_iterator begin() const {
+        return path.begin();
+    }
+    const_iterator end() const {
+        return path.end();
+    }
+
     size_t len() const {
         size_t res = 0;
         for(Edge<htype> *edge : path)
             res += edge->size();
         return res;
     }
+
+    Path<htype> operator+(const Path<htype> &other) const {
+        VERIFY(finish() == *other.start_);
+        std::vector<Edge<htype> *> edges = path;
+        edges.insert(edges.end(), other.path.begin(), other.path.end());
+        return {start(), std::move(edges)};
+    }
 };
+
 
 template<typename htype>
 class GraphAlignment {
@@ -575,6 +613,30 @@ public:
     bool valid() const {
         return start_ != nullptr;
     }
+
+    void push_back(const Segment<Edge<htype>> &seg) {
+        als.push_back(seg);
+    }
+
+    void pop_back() {
+        als.pop_back();
+    }
+
+    void pop_back(size_t len) {
+        als.erase(als.end() - len, als.end());
+    }
+
+    void cutBack(size_t l) {
+        VERIFY(l <= len());
+        while(size() > 0 && als.back().size() < l) {
+            l -= als.back().size();
+            pop_back();
+        }
+        if(l > 0) {
+            als.back().right -= l;
+        }
+    }
+
 
     GraphAlignment<htype> subalignment(size_t from, size_t to) {
         return {&getVertex(from), std::vector<Segment<Edge<htype>>>(als.begin() + from, als.begin() + to)};
@@ -633,7 +695,7 @@ public:
     }
 
     size_t rightSkip() const {
-        return als.size() == 0 ? 0 : als.back().size() - als.back().right;
+        return als.size() == 0 ? 0 : als.back().contig().size() - als.back().right;
     }
 
     std::vector<GraphAlignment<htype>> allSteps() {
@@ -708,13 +770,19 @@ public:
             return {};
         }
         SequenceBuilder sb;
-        Sequence first = start_->seq + als[0].contig().seq;
-        sb.append(first.Subseq(als[0].left, als[0].right + start_->seq.size()));
+        size_t k = start_->seq.size();
+        if(als[0].left >= k)
+            sb.append(als[0].contig().seq.Subseq(als[0].left - k, als[0].right));
+        else {
+            sb.append(start_->seq.Subseq(als[0].left, k));
+            sb.append(als[0].contig().seq.Subseq(0, als[0].right));
+        }
         for(size_t i = 1; i < als.size(); i++) {
             sb.append(als[i].seq());
         }
         return sb.BuildSequence();
     }
+
     Sequence truncSeq()const {
         SequenceBuilder sb;
         for(size_t i = 0; i < als.size(); i++) {
@@ -723,11 +791,28 @@ public:
         return sb.BuildSequence();
     }
 
-    Vertex<htype> &start() {
+    Sequence truncSeq(size_t start_position, size_t size) const {
+        SequenceBuilder sb;
+        size_t sz = 0;
+        for(size_t i = start_position; i < als.size(); i++) {
+//            std::cout << i << " " << sz << " " << size << std::endl;
+//            std::cout << als[i].contig().size() << " " << als[i].left << " " << als[i].right << " " << als[i].size() << std::endl;
+            if(sz + als[i].size() >= size) {
+                sb.append(als[i].seq().Subseq(0, size - sz));
+                break;
+            } else {
+                sb.append(als[i].seq());
+                sz += als[i].size();
+            }
+        }
+        return sb.BuildSequence();
+    }
+
+    Vertex<htype> &start() const {
         return *start_;
     }
 
-    Vertex<htype> &finish() {
+    Vertex<htype> &finish() const {
         return als.size() == 0 ? *start_ : *als.back().contig().end();
     }
 
@@ -747,7 +832,7 @@ public:
         return als[i];
     }
 
-    const Vertex<htype> &getVertex(size_t i) const {
+    Vertex<htype> &getVertex(size_t i) const {
         VERIFY(i <= als.size());
         if(i == 0)
             return *start_;
@@ -779,6 +864,49 @@ public:
         return als.end();
     }
 
+    GraphAlignment<htype> subPath(size_t left, size_t right) const {
+        if(left == right)
+            return GraphAlignment<htype>(getVertex(left));
+        else
+            return {&getVertex(left), {als.begin() + left, als.begin() + right}};
+    }
+
+    GraphAlignment<htype> reroute(size_t left, size_t right, const GraphAlignment<htype> & rerouting) const {
+        VERIFY(getVertex(left) == rerouting.start());
+        VERIFY(getVertex(right) == rerouting.finish());
+        return subPath(0, left) + rerouting + subPath(right, size());
+    }
+
+    GraphAlignment<htype> reroute(size_t left, size_t right, const Path<htype> & rerouting) const {
+        VERIFY(getVertex(left) == rerouting.start());
+        VERIFY(getVertex(right) == rerouting.finish());
+        return subPath(0, left) + rerouting + subPath(right, size());
+    }
+
+    GraphAlignment<htype> operator+(const GraphAlignment<htype> &other) const {
+        VERIFY(finish() == other.getVertex(0));
+        std::vector<Segment<Edge<htype>>> new_als(als.begin(), als.end());
+        new_als.insert(new_als.end(), other.begin(), other.end());
+        return {&start(), std::move(new_als)};
+    }
+
+    GraphAlignment<htype> operator+(const Path<htype> &other) const {
+        VERIFY(finish() == other.getVertex(0));
+        std::vector<Segment<Edge<htype>>> new_als(als.begin(), als.end());
+        for(Edge<htype> *edge : other) {
+            new_als.emplace_back(*edge, 0, edge->size());
+        }
+        return {&start(), std::move(new_als)};
+    }
+
+    double minCoverage() const {
+        double res = 100000;
+        for (const Segment<Edge<htype>> &seg : als) {
+            res = std::min(seg.contig().getCoverage(), res);
+        }
+        return res;
+    }
+
     Path<htype> path() {
         std::vector<Edge<htype>*> res;
         for(auto & seg : als) {
@@ -789,6 +917,22 @@ public:
 
     size_t size() const {
         return als.size();
+    }
+
+    size_t len() const {
+        size_t res = 0;
+        for(auto & seg : als) {
+            res += seg.size();
+        }
+        return res;
+    }
+
+    bool operator==(const GraphAlignment<htype> &other) const {
+        return start_ == other.start_ && als == other.als;
+    }
+
+    bool operator!=(const GraphAlignment<htype> &other) const {
+        return start_ != other.start_ || als != other.als;
     }
 };
 
@@ -1224,7 +1368,7 @@ public:
         if (output_coverage)
             os << end.hash() % 100000  << "\" [label=\"" << edge.size() << "(" << edge.getCoverage() << ")\"]\n";
         else
-            os << end.hash() % 100000  << "\" [label=\"" << edge.size() << "                                                                                                                                                          \"]\n";
+            os << end.hash() % 100000  << "\" [label=\"" << edge.size() << "\"]\n";
     }
     void printDot(std::ostream &os, bool output_coverage) {
         os << "digraph {\nnodesep = 0.5;\n";
@@ -1542,7 +1686,7 @@ public:
         processRecords(reader.begin(), reader.end(), logger, threads, collect_task);
         SparseDBG<htype> res(vertices.begin(), vertices.end(), hasher);
         reader.reset();
-        res.fillSparseDBGEdges(reader.begin(), reader.end(), logger, threads, hasher.k + 1);
+        res.fillSparseDBGEdges(sequences.begin(), sequences.end(), logger, threads, hasher.k + 1);
         logger.info() << "Finished loading graph" << std::endl;
         return std::move(res);
     }

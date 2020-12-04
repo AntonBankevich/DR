@@ -9,7 +9,7 @@
 #include <iostream>
 
 int main(int argc, char **argv) {
-    CLParser parser({"output-dir=", "threads=16", "k-mer-size=5000", "window=2000", "base=239","cov-threshold=2"},
+    CLParser parser({"output-dir=", "threads=16", "k-mer-size=5000", "window=2000", "base=239","cov-threshold=2", "compress"},
                     {"reads"},
                     {"o=output-dir", "t=threads", "k=k-mer-size","w=window"});
     parser.parseCL(argc, argv);
@@ -18,6 +18,8 @@ int main(int argc, char **argv) {
         std::cout << parser.check() << std::endl;
         return 1;
     }
+    if(parser.getCheck("compress"))
+        StringContig::needs_compressing = true;
     const std::experimental::filesystem::path dir(parser.getValue("output-dir"));
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");
@@ -58,7 +60,7 @@ int main(int argc, char **argv) {
         }
         CrudeCorrect(logger, dbg, dir, w, lib, threads, threshold);
     };
-
+    runInFork(initial_dbg_task);
     std::experimental::filesystem::path corrected_reads = dir / "corrected.fasta";
     io::Library corrected_lib = {corrected_reads};
     logger.info() << "Reconstructing dbg from corrected reads" << std::endl;

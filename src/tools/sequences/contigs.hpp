@@ -76,6 +76,14 @@ public:
                     (contig().id == other.contig().id &&
                             (left < other.left || left == other.left && right < other.right));
     }
+
+    bool operator==(const Segment<T> &other) const {
+        return contig().id == other.contig().id && left == other.left && right == other.right;
+    }
+
+    bool operator!=(const Segment<T> &other) const {
+        return contig().id != other.contig().id || left != other.left || right != other.right;
+    }
 };
 
 template <class T>

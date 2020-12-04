@@ -126,7 +126,17 @@ public:
         for(std::ofstream *os : oss) {
             os->put(c);
         }
+        if(c == '\n') {
+            forceFlush();
+        }
         return 0;
+    }
+
+    void forceFlush() {
+        std::cout.flush();
+        for(std::ofstream *os : oss) {
+            os->flush();
+        }
     }
 
     Logger & info() {

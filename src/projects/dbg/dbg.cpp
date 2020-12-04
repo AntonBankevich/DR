@@ -187,18 +187,39 @@ void LoadCoverage(const std::experimental::filesystem::path &fname, Logger &logg
     is.close();
     logger.info() << "Finished loading edge coverages." << std::endl;
 }
-
+std::string constructMessage() {
+    std::stringstream ss;
+    ss << "JumboDB version 1.0\n\n";
+    ss << "Usage dbg [options] -o <output-dir> -k <int>\n\n";
+    ss << "Basic options:\n";
+    ss << "  -o <file_name> (or --output-dir <file_name>)  Name of output folder. Resulting graph will be stored there.\n";
+    ss << "  -k <int>                                      Value of k (vertex size) to be used for de Bruijn graph construction. k should be odd (otherwise k + 1 is used instead).\n";
+    ss << "  --reads <file_name>                           Name of file that contains reads in fasta or fastq format. This option can be used any number of times in the same command line resulting in collecting reads from multiple files.\n";
+    ss << "  -h (or --help)                                Print this help message.\n";
+    ss << "\nAdvanced options:\n";
+    ss << "  -t <int> (or --threads <int>)                 Number of threads. The default value is 16.\n";
+    ss << "  -w <int> (or --window <int>`)                 The window size to be used for sparse de Bruijn graph construction. The default value is 2000. Note that all reads of length less than k + w are ignored during graph construction.\n";
+    ss << "  --compress                                    Compress all homolopymers in reads.\n";
+    ss << "  --coverage                                    Calculate edge coverage of edges in the constructed de Bruijn graph.\n";
+    return ss.str();
+}
 int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "coverages=none", "segments=none", "dbg=none", "output-dir=",
-                     "threads=16", "k-mer-size=5000", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
+                     "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
                      "correct", "simplify", "coverage", "cov-threshold=2", "tip-correct", "crude-correct", "initial-correct",
-                     "compress"},
+                     "compress", "help"},
                     {"reads", "align"},
-            {"o=output-dir", "t=threads", "k=k-mer-size","w=window"});
+                    {"h=help", "o=output-dir", "t=threads", "k=k-mer-size","w=window"},
+                    constructMessage());
     parser.parseCL(argc, argv);
+    if (parser.getCheck("help")) {
+        std::cout << parser.message() << std::endl;
+        return 0;
+    }
     if (!parser.check().empty()) {
-        std::cout << "Incorrect parameters" << std::endl;
-        std::cout << parser.check() << std::endl;
+        std::cout << "Incorrect parameters:" << std::endl;
+        std::cout << parser.check() << "\n" << std::endl;
+        std::cout << parser.message() << std::endl;
         return 1;
     }
     if(parser.getCheck("compress"))
@@ -254,7 +275,7 @@ int main(int argc, char **argv) {
 
     if(parser.getCheck("initial-correct")) {
         size_t threshold = std::stoull(parser.getValue("cov-threshold"));
-        initialCorrect(dbg, logger, dir / "correction.txt", reads_lib, {parser.getValue("reference")}, threshold,
+        initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta", reads_lib, {parser.getValue("reference")}, threshold,
                        threads, w + k - 1);
     }
 

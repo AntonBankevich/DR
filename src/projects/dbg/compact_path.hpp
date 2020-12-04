@@ -13,14 +13,28 @@ public:
             _start(&start), _edges(edges), _first_skip(first_skip), _last_skip(last_skip) {
     }
 
-    explicit CompactPath(GraphAlignment<htype> &path) :
+    explicit CompactPath(const Path<htype> &path, size_t first_skip = 0, size_t last_skip = 0) :
+            _start(&path.getVertex(0)), _first_skip(first_skip), _last_skip(last_skip) {
+        std::vector<char> edges;
+        for(size_t i = 0; i < path.size(); i++) {
+            Edge<htype> &edge = path[i];
+            edges.push_back(edge.seq[0]);
+        }
+        _edges = Sequence(edges);
+    }
+
+    explicit CompactPath(const GraphAlignment<htype> &path) :
             _start(&path.getVertex(0)), _first_skip(path.leftSkip()), _last_skip(path.rightSkip()) {
         std::vector<char> edges;
         for(size_t i = 0; i < path.size(); i++) {
-            Segment<Edge<htype>> &seg = path[i];
+            const Segment<Edge<htype>> &seg = path[i];
             edges.push_back(seg.contig().seq[0]);
         }
         _edges = Sequence(edges);
+    }
+
+    const Sequence &seq() const {
+        return _edges;
     }
 
     GraphAlignment<htype> getAlignment() {
@@ -32,7 +46,7 @@ public:
             cur = edge.end();
         }
         path.front().left += _first_skip;
-        path.back().right += _last_skip;
+        path.back().right -= _last_skip;
         return {_start, std::move(path)};
     }
 
@@ -156,8 +170,11 @@ public:
 
     void removePath(const Sequence &seq) {
         lock();
+        bool found = false;
         for(std::pair<Sequence, size_t> &path : paths) {
             if(path.first == seq) {
+                found = true;
+                VERIFY(path.second > 0);
                 path.second -= 1;
                 cov -= 1;
                 if(path.second == 0)
@@ -165,10 +182,11 @@ public:
                 break;
             }
         }
+        VERIFY(found);
         if(zero_cnt > paths.size() / 3) {
             std::vector<std::pair<Sequence, size_t>> new_paths;
             for(std::pair<Sequence, size_t> &rec : paths) {
-                if(rec.second == 0) {
+                if(rec.second != 0) {
                     new_paths.emplace_back(std::move(rec.first), rec.second);
                 }
             }
@@ -215,7 +233,7 @@ public:
         return true;
     }
 
-    std::vector<Path<htype>> getAlternatives(const Vertex<htype> &end, double threshold) const {
+    std::vector<GraphAlignment<htype>> getBulgeAlternatives(const Vertex<htype> &end, double threshold) const {
         lock();
         std::vector<std::pair<Sequence, size_t>> candidates;
         for(const auto & extension : paths) {
@@ -230,18 +248,54 @@ public:
         if(candidates.empty())
             return {};
         std::sort(candidates.begin(), candidates.end());
-        std::vector<Path<htype>> res;
+        std::vector<GraphAlignment<htype>> res;
         size_t cnt = 0;
         for(size_t i = 0; i < candidates.size(); i++) {
             if(i > 0 && candidates[i-1].first != candidates[i].first) {
                 if(cnt > threshold)
-                    res.emplace_back(CompactPath<htype>(v, candidates[i - 1].first).getPath());
+                    res.emplace_back(CompactPath<htype>(v, candidates[i - 1].first).getAlignment());
                 cnt = 0;
             }
             cnt += candidates[i].second;
         }
         if(cnt > threshold)
-            res.emplace_back(CompactPath<htype>(v, candidates.back().first).getPath());
+            res.emplace_back(CompactPath<htype>(v, candidates.back().first).getAlignment());
+        return std::move(res);
+    }
+
+    std::vector<GraphAlignment<htype>> getTipAlternatives(size_t len, double threshold) const {
+        len += std::max<size_t>(30, len / 20);
+        lock();
+        std::vector<std::pair<Sequence, size_t>> candidates;
+        for(const auto & extension : paths) {
+            GraphAlignment<htype> unpacked = CompactPath<htype>(v, extension.first).getAlignment();
+            if(unpacked.len() >= len) {
+                unpacked.cutBack(unpacked.len() - len);
+                candidates.emplace_back(CompactPath<htype>(unpacked).seq(), extension.second);
+            }
+        }
+        unlock();
+        if(candidates.empty())
+            return {};
+        std::sort(candidates.begin(), candidates.end());
+        std::vector<GraphAlignment<htype>> res;
+        size_t cnt = 0;
+        for(size_t i = 0; i < candidates.size(); i++) {
+            if(i > 0 && candidates[i - 1].first != candidates[i].first) {
+                if(cnt > threshold) {
+                    GraphAlignment<htype> cp = CompactPath<htype>(v, candidates[i - 1].first).getAlignment();
+                    cp.cutBack(cp.len() - len);
+                    res.emplace_back(cp);
+                }
+                cnt = 0;
+            }
+            cnt += candidates[i].second;
+        }
+        if(cnt > threshold) {
+            GraphAlignment<htype> cp = CompactPath<htype>(v, candidates.back().first).getAlignment();
+            cp.cutBack(cp.len() - len);
+            res.emplace_back(cp);
+        }
         return std::move(res);
     }
 
@@ -386,7 +440,7 @@ public:
     void reroute(AlignedRead<htype> &alignedRead, GraphAlignment<htype> &initial, GraphAlignment<htype> &corrected) {
         GraphAlignment<htype> rcInitial = initial.RC();
         GraphAlignment<htype> rcCorrected = corrected.RC();
-        CompactPath<htype> cInitial(rcInitial);
+        CompactPath<htype> cInitial(initial);
         CompactPath<htype> cCorrected(corrected);
         CompactPath<htype> crcInitial(rcInitial);
         CompactPath<htype> crcCorrected(rcCorrected);
@@ -414,6 +468,18 @@ public:
 
     const_iterator end() const {
         return reads.end();
+    }
+
+    AlignedRead<htype> &operator[](size_t ind) {
+        return reads[ind];
+    }
+
+    const AlignedRead<htype> &operator[](size_t ind) const {
+        return reads[ind];
+    }
+
+    size_t size() const {
+        return reads.size();
     }
 };
 

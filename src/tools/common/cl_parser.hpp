@@ -23,8 +23,10 @@ private:
     std::vector<std::string> errors;
     const static std::string emptystring;
     std::string command_line;
+    std::string _message;
 public:
-    CLParser(std::vector<std::string> _long_params, std::vector<std::string> _list_params, std::vector<std::string> _short_params);
+    CLParser(std::vector<std::string> _long_params, std::vector<std::string> _list_params,
+             std::vector<std::string> _short_params, std::string message_ = "");
 
 //    TODO: check what happens with quotes
 //    TODO: make failsafe
@@ -39,6 +41,10 @@ public:
             }
         }
         return "";
+    }
+
+    const std::string &message() const {
+        return _message;
     }
 
     const std::string & getValue(const std::string &s) const;

@@ -133,6 +133,7 @@ void handleSimpleBulge(Vertex<htype128> &v, std::unordered_map<const Edge<htype1
     Edge<htype128> &edge0 = v.rc().rcEdge(v.rc().getOutgoing()[0]);
     bool c1 = edge0.getCoverage() < avg_cov * 3 / 2 && edge1.getCoverage() + edge2.getCoverage() < avg_cov * 3 / 2;
     bool c2 = edge0.size() > 20000 && edge0.getCoverage() < avg_cov * 3 / 2;
+    bool c3 = edge0.size() > 40000 && edge0.getCoverage() < avg_cov * 7 / 8;
     if (c1 || c2) {
         Sequence new_seq(v.seq + edge2.seq);
         edge_map[&edge1] = new_seq;
@@ -167,6 +168,8 @@ std::vector<Edge<htype128> *> choosePath(Vertex<htype128> &start, Edge<htype128>
     Sequence alt_seq =start.seq + alternative.seq;
     std::cout << bulge.size() << " " << alternative.size() << " " << alt_seq.size() << std::endl;
     for(size_t sz = bulge.size() + start.seq.size() - 20; sz <= bulge.size() + start.seq.size() + 20; sz++) {
+        if(alt_seq.size() + start.seq.size() < sz)
+            continue;
         size_t over_size = alt_seq.size() + start.seq.size() - sz;
         if(alt_seq.Subseq(alt_seq.size() - over_size, alt_seq.size()) == bulge.end()->seq.Subseq(0, over_size)) {
             Sequence seq = alt_seq.Subseq(0, sz - start.seq.size()) + bulge.end()->seq;
@@ -375,12 +378,12 @@ std::experimental::filesystem::path CrudeCorrect(logging::Logger &logger, Sparse
                 if (v.getOutgoing()[0].end() == v.getOutgoing()[1].end()) {
                     handleSimpleBulge(v, edge_map, avg_cov, logger);
                 }
-//                else {
-//                    bool is_subcomponent = handleSubcomponent(v, avg_cov, edge_map, to_skip, logger);
-//                    if(!is_subcomponent) {
-//                        handleComplexBulge(v, to_skip, edge_map, avg_cov, logger);
-//                    }
-//                }
+                else {
+                    bool is_subcomponent = handleSubcomponent(v, avg_cov, edge_map, to_skip, logger);
+                    if(!is_subcomponent) {
+                        handleComplexBulge(v, to_skip, edge_map, avg_cov, logger);
+                    }
+                }
             }
         }
     }

@@ -3,6 +3,7 @@
 //
 #include <iostream>
 #include <sequences/verify.hpp>
+#include <utility>
 #include "cl_parser.hpp"
 
 const std::string CLParser::emptystring;
@@ -67,8 +68,10 @@ bool CLParser::getCheck(const std::string &s) const {
     return checks.find(s)->second;
 }
 
-CLParser::CLParser(std::vector<std::string> _long_params, std::vector<std::string> _list_params, std::vector<std::string> _short_params) :
-        long_params(std::move(_long_params)), list_params(std::move(_list_params)), short_params(std::move(_short_params)) {
+CLParser::CLParser(std::vector<std::string> _long_params, std::vector<std::string> _list_params,
+                   std::vector<std::string> _short_params, std::string message_) :
+        long_params(std::move(_long_params)), list_params(std::move(_list_params)),
+        short_params(std::move(_short_params)), _message(std::move(message_)) {
     for(const std::string& s : long_params) {
         size_t pos = s.find('=');
         if (pos != -1) {

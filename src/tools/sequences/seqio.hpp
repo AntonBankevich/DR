@@ -146,6 +146,10 @@ namespace io {
                 stream = nullptr;
             } else {
                 std::experimental::filesystem::path file_name = *file_it;
+                if(!std::experimental::filesystem::is_regular_file(file_name)) {
+                    std::cerr << "Error: file does not exist " << file_name << std::endl;
+                }
+                VERIFY(std::experimental::filesystem::is_regular_file(file_name));
                 if (endsWith(file_name, ".gz")) {
                     stream = new gzstream::igzstream(file_name.c_str());
                     fastq = endsWith(file_name, "fastq.gz") or endsWith(file_name, "fq.gz");
