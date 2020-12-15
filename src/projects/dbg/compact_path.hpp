@@ -1,5 +1,7 @@
 #pragma once
 #include "sparse_dbg.hpp"
+#include <parallel/algorithm>
+
 
 template<typename htype>
 class CompactPath {
@@ -252,13 +254,13 @@ public:
         size_t cnt = 0;
         for(size_t i = 0; i < candidates.size(); i++) {
             if(i > 0 && candidates[i-1].first != candidates[i].first) {
-                if(cnt > threshold)
+                if(cnt >= threshold)
                     res.emplace_back(CompactPath<htype>(v, candidates[i - 1].first).getAlignment());
                 cnt = 0;
             }
             cnt += candidates[i].second;
         }
-        if(cnt > threshold)
+        if(cnt >= threshold)
             res.emplace_back(CompactPath<htype>(v, candidates.back().first).getAlignment());
         return std::move(res);
     }
@@ -282,7 +284,7 @@ public:
         size_t cnt = 0;
         for(size_t i = 0; i < candidates.size(); i++) {
             if(i > 0 && candidates[i - 1].first != candidates[i].first) {
-                if(cnt > threshold) {
+                if(cnt >= threshold) {
                     GraphAlignment<htype> cp = CompactPath<htype>(v, candidates[i - 1].first).getAlignment();
                     cp.cutBack(cp.len() - len);
                     res.emplace_back(cp);
@@ -291,7 +293,7 @@ public:
             }
             cnt += candidates[i].second;
         }
-        if(cnt > threshold) {
+        if(cnt >= threshold) {
             GraphAlignment<htype> cp = CompactPath<htype>(v, candidates.back().first).getAlignment();
             cp.cutBack(cp.len() - len);
             res.emplace_back(cp);
@@ -480,6 +482,125 @@ public:
 
     size_t size() const {
         return reads.size();
+    }
+};
+
+template<typename htype>
+class CompactPath;
+
+template<typename htype>
+struct GraphError {
+    AlignedRead<htype> *read;
+    size_t from;
+    size_t to;
+    size_t _size;
+    GraphAlignment<htype> correction;
+
+    bool operator==(const GraphError<htype> &other) const {
+        return read = other.read && from == other.from && to == other.to;
+    }
+};
+
+template<typename htype>
+class ErrorStorage {
+private:
+    std::vector<GraphError<htype>> errors;
+    RecordStorage<htype> &recs;
+public:
+
+    explicit ErrorStorage(RecordStorage<htype> &_recs): recs(_recs){
+    };
+
+    void fill(logging::Logger &logger, double error_threshold, double extend_threshold) {
+        logger.info() << "Correcting low covered regions in reads" << std::endl;
+        ParallelRecordCollector<GraphError<htype>> result;
+#pragma omp parallel for default(none) shared(error_threshold, extend_threshold, result, logger)
+        for(size_t read_ind = 0; read_ind < recs.size(); read_ind++) {
+            AlignedRead<htype> &alignedRead = recs[read_ind];
+            std::stringstream ss;
+            CompactPath<htype> &initial_cpath = alignedRead.path;
+            GraphAlignment<htype> path = initial_cpath.getAlignment();
+            GraphAlignment<htype> corrected_path(path.start());
+            for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
+                VERIFY(corrected_path.finish() == path.getVertex(path_pos));
+                Edge<htype> &edge = path[path_pos].contig();
+                if (edge.getCoverage() >= error_threshold) {
+                    continue;
+                }
+                size_t step_back = 0;
+                size_t step_front = 0;
+                size_t size = edge.size();
+                while (step_back < corrected_path.size() &&
+                       corrected_path[corrected_path.size() - step_back - 1].contig().getCoverage() <
+                       extend_threshold) {
+                    size += corrected_path[corrected_path.size() - step_back - 1].size();
+                    step_back += 1;
+                }
+                while (step_front + path_pos + 1 < path.size() &&
+                       path[step_front + path_pos + 1].contig().getCoverage() < extend_threshold) {
+                    size += path[step_front + path_pos + 1].size();
+                    step_front += 1;
+                }
+                result.emplace_back(&alignedRead, corrected_path.size() - step_back, step_front + path_pos + 1, size, {});
+                path_pos += step_front;
+            }
+        }
+        errors.insert(errors.back(), result.begin(), result.end());
+    }
+
+    void apply() {
+        std::function<bool(const GraphError<htype> &, const GraphError<htype> &)> compare =
+                [](const GraphError<htype> &a, const GraphError<htype> &b) {
+            if (a.path != b.path)
+                return a.path < b.path;
+            if(a.from != b.from)
+                return a.from < b.from;
+            return a.to < b.to;
+        };
+        __gnu_parallel::sort(errors.begin(), errors.end(), compare);
+#pragma omp parallel for default(none) shared(errors, recs)
+        for(size_t i = 0; i < errors.size(); i++) {
+            if(i > 0 && errors[i].read == errors[i - 1].read) {
+                continue;
+            }
+            std::vector<GraphError<htype>> corrected_errors;
+            AlignedRead<htype> &read = *errors[i].read;
+            for(size_t j = i; j < errors.size(); j++) {
+                if(errors[j].read != errors[i].read)
+                    break;
+                if(errors[j].correction.valid()) {
+                    corrected_errors.push_back(errors[j]);
+                }
+            }
+            if(corrected_errors.size() == 0)
+                continue;
+            GraphAlignment<htype> initial = read.path.getAlignment();
+            std::vector<Segment<Edge<htype>>> corrected;
+            Vertex<htype> &start = corrected_errors[0].from == 0 ? corrected_errors[0].start() : initial.start();
+            size_t prev = 0;
+            for(GraphError<htype> & error : corrected_errors) {
+                for(size_t j = prev; j < error.from; j++) {
+                    corrected.emplace_back(initial[j]);
+                }
+                for(size_t j = 0; j < error.size(); j++) {
+                    corrected.emplace_back(error.correction[j]);
+                }
+                prev = error.to;
+            }
+            for(size_t j = prev; j < initial.size(); j++) {
+                corrected.emplace_back(initial[j]);
+            }
+            GraphAlignment<htype> corrected_alignment(&start, corrected);
+            recs.reroute(read, initial, corrected_alignment);
+        }
+    }
+
+    void sortByLength() {
+        std::function<bool(const GraphError<htype> &, const GraphError<htype> &)> compare =
+                [](const GraphError<htype> &a, const GraphError<htype> &b) {
+                    return a._size < b._size;
+                };
+        __gnu_parallel::sort(errors.begin(), errors.end(), compare);
     }
 };
 

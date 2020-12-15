@@ -10,17 +10,18 @@
 #include <wait.h>
 
 
-class ParallelCounter {
-    std::vector<size_t> cnt;
+template<typename T>
+class UniversalParallelCounter {
+    std::vector<T> cnt;
 public:
-    explicit ParallelCounter(size_t thread_num) : cnt(thread_num){
+    explicit UniversalParallelCounter(size_t thread_num) : cnt(thread_num){
     }
 
     void operator++() {
-        cnt[omp_get_thread_num()]++;
+        cnt[omp_get_thread_num()] += 1;
     }
 
-    void operator+=(const size_t val) {
+    void operator+=(const T val) {
         cnt[omp_get_thread_num()] += val;
     }
 
@@ -28,6 +29,8 @@ public:
         return std::accumulate(cnt.begin(), cnt.end(), size_t(0));
     }
 };
+
+typedef UniversalParallelCounter<size_t> ParallelCounter;
 
 template<class T>
 class ParallelRecordCollector {

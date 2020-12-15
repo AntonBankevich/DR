@@ -104,7 +104,6 @@ std::vector<GraphAlignment<htype>> FilterAlternatives(logging::Logger &logger1, 
         bool ok = true;
         for(size_t i = 0; i < al.size(); i++) {
             if(al[i].contig().getCoverage() < threshold) {
-//                logger << "Filtered " << cpath << " based on coverage " << i << " " << al[i].contig().getCoverage() << std::endl;
                 ok = false;
                 break;
             }
@@ -114,9 +113,6 @@ std::vector<GraphAlignment<htype>> FilterAlternatives(logging::Logger &logger1, 
         }
         size_t al_len = al.len();
         if(len > al_len + max_diff || al_len > len + max_diff) {
-//            logger << "Filtered " << cpath << " based on length " << al_len << " " << len << std::endl;
-//            logger << al.truncSeq() << std::endl;
-//            logger << initial.truncSeq() << std::endl;
             continue;
         }
         res.emplace_back(al);
@@ -195,6 +191,85 @@ GraphAlignment<htype> processBulge(logging::Logger &logger, std::ostream &out, c
         return std::move(bulge);
     }
 }
+
+template<typename htype>
+class AbstractAlternativeGenerator {
+public:
+    virtual std::vector<GraphAlignment<htype>> generate(const GraphAlignment<htype> &path) = 0;
+};
+
+template<typename htype>
+class BulgeAlternativeGenerator : public AbstractAlternativeGenerator<htype> {
+private:
+    double threshold;
+    const RecordStorage<htype> &storage;
+public:
+    BulgeAlternativeGenerator(const RecordStorage<htype> &_storage, double cov_threshold) :
+            storage(_storage), threshold(cov_threshold) {
+
+    }
+
+    std::vector<GraphAlignment<htype>> generate(const GraphAlignment<htype> &path) {
+        return storage.getRecord(path.start()).getBulgeAlternatives(path.finish(), threshold);
+    }
+};
+
+template<typename htype>
+class TipAlternativeGenerator : public AbstractAlternativeGenerator<htype> {
+private:
+    double threshold;
+    const RecordStorage<htype> &storage;
+public:
+    TipAlternativeGenerator(const RecordStorage<htype> &_storage, double cov_threshold) :
+            storage(_storage), threshold(cov_threshold) {
+    }
+
+    std::vector<GraphAlignment<htype>> generate(const GraphAlignment<htype> &path) {
+        return storage.getRecord(path.start()).getTipAlternatives(path.len(), threshold);
+    }
+};
+
+template<typename htype>
+class AbstractAlternativeFilter {
+public:
+    virtual void filter(const GraphAlignment<htype> &path, std::vector<GraphAlignment<htype>> &alternatives) = 0;
+};
+
+template<typename htype>
+class DiffAlternativeFilter : AbstractAlternativeFilter<htype> {
+private:
+    double threshold;
+    size_t max_diff;
+public:
+    DiffAlternativeFilter(double cov_threshold, size_t _max_diff) :  threshold(cov_threshold), max_diff(_max_diff) {
+    }
+
+    void filter(const GraphAlignment<htype> &path, std::vector<GraphAlignment<htype>> &alternatives) {
+        size_t len = path.len();
+        std::vector<GraphAlignment<htype>> res;
+        size_t k = path.getVertex(0).seq.size();
+        for(GraphAlignment<htype> &al : alternatives) {
+            CompactPath<htype> cpath(al);
+            bool ok = true;
+            for(size_t i = 0; i < al.size(); i++) {
+                if(al[i].contig().getCoverage() < threshold) {
+                    ok = false;
+                    break;
+                }
+            }
+            if(!ok) {
+                continue;
+            }
+            size_t al_len = al.len();
+            if(len > al_len + max_diff || al_len > len + max_diff) {
+                continue;
+            }
+            res.emplace_back(std::move(al));
+        }
+        return std::swap(alternatives, res);
+    }
+};
+
 
 template<typename htype>
 GraphAlignment<htype> processTip(logging::Logger &logger, std::ostream &out, const GraphAlignment<htype> &tip,
@@ -280,8 +355,10 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage<htype> &r
                                 const std::experimental::filesystem::path &out_file,
                                 double threshold, size_t k, size_t threads) {
     ParallelRecordCollector<std::string> results(threads);
+    ParallelCounter simple_bulge_cnt(threads);
+    ParallelCounter bulge_cnt(threads);
     logger.info() << "Correcting low covered regions in reads" << std::endl;
-#pragma omp parallel for default(none) shared(reads_storage, ref_storage, results, threshold, k, logger)
+#pragma omp parallel for default(none) shared(reads_storage, ref_storage, results, threshold, k, logger, simple_bulge_cnt, bulge_cnt)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;
         AlignedRead<htype> &alignedRead = reads_storage[read_ind];
@@ -378,6 +455,10 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage<htype> &r
                 for (const Segment<Edge<htype>> &seg : substitution) {
                     corrected_path.push_back(seg);
                 }
+                if(badPath.size() == 1 && corrected_path.size() == 1 && badPath[0] != corrected_path[0]) {
+                    simple_bulge_cnt += 1;
+                }
+                bulge_cnt += 1;
             }
             path_pos = path_pos + step_front;
         }
@@ -388,6 +469,8 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage<htype> &r
         }
         results.emplace_back(ss.str());
     }
+    logger << "Corrected " << simple_bulge_cnt.get() << " simple bulges" << std::endl;
+    logger << "Total " << bulge_cnt.get() << " bulges" << std::endl;
     std::ofstream out;
     out.open(out_file);
     size_t res = 0;
@@ -398,6 +481,101 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage<htype> &r
     }
     out.close();
     return res;
+}
+
+template<typename htype>
+GraphAlignment<htype> findAlternative(logging::Logger &logger, std::ostream &out, const GraphAlignment<htype> &bulge,
+                                   const RecordStorage<htype> &reads_storage) {
+    std::vector<GraphAlignment<htype>> read_alternatives = reads_storage.getRecord(bulge.start()).getBulgeAlternatives(bulge.finish(), 1);
+    std::vector<GraphAlignment<htype>> read_alternatives_filtered = FilterAlternatives(logger, bulge, read_alternatives,
+                                                                                       std::max<size_t>(100, bulge.len() / 100), 1);
+    if(read_alternatives_filtered.size() != 2)
+        return bulge;
+    for(GraphAlignment<htype> &al : read_alternatives_filtered) {
+        if(al == bulge)
+            continue;
+        return std::move(al);
+    }
+    return bulge;
+}
+
+
+template<typename htype>
+size_t collapseBulges(logging::Logger &logger, RecordStorage<htype> &reads_storage,
+                                RecordStorage<htype> &ref_storage,
+                                const std::experimental::filesystem::path &out_file,
+                                double threshold, size_t k, size_t threads) {
+    ParallelRecordCollector<std::string> results(threads);
+    ParallelRecordCollector<Edge<htype>*> bulge_cnt(threads);
+    ParallelRecordCollector<Edge<htype>*> collapsable_cnt(threads);
+    ParallelRecordCollector<Edge<htype>*> genome_cnt(threads);
+    ParallelRecordCollector<Edge<htype>*> corruption_cnt(threads);
+    ParallelRecordCollector<Edge<htype>*> heavy_cnt(threads);
+    logger.info() << "Correcting low covered regions in reads" << std::endl;
+#pragma omp parallel for default(none) shared(reads_storage, ref_storage, results, threshold, k, logger, bulge_cnt, genome_cnt, corruption_cnt, collapsable_cnt)
+    for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
+        std::stringstream ss;
+        AlignedRead<htype> &alignedRead = reads_storage[read_ind];
+        CompactPath<htype> &initial_cpath = alignedRead.path;
+        GraphAlignment<htype> path = initial_cpath.getAlignment();
+        bool corrected = false;
+        for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
+            Edge<htype> &edge = path[path_pos].contig();
+            if (path[path_pos].left > 0 || path[path_pos].right < path[path_pos].size()) {
+                continue;
+            }
+            Vertex<htype> &start = path.getVertex(path_pos);
+            Vertex<htype> &end = path.getVertex(path_pos + 1);
+            if(start.outDeg() != 2 || start.getOutgoing()[0].end() != start.getOutgoing()[1].end()) {
+                continue;
+            }
+            Edge<htype> & alt = edge == start.getOutgoing()[0] ? start.getOutgoing()[1] : start.getOutgoing()[0];
+
+            const VertexRecord<htype> &rec = ref_storage.getRecord(start);
+            if(edge.getCoverage() < 1 || alt.getCoverage() < 1) {
+                continue;
+            }
+            if(edge.getCoverage() > alt.getCoverage()) {
+                continue;
+            }
+            Edge<htype> &rcEdge = start.rcEdge(edge);
+            bulge_cnt.emplace_back(&edge);
+            bulge_cnt.emplace_back(&rcEdge);
+            if(edge.getCoverage() + alt.getCoverage() > 35 || edge.getCoverage() > alt.getCoverage()) {
+                continue;
+            }
+            collapsable_cnt.emplace_back(&edge);
+            collapsable_cnt.emplace_back(&rcEdge);
+            bool edge_supp = rec.countStartsWith(Sequence(std::vector<char>({char(edge.seq[0])}))) > 0;
+            bool alt_supp = rec.countStartsWith(Sequence(std::vector<char>({char(alt.seq[0])}))) > 0;
+#pragma omp critical
+            {
+                logger << edge.size() << " " << edge.getCoverage() << " " << edge_supp << std::endl;
+                logger << alt.size() << " " << alt.getCoverage() << " " << alt_supp << std::endl;
+            };
+            if(edge_supp != alt_supp) {
+                genome_cnt.emplace_back(&edge);
+                genome_cnt.emplace_back(&rcEdge);
+                if(edge_supp) {
+                    corruption_cnt.emplace_back(&edge);
+                    corruption_cnt.emplace_back(&rcEdge);
+                }
+            }
+            corrected = true;
+            path[path_pos] = {alt, 0, alt.size()};
+        }
+        if(corrected) {
+            GraphAlignment<htype> path0 = initial_cpath.getAlignment();
+            reads_storage.reroute(alignedRead, path0, path);
+        }
+        results.emplace_back(ss.str());
+    }
+    size_t bulges = std::unordered_set<Edge<htype>*>(bulge_cnt.begin(), bulge_cnt.end()).size();
+    size_t collapsable = std::unordered_set<Edge<htype>*>(collapsable_cnt.begin(), bulge_cnt.end()).size();
+    size_t genome = std::unordered_set<Edge<htype>*>(genome_cnt.begin(), bulge_cnt.end()).size();
+    size_t corruption = std::unordered_set<Edge<htype>*>(corruption_cnt.begin(), bulge_cnt.end()).size();
+    logger << "Bulge collapsing results " << bulges << " " << collapsable << " " << genome << " " << corruption << std::endl;
+    return bulges;
 }
 
 template<typename htype>
@@ -517,7 +695,7 @@ void initialCorrect(SparseDBG<htype> &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &out_reads,
                     const io::Library &reads_lib,
                     const std::experimental::filesystem::path &ref,
-                     double threshold, size_t threads, const size_t min_read_size) {
+                    double threshold, size_t threads, const size_t min_read_size) {
     size_t k = sdbg.hasher().k;
     logger.info() << "Collecting info from reads" << std::endl;
     size_t extension_size = std::max(std::min(min_read_size * 3 / 4, sdbg.hasher().k * 11 / 2), sdbg.hasher().k * 3 / 2);
@@ -552,8 +730,12 @@ void initialCorrect(SparseDBG<htype> &sdbg, logging::Logger &logger,
         size_t correctedAT = correctAT(logger, reads_storage, k, threads);
         logger.info() << "Corrected " << correctedAT << " dinucleotide sequences" << std::endl;
     }
-    size_t corrected_low = correctLowCoveredRegions(logger, reads_storage, ref_storage, out_file, threshold, k, threads);
-    logger.info() << "Corrected low covered regions in " << corrected_low << " reads" << std::endl;
+    for(size_t i = 0; i < 5; i++) {
+        size_t corrected_low = correctLowCoveredRegions(logger, reads_storage, ref_storage, out_file, threshold, k, threads);
+        logger.info() << "Corrected low covered regions in " << corrected_low << " reads" << std::endl;
+    }
+    size_t corrected_bulges = collapseBulges(logger, reads_storage, ref_storage, out_file, threshold, k, threads);
+    logger.info() << "Collapsed bulges in " << corrected_bulges << " reads" << std::endl;
     {
         size_t correctedAT = correctAT(logger, reads_storage, k, threads);
         logger.info() << "Corrected " << correctedAT << " dinucleotide sequences" << std::endl;
