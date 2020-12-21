@@ -33,7 +33,7 @@ UMapSeq read_fasta(const std::vector<std::string>& path,
 size_t get_min_length(const UMapSeq & seqs) {
     size_t min_len = std::numeric_limits<size_t>::max();
     for (const auto& pair: seqs) {
-        auto& seq = std::get<1>(pair);
+        auto& seq = pair.second;
         min_len = std::min(min_len, seq.size());
     }
     return min_len;
