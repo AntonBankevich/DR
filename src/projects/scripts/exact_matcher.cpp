@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    exact_match<htype128>(parser.getValue("query"),
-                          parser.getValue("reference"),
-                          parser.getValue("output"));
+    PositionsVector positions = exact_match<htype128>(parser.getValue("query"),
+                                                      parser.getValue("reference"));
+    output_matches(positions, parser.getValue("output"));
 }

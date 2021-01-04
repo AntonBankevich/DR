@@ -11,6 +11,25 @@
 namespace scripts {
 namespace exact_matcher {
 
+enum class Strand {
+    forward, reverse
+};
+
+struct QueryPositionInTarget {
+    const Contig &target;
+    const Contig &query;
+    const size_t pos;
+    const Strand strand;
+
+    QueryPositionInTarget(const Contig &target_, const Contig &query_, const size_t pos_,
+                          const Strand strand_) :
+            target{target_}, query{query_}, pos{pos_}, strand{strand_} {
+        VERIFY(pos_ + query.size() <= target.size())
+    }
+};
+
+using PositionsVector = std::vector<scripts::exact_matcher::QueryPositionInTarget>;
+
 namespace details {
 
     size_t get_min_length(const std::vector<Contig> &contigs) {
@@ -26,7 +45,7 @@ namespace details {
         const Contig &contig;
         KWH<htype> kwh;
 
-        NamedKWH(const Contig &contig_, KWH<htype> kwh_) : contig(contig_), kwh(kwh_) {}
+        NamedKWH(const Contig &contig_, KWH<htype> kwh_) : contig{contig_}, kwh{kwh_} {}
     };
 
     template<typename htype>
@@ -39,28 +58,11 @@ namespace details {
         return named_kwh;
     }
 
-    enum class Strand {
-        forward, reverse
-    };
-
-    struct QueryPositionInTarget {
-        const Contig &target;
-        const Contig &query;
-        const size_t pos;
-        const Strand strand;
-
-        QueryPositionInTarget(const Contig &target_, const Contig &query_, const size_t pos_,
-                              const Strand strand_) :
-                target(target_), query(query_), pos(pos_), strand(strand_) {
-            VERIFY(pos_ + query.size() <= target.size())
-        }
-    };
 
     template<typename htype>
-    std::vector<QueryPositionInTarget>
-    find_matches(const std::vector<NamedKWH<htype>> &queries_kwh,
-                 const std::vector<NamedKWH<htype>> &targets_kwh) {
-        std::vector<QueryPositionInTarget> positions;
+    PositionsVector find_matches(const std::vector<NamedKWH<htype>> &queries_kwh,
+                                 const std::vector<NamedKWH<htype>> &targets_kwh) {
+        PositionsVector positions;
         std::unordered_map<htype, const Contig *> hash2seqs;
         for (const NamedKWH<htype> &query_kwh: queries_kwh) {
             const Contig *ctg_pointer = &query_kwh.contig;
@@ -75,7 +77,6 @@ namespace details {
                 const htype hash = rolling_target_kwh.hash();
                 const auto search = hash2seqs.find(hash);
                 if (search != hash2seqs.end()) {
-                    const Contig *seq_pointer = search->second;
                     for (const NamedKWH<htype> &query_kwh : queries_kwh) {
                         const Contig &query = query_kwh.contig;
                         size_t pos = rolling_target_kwh.pos;
@@ -106,47 +107,49 @@ namespace details {
         return positions;
     }
 
-    void output_matches(const std::vector<QueryPositionInTarget> &positions, const std::string &outpath) {
-        const std::experimental::filesystem::path outfn(outpath);
-        std::ofstream os;
-        os.open(outfn);
-        os << "target_id\tquery_id\tposition\tstrand\n";
-        for (const QueryPositionInTarget &query_pos_in_target : positions) {
-            const std::string query_id = query_pos_in_target.query.id;
-            const std::string target_id = query_pos_in_target.target.id;
-            const size_t position = query_pos_in_target.pos;
-            const Strand strand = query_pos_in_target.strand;
-            const std::string strand_seq = strand == Strand::forward ? "+" : "-";
-            os << target_id << '\t' << query_id << '\t' << position << '\t' << strand_seq << std::endl;
-        }
-    }
-
 } // End namespace details
 
 template<typename htype>
-std::vector<details::QueryPositionInTarget> exact_match(const std::string &queries_path,
-                                                        const std::string &targets_path,
-                                                        const std::string &output_path,
-                                                        const size_t base = 239) {
+PositionsVector exact_match(const std::string &queries_path,
+                            const std::string &targets_path,
+                            const size_t base = 239) {
     using namespace details;
     io::SeqReader queriesReader(queries_path);
     io::SeqReader targetsReader(targets_path);
 
-    std::vector<Contig> queries = queriesReader.readAllContigs();
-    std::vector<Contig> targets = targetsReader.readAllContigs();
+    const std::vector<Contig> queries = queriesReader.readAllContigs();
+    const std::vector<Contig> targets = targetsReader.readAllContigs();
 
-    size_t query_min_len = details::get_min_length(queries);
+    if (queries.empty() or targets.empty()) {
+        return PositionsVector();
+    }
 
-    RollingHash<htype> hasher(query_min_len, base); // this object has to live till the end
+    const size_t query_min_len = details::get_min_length(queries);
+
+    const RollingHash<htype> hasher(query_min_len, base); // this object has to live till the end
 
     const std::vector<NamedKWH<htype>> queries_kwh = get_named_KWH<htype>(queries, hasher);
     const std::vector<NamedKWH<htype>> targets_kwh = get_named_KWH<htype>(targets, hasher);
 
-    std::vector<QueryPositionInTarget> positions = find_matches(queries_kwh, targets_kwh);
-
-    output_matches(positions, output_path);
+    PositionsVector positions = find_matches(queries_kwh, targets_kwh);
 
     return positions;
+}
+
+void output_matches(const std::vector<QueryPositionInTarget> &positions, const std::string &out_path) {
+    using namespace details;
+    const std::experimental::filesystem::path out_fn(out_path);
+    std::ofstream os;
+    os.open(out_fn);
+    os << "target_id\tquery_id\tposition\tstrand\n";
+    for (const QueryPositionInTarget &query_pos_in_target : positions) {
+        const std::string query_id = query_pos_in_target.query.id;
+        const std::string target_id = query_pos_in_target.target.id;
+        const size_t position = query_pos_in_target.pos;
+        const Strand strand = query_pos_in_target.strand;
+        const std::string strand_seq = strand == Strand::forward ? "+" : "-";
+        os << target_id << '\t' << query_id << '\t' << position << '\t' << strand_seq << std::endl;
+    }
 }
 
 } // End namespace exact_matcher
