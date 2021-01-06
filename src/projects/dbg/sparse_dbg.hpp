@@ -26,7 +26,7 @@ private:
 public:
     mutable size_t extraInfo;
     Sequence seq;
-    std::string id;
+    std::string id = "";
     friend class Vertex<htype>;
 
     Edge(Vertex<htype> *_end, const Sequence &_seq) :

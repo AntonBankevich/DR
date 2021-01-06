@@ -2,6 +2,7 @@
 // Created by anton on 17.07.2020.
 //
 #define _GLIBCXX_PARALLEL
+#include "visualization.hpp"
 #include "error_correction.hpp"
 #include "dbg_construction.hpp"
 #include "dbg_disjointigs.hpp"
@@ -9,13 +10,14 @@
 #include "sparse_dbg.hpp"
 #include "rolling_hash.hpp"
 #include "hash_utils.hpp"
+#include "crude_correct.hpp"
+#include "hash_utils.hpp"
+#include "initial_correction.hpp"
 #include "sequences/seqio.hpp"
 #include "common/dir_utils.hpp"
 #include "common/cl_parser.hpp"
 #include "common/logging.hpp"
-#include "crude_correct.hpp"
-#include "hash_utils.hpp"
-#include "initial_correction.hpp"
+#include "alignment/cigar_alignment.hpp"
 #include <iostream>
 #include <queue>
 #include <omp.h>
@@ -207,7 +209,7 @@ int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "coverages=none", "segments=none", "dbg=none", "output-dir=",
                      "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
                      "correct", "simplify", "coverage", "cov-threshold=2", "tip-correct", "crude-correct", "initial-correct",
-                     "compress", "help"},
+                     "compress", "help", "print-coordinates"},
                     {"reads", "align"},
                     {"h=help", "o=output-dir", "t=threads", "k=k-mer-size","w=window"},
                     constructMessage());
@@ -242,9 +244,11 @@ int main(int argc, char **argv) {
     const size_t w = std::stoi(parser.getValue("window"));
     io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     io::Library reads_lib = lib;
+    io::Library genome_lib = {};
     if (parser.getValue("reference") != "none") {
         logger.info() << "Added reference to graph construction. Careful, some edges may have coverage 0" << std::endl;
         lib.insert(lib.begin(), std::experimental::filesystem::path(parser.getValue("reference")));
+        genome_lib.insert(genome_lib.begin(), std::experimental::filesystem::path(parser.getValue("reference")));
     }
     size_t threads = std::stoi(parser.getValue("threads"));
     omp_set_num_threads(threads);
@@ -277,6 +281,28 @@ int main(int argc, char **argv) {
         size_t threshold = std::stoull(parser.getValue("cov-threshold"));
         initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta", reads_lib, {parser.getValue("reference")}, threshold,
                        threads, w + k - 1);
+    }
+
+    if(parser.getCheck("print-coordinates")) {
+        GraphAlignmentStorage<htype128> storage(dbg);
+        io::SeqReader reader(genome_lib);
+        for(StringContig scontig : reader) {
+            Contig contig = scontig.makeContig();
+            std::cout << contig.id << std::endl;
+            storage.fill(contig);
+        }
+        {
+            std::ofstream coordinates_dot;
+            coordinates_dot.open(dir / "coordinates.dot");
+            storage.printDot(coordinates_dot);
+            coordinates_dot.close();
+        }
+        {
+            std::ofstream coordinates;
+            coordinates.open(dir / "coordinates.txt");
+            storage.print(coordinates);
+            coordinates.close();
+        }
     }
 
     if(parser.getValue("dbg") == "none") {

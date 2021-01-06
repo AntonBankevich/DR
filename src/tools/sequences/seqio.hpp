@@ -113,8 +113,10 @@ namespace io {
                     while(stream->peek() != EOF && stream->peek() != '>' && stream->peek() != '+') {
                         std::getline(*stream, seq);
                         trim(seq);
-                        if (seq.empty())
+                        if (seq.empty()) {
+                            next = {};
                             break;
+                        }
                         ss << seq;
                         cnt += 1;
                     }

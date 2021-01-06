@@ -175,7 +175,7 @@ public:
     Contig(const string &_seq, const string &_id): NamedSequence(Sequence(_seq), _id) {
     }
 
-    Contig RC() {
+    Contig RC() const {
         if(id[0] == '-')
             return Contig(!seq, id.substr(1, id.size() - 1));
         else
