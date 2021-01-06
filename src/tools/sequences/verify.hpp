@@ -35,4 +35,7 @@ inline void print_stacktrace() {
         };                                                       \
     } while(0);
 
+inline void VERIFY_OMP(bool expr) {
+    VERIFY(expr);
+}
 

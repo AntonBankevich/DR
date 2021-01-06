@@ -367,7 +367,7 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage<htype> &r
         GraphAlignment<htype> corrected_path(path.start());
         bool corrected = false;
         for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
-//            VERIFY(corrected_path.finish() == path.getVertex(path_pos));
+            VERIFY_OMP(corrected_path.finish() == path.getVertex(path_pos));
             Edge<htype> &edge = path[path_pos].contig();
             if (edge.getCoverage() >= threshold || edge.size() > 5 * k) {
 //                if(edge.size() > 5 * k) {
@@ -639,7 +639,7 @@ size_t correctAT(logging::Logger &logger, RecordStorage<htype> &reads_storage, s
                 size_t support = rec.countStartsWith(ccandidate.seq());
                 if(skip == 2 * max_variation) {
                     initial_support = support;
-                    VERIFY(support > 0);
+                    VERIFY_OMP(support > 0);
                 }
                 if (support > best_support) {
                     best_seq = longest_candidate.Subseq(skip, longest_candidate.size());
@@ -654,14 +654,14 @@ size_t correctAT(logging::Logger &logger, RecordStorage<htype> &reads_storage, s
                     << at_cnt1 << " " << at_cnt2 << " " << max_variation << " "
                     << "ACGT"[seq[seq.size() - 2]] << "ACGT"[seq[seq.size() - 1]] << " "
                     << extension.size() << " " << best_seq.size() << std::endl;
-            VERIFY(best_support > 0);
+            VERIFY_OMP(best_support > 0);
             GraphAlignment<htype> rerouting(path.getVertex(path_pos));
             rerouting.extend(best_seq);
             GraphAlignment<htype> old_path(path.getVertex(path_pos));
             old_path.extend(extension);
-            VERIFY(old_path.valid());
-            VERIFY(rerouting.valid());
-            VERIFY(rerouting.back() == old_path.back());
+            VERIFY_OMP(old_path.valid());
+            VERIFY_OMP(rerouting.valid());
+            VERIFY_OMP(rerouting.back() == old_path.back());
             if (rerouting.back().right != rerouting.back().contig().size()) {
                 rerouting.pop_back();
                 old_path.pop_back();

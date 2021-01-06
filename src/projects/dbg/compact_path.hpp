@@ -522,7 +522,7 @@ public:
             GraphAlignment<htype> path = initial_cpath.getAlignment();
             GraphAlignment<htype> corrected_path(path.start());
             for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
-//                VERIFY(corrected_path.finish() == path.getVertex(path_pos));
+                VERIFY_OMP(corrected_path.finish() == path.getVertex(path_pos));
                 Edge<htype> &edge = path[path_pos].contig();
                 if (edge.getCoverage() >= error_threshold) {
                     continue;
