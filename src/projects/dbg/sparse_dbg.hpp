@@ -1637,7 +1637,8 @@ public:
                 VERIFY(!vertex.seq.empty());
                 for(const Edge<htype> & edge : vertex.getOutgoing()) {
                     if(vertex.isCanonical(edge)) {
-                        out << "S\t" << vertex.edgeId(edge) << "\t" << vertex.seq << edge.seq << std::endl;
+                        out << "S\t" << vertex.edgeId(edge) << "\t" << vertex.seq << edge.seq
+                            << "\tKC:i:" << edge.intCov() << std::endl;
                     }
                 }
             }
