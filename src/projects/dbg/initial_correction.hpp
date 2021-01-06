@@ -367,7 +367,7 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage<htype> &r
         GraphAlignment<htype> corrected_path(path.start());
         bool corrected = false;
         for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
-            VERIFY(corrected_path.finish() == path.getVertex(path_pos));
+//            VERIFY(corrected_path.finish() == path.getVertex(path_pos));
             Edge<htype> &edge = path[path_pos].contig();
             if (edge.getCoverage() >= threshold || edge.size() > 5 * k) {
 //                if(edge.size() > 5 * k) {
