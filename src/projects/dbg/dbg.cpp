@@ -88,7 +88,8 @@ struct hash_pair {
     }
 };
 
-void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, const std::experimental::filesystem::path &path_dump,
+void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, size_t min_len,
+                   const std::experimental::filesystem::path &path_dump,
                    const std::experimental::filesystem::path &mult_dump, Logger &logger) {
     logger.info() << "Reading reference" << std::endl;
     std::vector<StringContig> ref = io::SeqReader(ref_file).readAll();
@@ -99,7 +100,10 @@ void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, const 
     size_t cur = 0;
     for(StringContig & contig : ref) {
         auto tmp = dbg.align(contig.makeSequence());
-        os << "New chromosome " << contig.id << std::endl;
+        os << "New chromosome " << contig.id << "(" << contig.size() << ")" << std::endl;
+        if(contig.size() < min_len) {
+            continue;
+        }
         for(size_t i = 0; i < tmp.size(); i++) {
             const Segment<Edge<htype128>> &seg = tmp[i];
             os << "[" << cur << ", " << cur + seg.size() << "] -> [" << seg.left << ", " << seg.right <<"] ";
@@ -457,7 +461,7 @@ int main(int argc, char **argv) {
         }
     }
     if (parser.getValue("reference") != "none") {
-        analyseGenome(dbg, parser.getValue("reference"), dir / "ref.info", dir / "mult.info", logger);
+        analyseGenome(dbg, parser.getValue("reference"), k + w - 1, dir / "ref.info", dir / "mult.info", logger);
     }
     if (parser.getCheck("simplify")) {
         logger.info() << "Removing low covered edges" << std::endl;
