@@ -163,8 +163,14 @@ public:
 //keep track of total size of stored objects.
     template<class I>
     void processRecords(I begin, I end, size_t bucket_length = 1024 * 1024) {
-        logger.info() << "Starting parallel calculation" << std::endl;
         omp_set_num_threads(threads);
+#pragma omp parallel default(none)
+        {
+#pragma omp single
+            {
+                logger.info() << "Starting parallel calculation using " << omp_get_num_threads() << " threads" << std::endl;
+            }
+        };
 //        size_t bucket_length = 1024 * 1024;
         size_t buffer_size = 1024 * 1024;
         size_t max_length = 1024 * 1024 * 1024;
