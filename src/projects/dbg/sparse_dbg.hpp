@@ -81,7 +81,7 @@ public:
         return double(cov) / size();
     }
 
-    double intCov() const {
+    size_t intCov() const {
         return cov;
     }
 
@@ -1163,6 +1163,7 @@ public:
                         if (kmer.pos % w == 0) {
                             EdgePosition ep(edge, vertex, kmer.pos);
                             if(kmer.isCanonical())
+
                                 res.emplace_back(kmer.hash(), ep);
                             else {
                                 res.emplace_back(kmer.hash(), ep.RC());
@@ -1690,177 +1691,6 @@ public:
         res.fillSparseDBGEdges(sequences.begin(), sequences.end(), logger, threads, hasher.k + 1);
         logger.info() << "Finished loading graph" << std::endl;
         return std::move(res);
-    }
-};
-
-template<class htype>
-class Component {
-private:
-    SparseDBG<htype> & graph;
-    std::unordered_set<htype, alt_hasher<htype>> v;
-    struct EdgeRec {
-        Vertex<htype> * start;
-        Vertex<htype> * end;
-        size_t size;
-        size_t cov;
-    };
-
-    size_t outDeg(const Vertex<htype> &vert, size_t min_cov) const {
-        size_t res = 0;
-        for(const Edge<htype> &edge : vert.getOutgoing()) {
-            if(edge.getCoverage() >= min_cov) {
-                res += 1;
-            }
-        }
-        return res;
-    }
-
-    bool isUnbranching(const Vertex<htype> &vert, size_t min_cov) const {
-        return v.find(vert.hash()) != v.end() && outDeg(vert, min_cov) == 1 && outDeg(vert.rc(), min_cov) == 1;
-    }
-
-    Edge<htype> &getOut(Vertex<htype> &vert, size_t min_cov) {
-        for(Edge<htype> &edge : vert.getOutgoing()) {
-            if(edge.getCoverage() >= min_cov) {
-                return edge;
-            }
-        }
-        VERIFY(false);
-    }
-
-    Path<htype> unbranching(Vertex<htype> &vert, Edge<htype> &edge, size_t minCov) {
-        std::vector<Edge<htype>*> res;
-        res.push_back(&edge);
-        Vertex<htype> *cur = edge.end();
-        while (cur != &vert && isUnbranching(*cur, minCov)) {
-            res.push_back(&getOut(*cur, minCov));
-            cur = res.back()->end();
-        }
-        return Path<htype>(vert, res);
-    }
-
-public:
-    template<class I>
-    Component(SparseDBG<htype> &_graph, I begin, I end) : graph(_graph), v(begin, end) {
-    }
-
-    template<class I>
-    static Component<htype> neighbourhood(SparseDBG<htype> &graph, I begin, I end, size_t radius, size_t min_coverage = 0) {
-        std::unordered_set<htype, alt_hasher<htype>> v;
-        std::priority_queue<std::pair<size_t, htype>> queue;
-        while(begin != end) {
-            queue.emplace(0, *begin);
-            ++begin;
-        }
-        while(!queue.empty()) {
-            std::pair<size_t, htype> val = queue.top();
-            queue.pop();
-            if(v.find(val.second) != v.end())
-                continue;
-            v.insert(val.second);
-            if(val.first > radius)
-                continue;
-            Vertex<htype> &vert = graph.getVertex(val.second);
-            for(Edge<htype> & edge : vert.getOutgoing()) {
-                if(edge.getCoverage() >= min_coverage)
-                    queue.emplace(val.first + edge.size(), edge.end()->hash());
-            }
-            for(Edge<htype> & edge : vert.rc().getOutgoing()) {
-                if(edge.getCoverage() >= min_coverage)
-                    queue.emplace(val.first + edge.size(), edge.end()->hash());
-            }
-        }
-        return Component<htype>(graph, v.begin(), v.end());
-    }
-
-    void printEdge(std::ostream &os, Vertex<htype> & start, Edge<htype> &edge) {
-        Vertex<htype> &end = *edge.end();
-        os << "\"";
-        if (!start.isCanonical())
-            os << "-";
-        os << start.hash() % 10000 << "\" -> \"";
-        if (!end.isCanonical())
-            os << "-";
-        os << end.hash() % 10000  << "\" [label=\"" << edge.size() << "(" << edge.getCoverage() << ")\"]\n";
-    }
-
-    void printEdge(std::ostream &os, Path<htype> & path) {
-        size_t len = 0;
-        size_t cov = 0;
-        for(size_t i = 0; i < path.size(); i++) {
-            len += path[i].size();
-            cov += path[i].intCov();
-        }
-        Vertex<htype> &start = path.start();
-        Vertex<htype> &end = *path.back().end();
-        os << "\"";
-        if (!start.isCanonical())
-            os << "-";
-        os << start.hash() % 10000 << "\" -> \"";
-        if (!end.isCanonical())
-            os << "-";
-        os << end.hash() % 10000  << "\" [label=\"" << len << "(" << double(cov) / len << ")\"]\n";
-    }
-
-    size_t size() const {
-        return v.size();
-    }
-
-    void printDot(std::ostream &os, size_t min_cov = 0) {
-        os << "digraph {\nnodesep = 0.5;\n";
-        for(htype vid : v) {
-            Vertex<htype> &start = graph.getVertex(vid);
-            for(Edge<htype> &edge : start.getOutgoing()) {
-                if(edge.getCoverage() < min_cov)
-                    continue;
-                Vertex<htype> &end = *edge.end();
-                printEdge(os, start, edge);
-                if(v.find(end.hash()) == v.end()) {
-                    printEdge(os, end.rc(), start.rcEdge(edge));
-                }
-            }
-            for(Edge<htype> &edge : start.rc().getOutgoing()) {
-                if(edge.getCoverage() < min_cov)
-                    continue;
-                Vertex<htype> &end = *edge.end();
-                printEdge(os, start.rc(), edge);
-                if(v.find(end.hash()) == v.end()) {
-                    printEdge(os, end.rc(), start.rc().rcEdge(edge));
-                }
-            }
-        }
-        os << "}\n";
-    }
-    void printCompressedDot(std::ostream &os, size_t min_cov = 0) {
-        os << "digraph {\nnodesep = 0.5;\n";
-        for(htype vid : v) {
-            Vertex<htype> &start = graph.getVertex(vid);
-            if(isUnbranching(start, min_cov))
-                continue;
-            for(Edge<htype> &edge : start.getOutgoing()) {
-                if(edge.getCoverage() < min_cov)
-                    continue;
-                Path<htype> path = unbranching(start, edge, min_cov);
-                printEdge(os, path);
-                Vertex<htype> &end = *path.back().end();
-                if(v.find(end.hash()) == v.end()) {
-                    Path<htype> rcpath = path.RC();
-                    printEdge(os, rcpath);
-                }
-            }
-            for(Edge<htype> &edge : start.rc().getOutgoing()) {
-                if(edge.getCoverage() < min_cov)
-                    continue;
-                Path<htype> path = unbranching(start.rc(), edge, min_cov);
-                printEdge(os, path);
-                Vertex<htype> &end = *path.back().end();
-                if(v.find(end.hash()) == v.end()) {
-                    Path<htype> rcpath = path.RC();
-                    printEdge(os, rcpath);
-                }
-            }
-        }
-        os << "}\n";
     }
 };
 

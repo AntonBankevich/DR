@@ -37,22 +37,6 @@ static inline std::string & compress_inplace(std::string &s) {
     return s;
 }
 
-inline std::vector<std::string> split(const std::string &s, const std::string &delimiter) {
-    std::vector<std::string> res;
-    size_t cur = 0;
-    while(cur < s.size()) {
-        size_t next = s.find(delimiter, cur);
-        if (next == size_t(-1)) {
-            next = s.size();
-        }
-        if (next > cur) {
-            res.push_back(s.substr(cur, next - cur));
-        }
-        cur = next + delimiter.size();
-    }
-    return res;
-}
-
 inline std::vector<std::string> split(const std::string &s) {
     std::vector<std::string> res;
     size_t cur = 0;
@@ -61,6 +45,22 @@ inline std::vector<std::string> split(const std::string &s) {
         size_t next = cur;
         while(next < s.size() && bad.find(s[next]) == size_t(-1)) {
 //            std::cout << s[cur] << " " << size_t(s[next]) << " " << size_t('\t') << std::endl;
+            next += 1;
+        }
+        if (next > cur) {
+            res.push_back(s.substr(cur, next - cur));
+        }
+        cur = next + 1;
+    }
+    return res;
+}
+
+inline std::vector<std::string> split(const std::string &s, const std::string &delim) {
+    std::vector<std::string> res;
+    size_t cur = 0;
+    while(cur < s.size()) {
+        size_t next = cur;
+        while(next < s.size() && delim.find(s[next]) == size_t(-1)) {
             next += 1;
         }
         if (next > cur) {
