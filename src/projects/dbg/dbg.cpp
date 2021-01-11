@@ -99,9 +99,10 @@ void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, size_t
     os.open(path_dump);
     size_t cur = 0;
     for(StringContig & contig : ref) {
-        auto tmp = dbg.align(contig.makeSequence());
+        Sequence seq = contig.makeSequence();
         os << "New chromosome " << contig.id << "(" << contig.size() << ")" << std::endl;
-        if(contig.size() < min_len) {
+        auto tmp = dbg.align(seq);
+        if(seq.size() < min_len) {
             continue;
         }
         for(size_t i = 0; i < tmp.size(); i++) {
