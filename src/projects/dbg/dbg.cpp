@@ -101,10 +101,10 @@ void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, size_t
     for(StringContig & contig : ref) {
         Sequence seq = contig.makeSequence();
         os << "New chromosome " << contig.id << "(" << contig.size() << ")" << std::endl;
-        auto tmp = dbg.align(seq);
         if(seq.size() < min_len) {
             continue;
         }
+        auto tmp = dbg.align(seq);
         for(size_t i = 0; i < tmp.size(); i++) {
             const Segment<Edge<htype128>> &seg = tmp[i];
             os << "[" << cur << ", " << cur + seg.size() << "] -> [" << seg.left << ", " << seg.right <<"] ";
