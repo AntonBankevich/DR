@@ -9,9 +9,9 @@
 
 namespace oneline {
     template<class U, class V, class I>
-    std::vector<V> map(I begin, I end, std::function<V(const U &)> f) {
+    std::vector<V> map(I begin, I end, std::function<V(U &)> f) {
         std::vector<V> result;
-        std::for_each(begin, end, [&](const U& param){ result.push_back(f(param));});
+        std::for_each(begin, end, [&](U& param){ result.push_back(f(param));});
         return std::move(result);
     }
 

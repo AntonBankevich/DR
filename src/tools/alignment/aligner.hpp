@@ -21,10 +21,10 @@ public:
     size_t default_threads;
     std::vector<mm_idx_t *> index;
     std::vector<string> ref_seqs;
-    const std::vector<const R *> reference;
+    const std::vector<R *> reference;
     const char * preset = nullptr;
 
-    explicit RawAligner(const std::vector<const R *> & ref, size_t _default_threads, const char * _preset):
+    explicit RawAligner(const std::vector<R *> & ref, size_t _default_threads, const char * _preset):
             default_threads(_default_threads), reference(ref), preset(_preset) {
         destroyIndex(index);
         ref_seqs.reserve(ref.size());
@@ -34,8 +34,8 @@ public:
         index = constructIndex(ref_seqs, default_threads, preset);
     }
 
-    explicit RawAligner(const std::vector<R> & ref, size_t _default_threads, const char * _preset):
-            RawAligner(oneline::map<R, const R*, typename std::vector<R>::const_iterator>(ref.begin(), ref.end(), [](const R & val)->const R* {return &val;}), _default_threads, _preset) {
+    explicit RawAligner(std::vector<R> & ref, size_t _default_threads, const char * _preset):
+            RawAligner(oneline::map<R, R*, typename std::vector<R>::iterator>(ref.begin(), ref.end(), [](R & val)->R* {return &val;}), _default_threads, _preset) {
     }
 
     ~RawAligner() {
@@ -66,7 +66,7 @@ public:
     }
 
     template <class T>
-    std::vector<std::vector<CigarAlignment<T, R>>> align(const std::vector<const T *> & reads, size_t thread_num = size_t(-1)) {
+    std::vector<std::vector<CigarAlignment<T, R>>> align(const std::vector<T *> & reads, size_t thread_num = size_t(-1)) {
         if (thread_num == size_t(-1))
             thread_num = default_threads;
         std::vector<string> read_seqs;
@@ -121,7 +121,7 @@ public:
 
 namespace alignment_recipes {
     template<class U, class V>
-    std::vector<std::vector<MarkedAlignment<U, V>>> MarkAlign(const std::vector<const U *> & reads, const std::vector<const V *> & ref, const HMM &hmm, const char * preset, size_t thread_num = 1) {
+    std::vector<std::vector<MarkedAlignment<U, V>>> MarkAlign(std::vector<U *> & reads, std::vector<V *> & ref, const HMM &hmm, const char * preset, size_t thread_num = 1) {
         RawAligner<U> aligner(ref, thread_num, preset);
         std::vector<std::vector<AlignmentPiece<U, V>>> res;
         if (thread_num == size_t(-1)) {
@@ -135,18 +135,18 @@ namespace alignment_recipes {
     }
 
     template<class U, class V>
-    std::vector<std::vector<MarkedAlignment<U, V>>> MarkAlign(const std::vector<U> & reads, const std::vector<V> & ref, const HMM &hmm, const char * preset, size_t thread_num = 1) {
-        std::vector<const U*> readlinks;
+    std::vector<std::vector<MarkedAlignment<U, V>>> MarkAlignDeprecated(std::vector<U> & reads, std::vector<V> & ref, const HMM &hmm, const char * preset, size_t thread_num = 1) {
+        std::vector<U*> readlinks;
         for(auto &read : reads)
             readlinks.push_back(&read);
-        std::vector<const U*> reflinks;
+        std::vector<U*> reflinks;
         for(auto &r : ref)
             reflinks.push_back(&r);
         return MarkAlign(readlinks, reflinks, hmm, preset, thread_num);
     }
 
     template<class U, class V>
-    std::vector<std::vector<MarkedAlignment<U, V>>> FilterAlign(const std::vector<U> & reads, const std::vector<V> & ref, const HMM &hmm, const char * preset, size_t thread_num = 1) {
+    std::vector<std::vector<MarkedAlignment<U, V>>> FilterAlign(std::vector<U> & reads, std::vector<V> & ref, const HMM &hmm, const char * preset, size_t thread_num = 1) {
         std::vector<const U*> readlinks;
         for(auto &read : reads)
             readlinks.push_back(&read);
@@ -163,7 +163,7 @@ namespace alignment_recipes {
     }
 
     template<class U, class V>
-    std::vector<std::vector<AlignmentPiece<U, V>>> SimpleAlign(const std::vector<U> & reads, const std::vector<V> & ref,
+    std::vector<std::vector<AlignmentPiece<U, V>>> SimpleAlign(std::vector<U> & reads, std::vector<V> & ref,
             const char * preset, size_t thread_num) {
         std::vector<U*> readlinks;
         for(auto &read : reads)
@@ -176,7 +176,7 @@ namespace alignment_recipes {
     }
 
     template<class U, class V>
-    std::vector<std::vector<AlignmentPiece<U, V>>> SimpleAlign(const std::vector<const U *> & reads, RawAligner<V> &aligner, size_t thread_num) {
+    std::vector<std::vector<AlignmentPiece<U, V>>> SimpleAlign(const std::vector<U *> & reads, RawAligner<V> &aligner, size_t thread_num) {
         std::vector<std::vector<AlignmentPiece<U, V>>> res;
         {
             if (thread_num == size_t(-1)) {
@@ -190,7 +190,7 @@ namespace alignment_recipes {
     }
 
     template<class U, class V>
-    std::vector<std::vector<CigarAlignment<U, V>>> SplitAlign(const std::vector<const U *> & reads, const std::vector<const V *> & ref, size_t break_size, size_t min_size, const char * preset, size_t thread_num = 1) {
+    std::vector<std::vector<CigarAlignment<U, V>>> SplitAlign(const std::vector<U *> & reads, const std::vector<const V *> & ref, size_t break_size, size_t min_size, const char * preset, size_t thread_num = 1) {
         RawAligner<U> aligner(ref, thread_num, preset);
         if (thread_num == size_t(-1)) {
             thread_num = aligner.default_threads;

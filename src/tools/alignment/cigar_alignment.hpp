@@ -104,7 +104,7 @@ struct CigarAlignment {
     Segment<V> seg_to;
     mm_extra_t *cigar_container; //For compatibility with minimap
 
-    CigarAlignment(RawAlignment &&other, const U &contig_from, const V &contig_to):
+    CigarAlignment(RawAlignment &&other, U &contig_from, V &contig_to):
                         seg_from(contig_from, other.seg_from.left, other.seg_from.right),
                         seg_to(contig_to, other.seg_to.left, other.seg_to.right), cigar_container(other.cigar_container) {
 //        cout << "CigarAlignment From moved raw: " << cigar_container << endl;
