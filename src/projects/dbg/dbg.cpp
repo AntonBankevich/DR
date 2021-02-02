@@ -231,6 +231,8 @@ int main(int argc, char **argv) {
     }
     if(parser.getCheck("compress"))
         StringContig::needs_compressing = true;
+    else
+        StringContig::needs_compressing = false;
     const std::experimental::filesystem::path dir(parser.getValue("output-dir"));
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");

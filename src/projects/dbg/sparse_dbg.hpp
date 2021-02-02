@@ -168,6 +168,10 @@ public:
         rc_->outgoing_.clear();
     }
 
+    void clearOutgoing() {
+        outgoing_.clear();
+    }
+
     explicit Vertex(htype hash = 0) : hash_(hash), rc_(new Vertex<htype>(hash, this)), canonical(true) {
         omp_init_lock(&writelock);
     }
@@ -1429,6 +1433,29 @@ public:
         }
     }
 
+    void processEdge(Vertex<htype> &vertex, Sequence old_seq) {
+        Sequence seq = vertex.seq + old_seq;
+        std::cout << "Processing sequence " << seq << " " << vertex.seq << std::endl;
+        std::vector<KWH<htype>> kmers = extractVertexPositions(seq);
+        VERIFY(kmers.front().pos == 0 && kmers.back().pos == old_seq.size());
+        std::vector<Vertex<htype> *> vertices;
+        for(size_t i = 0; i < kmers.size(); i++) {
+            vertices.emplace_back(&getVertex(kmers[i]));
+        }
+        for(size_t i = 0; i + 1 < vertices.size(); i++) {
+//            TODO: if too memory heavy save only some of the labels
+            VERIFY(kmers[i].pos + hasher_.k <= seq.size())
+            if (i > 0 && vertices[i] == vertices[i - 1] && vertices[i] == vertices[i + 1] &&
+                (kmers[i].pos - kmers[i - 1].pos == kmers[i + 1].pos - kmers[i].pos) &&
+                kmers[i + 1].pos - kmers[i].pos < hasher_.k) {
+                continue;
+            }
+            vertices[i]->addEdge(Edge<htype>(vertices[i + 1], old_seq.Subseq(kmers[i].pos, kmers[i + 1].pos)));
+            std::cout << "New edge " << vertices[i]->hash() << " " << vertices[i + 1]->hash() << " "
+                        << old_seq.Subseq(kmers[i].pos, kmers[i + 1].pos) << std::endl;
+        }
+    }
+
     size_t size() const {
         return v.size();
     }
@@ -1675,6 +1702,16 @@ public:
         logger.info() << "Sparse graph edges filled." << std::endl;
     }
 
+    template<class Iterator>
+    void refillSparseDBGEdges(Iterator begin, Iterator end, logging::Logger &logger, size_t threads) {
+        logger.info() << "Starting to fill edges" << std::endl;
+        std::function<void(std::pair<Vertex<htype> *, Sequence> &)> task = [this](std::pair<Vertex<htype> *, Sequence> & contig) {
+            processEdge(*contig.first, contig.second);
+        };
+        processObjects(begin, end, logger, threads, task);
+        logger.info() << "Sparse graph edges filled." << std::endl;
+    }
+
     static SparseDBG<htype> loadDBGFromFasta(const io::Library &lib, RollingHash<htype> & hasher, logging::Logger &logger, size_t threads) {
         logger.info() << "Loading graph from fasta" << std::endl;
         io::SeqReader reader(lib);
@@ -1744,76 +1781,40 @@ template<typename htype>
 void tieTips(logging::Logger &logger, SparseDBG<htype> &sdbg, size_t w, size_t threads) {
     logger.info() << " Collecting tips " << std::endl;
 //    TODO reduce memory consumption!! A lot of duplicated k-mer storing
-    ParallelRecordCollector<Sequence> old_edges(threads);
+    ParallelRecordCollector<std::pair<Vertex<htype> *, Sequence>> old_edges(threads);
+    ParallelRecordCollector<Sequence> new_edges(threads);
     ParallelRecordCollector<htype> new_minimizers(threads);
     std::function<void(std::pair<const htype, Vertex<htype>> &)> task =
-            [&sdbg, &old_edges, &new_minimizers](std::pair<const htype, Vertex<htype>> & pair) {
-        Vertex<htype> &rec = pair.second;
-        VERIFY(!rec.seq.empty());
-        for (size_t i = 0; i < rec.getOutgoing().size(); i++) {
-            const auto &ext = rec.getOutgoing()[i];
-            Sequence seq = rec.seq + ext.seq;
-            old_edges.add(seq);
-            if (ext.end() == nullptr) {
-                KWH<htype> kwh(sdbg.hasher(), seq, ext.size());
-                new_minimizers.emplace_back(kwh.hash());
+            [&sdbg, &old_edges, &new_minimizers, &new_edges](std::pair<const htype, Vertex<htype>> & pair) {
+        Vertex<htype> &cvertex = pair.second;
+        for(auto *vit : {&cvertex, &cvertex.rc()}) {
+            Vertex<htype> &vertex = *vit;
+            VERIFY(!vertex.seq.empty());
+            for (size_t i = 0; i < vertex.getOutgoing().size(); i++) {
+                const auto &ext = vertex.getOutgoing()[i];
+                if (ext.end() == nullptr) {
+                    Sequence seq = vertex.seq + ext.seq;
+                    KWH<htype> kwh(sdbg.hasher(), seq, ext.size());
+                    new_edges.add(seq);
+                    new_minimizers.emplace_back(kwh.hash());
+                } else {
+                    old_edges.add({&vertex, ext.seq});
+                }
             }
         }
-        const Vertex<htype> &rec1 = rec.rc();
-        for (size_t i = 0; i < rec1.getOutgoing().size(); i++) {
-            const auto &ext = rec1.getOutgoing()[i];
-            Sequence seq = rec1.seq + ext.seq;
-            old_edges.add(seq);
-            if (ext.end() == nullptr) {
-                KWH<htype> kwh(sdbg.hasher(), seq, ext.size());
-                new_minimizers.emplace_back(kwh.hash());
-            }
-        }
-        rec.clear();
+        cvertex.clear();
     };
     processObjects(sdbg.begin(), sdbg.end(), logger, threads, task);
-
-//#pragma omp parallel default(none) shared(sdbg, old_edges, new_minimizers, logger)
-//    {
-//#pragma omp single
-//        {
-//            for (auto &it: sdbg) {
-//                Vertex<htype> &rec = it.second;
-//                VERIFY(!rec.seq.empty());
-//#pragma omp task default(none) shared(sdbg, old_edges, new_minimizers, rec, logger)
-//                {
-//                    for (size_t i = 0; i < rec.getOutgoing().size(); i++) {
-//                        const auto &ext = rec.getOutgoing()[i];
-//                        Sequence seq = rec.seq + ext.seq;
-//                        old_edges.add(seq);
-//                        if (ext.end() == nullptr) {
-//                            KWH<htype> kwh(sdbg.hasher(), seq, ext.size());
-//                            new_minimizers.emplace_back(kwh.hash());
-//                        }
-//                    }
-//                    const Vertex<htype> &rec1 = rec.rc();
-//                    for (size_t i = 0; i < rec1.getOutgoing().size(); i++) {
-//                        const auto &ext = rec1.getOutgoing()[i];
-//                        Sequence seq = rec1.seq + ext.seq;
-//                        old_edges.add(seq);
-//                        if (ext.end() == nullptr) {
-//                            KWH<htype> kwh(sdbg.hasher(), seq, ext.size());
-//                            new_minimizers.emplace_back(kwh.hash());
-//                        }
-//                    }
-//                    rec.clear();
-//                }
-//            }
-//        }
-//    }
     logger.info() << "Added " << new_minimizers.size() << " artificial minimizers from tips." << std::endl;
     logger.info() << "Collected " << old_edges.size() << " old edges." << std::endl;
     for(auto it = new_minimizers.begin(); it != new_minimizers.end(); ++it) {
         sdbg.addVertex(*it);
     }
     logger.info() << "New minimizers added to sparse graph." << std::endl;
-    logger.info() << "Refilling graph with edges." << std::endl;
-    sdbg.fillSparseDBGEdges(old_edges.begin(), old_edges.end(), logger, threads, sdbg.hasher().k + 1);
+    logger.info() << "Refilling graph with old edges." << std::endl;
+    sdbg.refillSparseDBGEdges(old_edges.begin(), old_edges.end(), logger, threads);
+    logger.info() << "Filling graph with new edges." << std::endl;
+    sdbg.fillSparseDBGEdges(new_edges.begin(), new_edges.end(), logger, threads, sdbg.hasher().k + 1);
     logger.info() << "Finished fixing sparse de Bruijn graph." << std::endl;
 }
 
