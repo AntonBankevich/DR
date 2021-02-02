@@ -49,15 +49,17 @@ inline void writeHashs(std::ostream &os, const std::vector<htype128> &hash_list)
     }
 }
 
-inline void readHashs(std::istream &is, std::vector<htype128> &hash_list) {
+inline std::vector<htype128> readHashs(std::istream &is) {
+    std::vector<htype128> result;
     size_t len;
     is >> len;
     size_t a[2];
     for(size_t i = 0; i < len; i++) {
         is >> a[0] >> a[1];
         htype128 * tmp = reinterpret_cast<htype128 *>(a);
-        hash_list.push_back(*tmp);
+        result.push_back(*tmp);
     }
+    return std::move(result);
 }
 
 inline std::string decimal_string(htype128 n) {

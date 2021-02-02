@@ -8,7 +8,7 @@
 #include "common/omp_utils.hpp"
 #include "common/logging.hpp"
 #include "rolling_hash.hpp"
-#include "hash_utils.hpp"
+#include "common/hash_utils.hpp"
 #include <vector>
 #include <numeric>
 #include <unordered_map>
@@ -1435,7 +1435,6 @@ public:
 
     void processEdge(Vertex<htype> &vertex, Sequence old_seq) {
         Sequence seq = vertex.seq + old_seq;
-        std::cout << "Processing sequence " << seq << " " << vertex.seq << std::endl;
         std::vector<KWH<htype>> kmers = extractVertexPositions(seq);
         VERIFY(kmers.front().pos == 0 && kmers.back().pos == old_seq.size());
         std::vector<Vertex<htype> *> vertices;
@@ -1451,8 +1450,6 @@ public:
                 continue;
             }
             vertices[i]->addEdge(Edge<htype>(vertices[i + 1], old_seq.Subseq(kmers[i].pos, kmers[i + 1].pos)));
-            std::cout << "New edge " << vertices[i]->hash() << " " << vertices[i + 1]->hash() << " "
-                        << old_seq.Subseq(kmers[i].pos, kmers[i + 1].pos) << std::endl;
         }
     }
 

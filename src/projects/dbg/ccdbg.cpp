@@ -1,7 +1,7 @@
 #include "dbg_construction.hpp"
 #include "crude_correct.hpp"
 #include "rolling_hash.hpp"
-#include "hash_utils.hpp"
+#include "common/hash_utils.hpp"
 #include <sequences/seqio.hpp>
 #include <common/cl_parser.hpp>
 #include <common/dir_utils.hpp>
