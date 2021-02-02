@@ -24,6 +24,7 @@ private:
     const static std::string emptystring;
     std::string command_line;
     std::string _message;
+    std::string delim = "^";
 public:
     CLParser(std::vector<std::string> _long_params, std::vector<std::string> _list_params,
              std::vector<std::string> _short_params, std::string message_ = "");
@@ -56,7 +57,7 @@ public:
     const std::string & getValue(const std::string &s) const;
 
     std::vector<std::string> getListValue(const std::string &s) const {
-        return split(getValue(s), ",");
+        return split(getValue(s), delim);
     }
 
     bool getCheck(const std::string &s) const;

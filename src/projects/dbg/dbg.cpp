@@ -343,7 +343,10 @@ int main(int argc, char **argv) {
             std::ofstream coordinates_dot;
             Component<htype128> comp = Component<htype128>::neighbourhood(dbg, seg, dbg.hasher().k + 100);
             coordinates_dot.open(seg_file);
-            comp.printDot(coordinates_dot, storage);
+            std::function<std::string(Edge<htype128> &)> labeler = [&storage](Edge<htype128> &edge) {
+                return storage(edge);
+            };
+            comp.printDot(coordinates_dot, labeler);
             coordinates_dot.close();
         }
     }

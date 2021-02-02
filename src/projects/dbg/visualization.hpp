@@ -193,6 +193,13 @@ public:
     explicit GraphAlignmentStorage(SparseDBG<htype> & dbg_) : dbg(dbg_) {
     }
 
+    GraphAlignmentStorage(const GraphAlignmentStorage &) = delete;
+
+    GraphAlignmentStorage(GraphAlignmentStorage &&other) : dbg(other.dbg) {
+        std::swap(other.alignments, alignments);
+        std::swap(other.stored_contigs, stored_contigs);
+    }
+
     ~GraphAlignmentStorage() {
         for(Contig * contig : stored_contigs) {
             delete contig;
@@ -229,7 +236,7 @@ public:
             return "";
         }
         std::stringstream ss;
-        ss << als[0].seg_from << "->" << als[1].seg_to;
+        ss << als[0].seg_from << "->" << als[0].seg_to;
         for(size_t i = 1; i < als.size(); i++) {
             const PerfectAlignment<Contig, Edge<htype>> &al = als[i];
             ss << "\n" << al.seg_from << "->" << al.seg_to;

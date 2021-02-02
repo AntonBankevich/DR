@@ -679,9 +679,6 @@ size_t correctAT(logging::Logger &logger, RecordStorage<htype> &reads_storage, s
 #pragma omp critical
             {
                 logger << "ATAT " << alignedRead.id << " " << corrected << std::endl;
-                if(corrected > 100) {
-                    logger << "oppa" << std::endl;
-                }
             }
             ++cnt;
         }

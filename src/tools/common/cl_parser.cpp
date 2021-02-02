@@ -19,8 +19,8 @@ void CLParser::parseCL(const std::vector <std::string> &args) {
     std::string name;
     for(const std::string &s : args) {
         if (!name.empty()) {
-            if(!values[name].empty() && values[name][0] == ',') {
-                values[name] += "," + s;
+            if(!values[name].empty() && values[name][0] == delim[0]) {
+                values[name] += delim + s;
             } else {
                 values[name] = s;
             }
@@ -87,7 +87,7 @@ CLParser::CLParser(std::vector<std::string> _long_params, std::vector<std::strin
         if (pos != size_t(-1)) {
             values[s.substr(0, pos)] = s.substr(pos + 1, s.size() - pos - 1);
         } else {
-            values[s] = ",";
+            values[s] = delim;
         }
     }
     for(const std::string& s : short_params) {
