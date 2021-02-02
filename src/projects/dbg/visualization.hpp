@@ -2,6 +2,7 @@
 #include "sparse_dbg.hpp"
 #include "sequences/contigs.hpp"
 #include <unordered_map>
+#include <utility>
 
 
 template<class U, class V>
@@ -10,6 +11,69 @@ public:
     Segment<U> seg_from;
     Segment<V> seg_to;
     PerfectAlignment(const Segment<U> & seg_from_, const Segment<V> &seg_to_) : seg_from(seg_from_), seg_to(seg_to_) {
+        VERIFY(seg_from_.size() == seg_to_.size());
+    }
+
+    size_t size() {
+        return seg_from.size();
+    }
+};
+
+class CompositeSequence {
+private:
+    std::vector<Sequence> sequences_;
+    size_t left_;
+    size_t right_;
+    size_t size_;
+public:
+    CompositeSequence(std::vector<Sequence> sequences, size_t from, size_t to) :
+        sequences_(std::move(sequences)), left_(from), right_(0) {
+        size_ = 0;
+        for(Sequence & sequence : sequences_) {
+            size_ += sequence.size();
+        }
+        VERIFY(left_ + right_ <= size_);
+        size_ -= left_ + right_;
+        right_ = size_ - to;
+    }
+
+    explicit CompositeSequence(std::vector<Sequence> sequences) :
+            sequences_(std::move(sequences)), left_(0), right_(0) {
+        size_ = 0;
+        for(Sequence & sequence : sequences_) {
+            size_ += sequence.size();
+        }
+        VERIFY(left_ + right_ <= size_);
+        size_ -= left_ + right_;
+    }
+
+    size_t size() const {
+        return size_;
+    }
+
+    unsigned char operator[](size_t index) const {
+        VERIFY(index < size_);
+        index += left_;
+        size_t cur = 0;
+        while(cur < sequences_.size() && index >= sequences_[cur].size()) {
+            index -= sequences_[cur].size();
+            cur += 1;
+        }
+        return sequences_[cur][index];
+    }
+
+    CompositeSequence operator!() const {
+        std::function<Sequence(const Sequence &)> rc = [this](const Sequence &seq) {
+            return !seq;
+        };
+        return {oneline::map(sequences_.rbegin(), sequences_.rend(), rc), right_, left_};
+    }
+
+//    TODO reduce sequence vector size
+    CompositeSequence Subseq(size_t from, size_t to) const {
+        size_t left = from + left_;
+        size_t right = size_ - to + right_;
+        return {sequences_, left, right};
     }
 };
 
@@ -40,27 +104,27 @@ std::vector<PerfectAlignment<Contig, Edge<htype>>> align(SparseDBG<htype> &dbg, 
                         len += 1;
                     res.emplace_back(Segment<Contig>(contig, kwh.pos, kwh.pos + len), Segment<Edge<htype>>(edge, 0, len));
                 }
-            } else if(dbg.isAnchor(kwh.hash())) {
+            } else if((res.empty() || kwh.pos > res.back().seg_from.right) && dbg.isAnchor(kwh.hash())) {
                 typename  SparseDBG<htype>::EdgePosition pos = dbg.getAnchor(kwh);
+//                TODO replace this code with a call to expand method of PerfectAlignment class after each edge is marked by its full sequence
                 Edge<htype> &edge = *pos.edge;
                 Vertex<htype> &start = *pos.start;
-                size_t step_left = 0;
-                size_t step_right = 0;
-                while(step_left + k < pos.pos && kwh.pos > step_left && edge.seq[pos.pos - step_left - 1 - k] == seq[kwh.pos - step_left - 1]) {
-                    step_left += 1;
+                CompositeSequence edge_seq({start.seq, edge.seq});
+                size_t left_from = kwh.pos;
+                size_t right_from = kwh.pos + k;
+                size_t left_to = pos.pos;
+                size_t right_to = pos.pos + k;
+                while(left_from > 0 && left_to > 0 && edge_seq[left_to - 1] == seq[left_from - 1]) {
+                    left_from -= 1;
+                    left_to -= 1;
                 }
-                if(step_left + k > pos.pos) {
-                    while(step_left < pos.pos && kwh.pos > step_left && start.seq[pos.pos - step_left - 1] == seq[kwh.pos - step_left - 1]) {
-                        step_left += 1;
-                    }
+                while(right_from < seq.size() && right_to < edge_seq.size() && seq[right_from] == edge_seq[right_to]) {
+                    right_from += 1;
+                    right_to += 1;
                 }
-                while(pos.pos + k + step_right < edge.size() + k && kwh.pos + k + step_right < seq.size()
-                      && edge.seq[pos.pos + step_right] == seq[kwh.pos + k + step_right]) {
-                    step_right += 1;
-                }
-                if(step_left + step_right >= 1) {
-                    res.emplace_back(Segment<Contig>(contig, kwh.pos - step_left, kwh.pos + step_right),
-                                     Segment<Edge<htype>>(edge, pos.pos - step_left, pos.pos + step_right));
+                if(left_to - left_from > k) {
+                    res.emplace_back(Segment<Contig>(contig, left_from, right_from - k),
+                                     Segment<Edge<htype>>(edge, left_to, right_to - k));
                 }
             }
         }
@@ -276,6 +340,7 @@ public:
         std::vector<PerfectAlignment<Contig, Edge<htype>>> als1 = align(graph, contig);
         Contig rc_contig = contig.RC();
         std::vector<PerfectAlignment<Contig, Edge<htype>>> als2 = align(graph, rc_contig);
+//        TODO Every edge must have a full sequence stored as a composite sequence
         for(PerfectAlignment<Contig, Edge<htype>> &al : als1) {
             queue.emplace(0, al.seg_to.contig().end()->hash());
         }
