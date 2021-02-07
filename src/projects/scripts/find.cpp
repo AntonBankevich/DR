@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
     for(auto it = ref_reader.begin(); it != ref_reader.end(); ++it) {
         ref.emplace_back(*it);
     }
-    std::experimental::filesystem::path read_file(parser.getValue("ref"));
+    std::experimental::filesystem::path read_file(parser.getValue("reads"));
     io::SeqReader read_reader(ref_file);
     std::vector<StringContig> reads;
     for(auto it = read_reader.begin(); it != read_reader.end(); ++it) {
