@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
         ref.emplace_back(*it);
     }
     std::experimental::filesystem::path read_file(parser.getValue("reads"));
-    io::SeqReader read_reader(ref_file);
+    io::SeqReader read_reader(read_file);
     std::vector<StringContig> reads;
     for(auto it = read_reader.begin(); it != read_reader.end(); ++it) {
         reads.emplace_back(*it);
@@ -34,6 +34,10 @@ int main(int argc, char **argv) {
             size_t pos = chr.seq.find(read.seq);
             if(pos != size_t(-1)) {
                 std::cout << chr.id << "[" << pos <<"," << pos + read.size() << "]" << std::endl;
+            }
+            size_t pos1 = chr.seq.find(rc);
+            if(pos != size_t(-1)) {
+                std::cout << "-" << chr.id << "[" << pos1 <<"," << pos1 + read.size() << "]" << std::endl;
             }
         }
     }
