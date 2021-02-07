@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
                 std::cout << chr.id << "[" << pos <<"," << pos + read.size() << "]" << std::endl;
             }
             size_t pos1 = chr.seq.find(rc);
-            if(pos != size_t(-1)) {
+            if(pos1 != size_t(-1)) {
                 std::cout << "-" << chr.id << "[" << pos1 <<"," << pos1 + read.size() << "]" << std::endl;
             }
         }
