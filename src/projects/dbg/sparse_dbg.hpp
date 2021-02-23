@@ -96,27 +96,27 @@ public:
         omp_init_lock(&writelock);
     }
 
-    Vertex(Vertex &&other) noexcept : rc_(other.rc_), hash_(other.hash_), canonical(other.canonical) {
-        std::swap(outgoing_, other.outgoing_);
-        std::swap(seq, other.seq);
-        omp_init_lock(&writelock);
-        if(other.rc_ != nullptr) {
-            other.rc_->rc_ = this;
-            other.rc_ = nullptr;
-        }
-        for(Edge &edge : rc_->outgoing_) {
-            if(edge.end() == &other) {
-                edge.end_ = this;
-            } else if (edge.end() != nullptr){
-                for(Edge &back : edge.end()->rc().outgoing_) {
-                    if(back.end() == &other) {
-                        back.end_ = this;
-                    }
-                }
-            }
-        }
-    }
-
+//    Vertex(Vertex &&other) noexcept : rc_(other.rc_), hash_(other.hash_), canonical(other.canonical) {
+//        std::swap(outgoing_, other.outgoing_);
+//        std::swap(seq, other.seq);
+//        omp_init_lock(&writelock);
+//        if(other.rc_ != nullptr) {
+//            other.rc_->rc_ = this;
+//            other.rc_ = nullptr;
+//        }
+//        for(Edge &edge : rc_->outgoing_) {
+//            if(edge.end() == &other) {
+//                edge.end_ = this;
+//            } else if (edge.end() != nullptr){
+//                for(Edge &back : edge.end()->rc().outgoing_) {
+//                    if(back.end() == &other) {
+//                        back.end_ = this;
+//                    }
+//                }
+//            }
+//        }
+//    }
+//
     void sortOutgoing() {
         std::sort(outgoing_.begin(), outgoing_.end());
     }
@@ -884,7 +884,7 @@ private:
 
 //    Be careful since hash does not define vertex. Rc vertices share the same hash
     Vertex & innerAddVertex(htype h) {
-        return v.emplace(h, Vertex(h)).first->second;
+        return v.emplace(std::piecewise_construct, std::forward_as_tuple(h), std::forward_as_tuple(h)).first->second;
     }
 
 public:
@@ -1396,22 +1396,24 @@ public:
 
     void removeIsolated() {
         vertex_map_type newv;
-        for(auto & item : v) {
-            if(item.second.outDeg() != 0 || item.second.inDeg() != 0) {
-                newv.emplace(item.first, std::move(item.second));
+        std::vector<htype> todelete;
+        for(auto it = v.begin(); it != v.end();) {
+            if(it->second.outDeg() == 0 && it->second.inDeg() == 0) {
+                it = v.erase(it);
+            } else {
+                ++it;
             }
         }
-        std::swap(v, newv);
     }
 
     void removeMarked() {
-        vertex_map_type newv;
-        for(auto & item : v) {
-            if(!item.second.marked()) {
-                newv.emplace(item.first, std::move(item.second));
+        for(auto it = v.begin(); it != v.end();) {
+            if(it->second.marked()) {
+                it = v.erase(it);
+            } else {
+                ++it;
             }
         }
-        std::swap(v, newv);
     }
 
     void printFasta(std::ostream &out) const {
