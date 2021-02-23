@@ -3,7 +3,8 @@
 // Created by anton on 7/20/20.
 //
 
-#include <sequences/sequence.hpp>
+#include "common/hash_utils.hpp"
+#include "sequences/sequence.hpp"
 #include <deque>
 
 template<typename T, typename U>
@@ -17,7 +18,6 @@ T pow(T base, U p) {
         return tmp * tmp;
 }
 
-template<typename htype>
 class RollingHash {
 public:
     const size_t k;
@@ -75,10 +75,9 @@ public:
     }
 };
 
-template<typename htype>
 class KWH {
 private:
-    KWH(const RollingHash<htype> & _hasher, const Sequence &_seq, size_t _pos, htype _fhash, htype _rhash):
+    KWH(const RollingHash & _hasher, const Sequence &_seq, size_t _pos, htype _fhash, htype _rhash):
             hasher(_hasher), seq(_seq), pos(_pos), fhash(_fhash), rhash(_rhash) {
     }
 
@@ -86,10 +85,10 @@ private:
     htype rhash;
     Sequence seq;
 public:
-    const RollingHash<htype> & hasher;
+    const RollingHash & hasher;
     size_t pos;
 
-    KWH(const RollingHash<htype> & _hasher, const Sequence &_seq, size_t _pos):
+    KWH(const RollingHash & _hasher, const Sequence &_seq, size_t _pos):
             hasher(_hasher), seq(_seq), pos(_pos), fhash(_hasher.hash(_seq, _pos)),
             rhash(_hasher.hash(!_seq, _seq.size() - _pos - _hasher.k)) {
     }
@@ -100,8 +99,8 @@ public:
         return seq.Subseq(pos, pos + hasher.k);
     }
 
-    KWH<htype> operator!() const {
-        return KWH<htype>(hasher, !seq, seq.size() - pos - hasher.k, rhash, fhash);
+    KWH operator!() const {
+        return KWH(hasher, !seq, seq.size() - pos - hasher.k, rhash, fhash);
     }
 
     htype hash() const {
@@ -148,13 +147,12 @@ public:
 };
 
 
-template<typename htype>
 class MinQueue {
-    std::deque<KWH<htype>> q;
+    std::deque<KWH> q;
 public:
     MinQueue() = default;
 
-    void push(const KWH<htype> &kwh) {
+    void push(const KWH &kwh) {
         while(!q.empty() && q.back().hash() > kwh.hash()) {
             q.pop_back();
         }
@@ -171,7 +169,7 @@ public:
         return q.empty();
     }
 
-    KWH<htype> get() const {
+    KWH get() const {
         return q.front();
     }
 
@@ -180,16 +178,15 @@ public:
     }
 };
 
-template<typename htype>
 class MinimizerCalculator {
 private:
     const Sequence seq;
     const size_t w;
-    KWH<htype> kwh;
+    KWH kwh;
     size_t pos;
-    MinQueue<htype> queue;
+    MinQueue queue;
 public:
-    MinimizerCalculator(const Sequence& _seq, const RollingHash<htype> &_hasher, size_t _w) :
+    MinimizerCalculator(const Sequence& _seq, const RollingHash &_hasher, size_t _w) :
             seq(_seq), w(_w), kwh(_hasher, seq, 0), pos(-1) {
         VERIFY(w >= 2); //This code does not work for w = 1
         VERIFY(seq.size() >= _hasher.k + w - 1)
@@ -200,7 +197,7 @@ public:
         }
     }
 
-    KWH<htype> next() {
+    KWH next() {
         pos += 1;
         queue.pop(pos);
         kwh = kwh.next();
@@ -224,11 +221,11 @@ public:
         return std::move(res);
     }
 
-    std::vector<KWH<htype>> minimizers() {
-        std::vector<KWH<htype>> res;
+    std::vector<KWH> minimizers() {
+        std::vector<KWH> res;
         res.push_back(next());
         while(hasNext()) {
-            KWH<htype> val = next();
+            KWH val = next();
             if(val.pos != res.back().pos) {
                 res.push_back(val);
             }

@@ -64,18 +64,17 @@ size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates
     return winner;
 }
 
-template <typename htype>
-std::vector<Path<htype>> FindBulgeAlternatives(const Path<htype> &path, size_t max_diff) {
+std::vector<Path> FindBulgeAlternatives(const Path &path, size_t max_diff) {
     size_t k = path.start().seq.size();
-    std::vector<GraphAlignment<htype>> als = GraphAlignment<htype>(path.start()).allExtensions(max_diff);
+    std::vector<GraphAlignment> als = GraphAlignment(path.start()).allExtensions(max_diff);
     max_diff = std::min(max_diff, path.len());
-    std::vector<Path<htype>> res;
+    std::vector<Path> res;
     Sequence path_seq = path.truncSeq();
-    for(GraphAlignment<htype> &diff_al : als) {
+    for(GraphAlignment &diff_al : als) {
         size_t path_pos = 0;
         size_t edge_pos = size_t (-1);
         for(size_t i = 0; i < max_diff; i++) {
-            GraphAlignment<htype> al = diff_al;
+            GraphAlignment al = diff_al;
             if(i > 0 && al.size() > 0 && al.lastNucl() == path[path_pos].seq[edge_pos])
                 continue;
             Sequence seq = path_seq.Subseq(i, path_seq.size());
@@ -93,14 +92,13 @@ std::vector<Path<htype>> FindBulgeAlternatives(const Path<htype> &path, size_t m
     return res;
 }
 
-template <typename htype>
-std::vector<GraphAlignment<htype>> FilterAlternatives(logging::Logger &logger1, const GraphAlignment<htype> &initial, std::vector<GraphAlignment<htype>> &als,
+std::vector<GraphAlignment> FilterAlternatives(logging::Logger &logger1, const GraphAlignment &initial, std::vector<GraphAlignment> &als,
                                             size_t max_diff, double threshold) {
     size_t len = initial.len();
-    std::vector<GraphAlignment<htype>> res;
+    std::vector<GraphAlignment> res;
     size_t k = initial.getVertex(0).seq.size();
-    for(GraphAlignment<htype> &al : als) {
-        CompactPath<htype> cpath(al);
+    for(GraphAlignment &al : als) {
+        CompactPath cpath(al);
         bool ok = true;
         for(size_t i = 0; i < al.size(); i++) {
             if(al[i].contig().getCoverage() < threshold) {
@@ -120,9 +118,8 @@ std::vector<GraphAlignment<htype>> FilterAlternatives(logging::Logger &logger1, 
     return res;
 }
 
-template<typename htype>
-GraphAlignment<htype> processBulge(logging::Logger &logger, std::ostream &out, const GraphAlignment<htype> &bulge,
-                         const RecordStorage<htype> &reads_storage, const RecordStorage<htype> &ref_storage,
+GraphAlignment processBulge(logging::Logger &logger, std::ostream &out, const GraphAlignment &bulge,
+                         const RecordStorage &reads_storage, const RecordStorage &ref_storage,
                          double threshold, bool dump = false) {
     size_t size = bulge.len();
     out << size << " bulge " << bulge.size() << " " << bulge.minCoverage();
@@ -132,19 +129,19 @@ GraphAlignment<htype> processBulge(logging::Logger &logger, std::ostream &out, c
                 << "To " << bulge.finish().hash() << bulge.finish().isCanonical() << " "
                 << bulge.finish().outDeg() << " " << bulge.finish().inDeg() << std::endl;
     }
-    std::vector<GraphAlignment<htype>> read_alternatives = reads_storage.getRecord(bulge.start()).getBulgeAlternatives(bulge.finish(), threshold);
-    std::vector<GraphAlignment<htype>> read_alternatives_filtered = FilterAlternatives(logger, bulge, read_alternatives,
+    std::vector<GraphAlignment> read_alternatives = reads_storage.getRecord(bulge.start()).getBulgeAlternatives(bulge.finish(), threshold);
+    std::vector<GraphAlignment> read_alternatives_filtered = FilterAlternatives(logger, bulge, read_alternatives,
                                                                                        std::max<size_t>(100, bulge.len() / 100), threshold);
-    const VertexRecord<htype> &rec = ref_storage.getRecord(bulge.start());
+    const VertexRecord &rec = ref_storage.getRecord(bulge.start());
     size_t genome_support = 0;
-    for(const GraphAlignment<htype> & al : read_alternatives) {
-        if(rec.countStartsWith(CompactPath<htype>(al).seq()) > 0) {
+    for(const GraphAlignment & al : read_alternatives) {
+        if(rec.countStartsWith(CompactPath(al).seq()) > 0) {
             genome_support += 1;
         }
     }
     size_t filtered_genome_support = 0;
-    for(const GraphAlignment<htype> & al : read_alternatives_filtered) {
-        if(rec.countStartsWith(CompactPath<htype>(al).seq()) > 0) {
+    for(const GraphAlignment & al : read_alternatives_filtered) {
+        if(rec.countStartsWith(CompactPath(al).seq()) > 0) {
             filtered_genome_support += 1;
         }
     }
@@ -152,8 +149,8 @@ GraphAlignment<htype> processBulge(logging::Logger &logger, std::ostream &out, c
         logger << read_alternatives.size() << " " << read_alternatives_filtered.size() << std::endl;
         logger << reads_storage.getRecord(bulge.start());
         logger << "Read alternatives" << std::endl;
-        for (GraphAlignment<htype> &candidate : read_alternatives) {
-            logger << CompactPath<htype>(candidate) << std::endl;
+        for (GraphAlignment &candidate : read_alternatives) {
+            logger << CompactPath(candidate) << std::endl;
         }
         logger << "Result " << read_alternatives_filtered.size() << std::endl;
     }
@@ -164,7 +161,7 @@ GraphAlignment<htype> processBulge(logging::Logger &logger, std::ostream &out, c
             logger << "Multiple choice in bulge " << read_alternatives_filtered.size() << std::endl << bulge.truncSeq() << std::endl;
         Sequence old = bulge.truncSeq();
         std::vector<Sequence> candidates;
-        for(GraphAlignment<htype> &cand : read_alternatives_filtered) {
+        for(GraphAlignment &cand : read_alternatives_filtered) {
             if(dump)
                 logger << cand.truncSeq() << std::endl;
             candidates.push_back(cand.truncSeq());
@@ -177,8 +174,8 @@ GraphAlignment<htype> processBulge(logging::Logger &logger, std::ostream &out, c
         }
     }
     filtered_genome_support = 0;
-    for(const GraphAlignment<htype> & al : read_alternatives_filtered) {
-        if(rec.countStartsWith(CompactPath<htype>(al).seq()) > 0) {
+    for(const GraphAlignment & al : read_alternatives_filtered) {
+        if(rec.countStartsWith(CompactPath(al).seq()) > 0) {
             filtered_genome_support += 1;
         }
     }
@@ -192,51 +189,46 @@ GraphAlignment<htype> processBulge(logging::Logger &logger, std::ostream &out, c
     }
 }
 
-template<typename htype>
 class AbstractAlternativeGenerator {
 public:
-    virtual std::vector<GraphAlignment<htype>> generate(const GraphAlignment<htype> &path) = 0;
+    virtual std::vector<GraphAlignment> generate(const GraphAlignment &path) = 0;
 };
 
-template<typename htype>
-class BulgeAlternativeGenerator : public AbstractAlternativeGenerator<htype> {
+class BulgeAlternativeGenerator : public AbstractAlternativeGenerator {
 private:
     double threshold;
-    const RecordStorage<htype> &storage;
+    const RecordStorage &storage;
 public:
-    BulgeAlternativeGenerator(const RecordStorage<htype> &_storage, double cov_threshold) :
+    BulgeAlternativeGenerator(const RecordStorage &_storage, double cov_threshold) :
             storage(_storage), threshold(cov_threshold) {
 
     }
 
-    std::vector<GraphAlignment<htype>> generate(const GraphAlignment<htype> &path) {
+    std::vector<GraphAlignment> generate(const GraphAlignment &path) {
         return storage.getRecord(path.start()).getBulgeAlternatives(path.finish(), threshold);
     }
 };
 
-template<typename htype>
-class TipAlternativeGenerator : public AbstractAlternativeGenerator<htype> {
+class TipAlternativeGenerator : public AbstractAlternativeGenerator {
 private:
     double threshold;
-    const RecordStorage<htype> &storage;
+    const RecordStorage &storage;
 public:
-    TipAlternativeGenerator(const RecordStorage<htype> &_storage, double cov_threshold) :
+    TipAlternativeGenerator(const RecordStorage &_storage, double cov_threshold) :
             storage(_storage), threshold(cov_threshold) {
     }
 
-    std::vector<GraphAlignment<htype>> generate(const GraphAlignment<htype> &path) {
+    std::vector<GraphAlignment> generate(const GraphAlignment &path) {
         return storage.getRecord(path.start()).getTipAlternatives(path.len(), threshold);
     }
 };
 
-template<typename htype>
 class AbstractAlternativeFilter {
 public:
-    virtual void filter(const GraphAlignment<htype> &path, std::vector<GraphAlignment<htype>> &alternatives) = 0;
+    virtual void filter(const GraphAlignment &path, std::vector<GraphAlignment> &alternatives) = 0;
 };
 
-template<typename htype>
-class DiffAlternativeFilter : AbstractAlternativeFilter<htype> {
+class DiffAlternativeFilter : AbstractAlternativeFilter {
 private:
     double threshold;
     size_t max_diff;
@@ -244,12 +236,12 @@ public:
     DiffAlternativeFilter(double cov_threshold, size_t _max_diff) :  threshold(cov_threshold), max_diff(_max_diff) {
     }
 
-    void filter(const GraphAlignment<htype> &path, std::vector<GraphAlignment<htype>> &alternatives) {
+    void filter(const GraphAlignment &path, std::vector<GraphAlignment> &alternatives) {
         size_t len = path.len();
-        std::vector<GraphAlignment<htype>> res;
+        std::vector<GraphAlignment> res;
         size_t k = path.getVertex(0).seq.size();
-        for(GraphAlignment<htype> &al : alternatives) {
-            CompactPath<htype> cpath(al);
+        for(GraphAlignment &al : alternatives) {
+            CompactPath cpath(al);
             bool ok = true;
             for(size_t i = 0; i < al.size(); i++) {
                 if(al[i].contig().getCoverage() < threshold) {
@@ -271,9 +263,8 @@ public:
 };
 
 
-template<typename htype>
-GraphAlignment<htype> processTip(logging::Logger &logger, std::ostream &out, const GraphAlignment<htype> &tip,
-                         const RecordStorage<htype> &reads_storage, const RecordStorage<htype> &ref_storage,
+GraphAlignment processTip(logging::Logger &logger, std::ostream &out, const GraphAlignment &tip,
+                         const RecordStorage &reads_storage, const RecordStorage &ref_storage,
                          double threshold, bool dump = false) {
     size_t size = tip.len();
     out << size << " tip " << tip.size() << " " << tip.minCoverage();
@@ -283,19 +274,19 @@ GraphAlignment<htype> processTip(logging::Logger &logger, std::ostream &out, con
                << "To " << tip.finish().hash() << tip.finish().isCanonical() << " "
                << tip.finish().outDeg() << " " << tip.finish().inDeg() << std::endl;
     }
-    std::vector<GraphAlignment<htype>> read_alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
-    std::vector<GraphAlignment<htype>> read_alternatives_filtered =
+    std::vector<GraphAlignment> read_alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
+    std::vector<GraphAlignment> read_alternatives_filtered =
             FilterAlternatives(logger, tip, read_alternatives, size_t(-1) / 2, threshold);
-    const VertexRecord<htype> &rec = ref_storage.getRecord(tip.start());
+    const VertexRecord &rec = ref_storage.getRecord(tip.start());
     size_t genome_support = 0;
-    for(const GraphAlignment<htype> & al : read_alternatives) {
-        if(rec.countStartsWith(CompactPath<htype>(al).seq()) > 0) {
+    for(const GraphAlignment & al : read_alternatives) {
+        if(rec.countStartsWith(CompactPath(al).seq()) > 0) {
             genome_support += 1;
         }
     }
     size_t filtered_genome_support = 0;
-    for(const GraphAlignment<htype> & al : read_alternatives_filtered) {
-        if(rec.countStartsWith(CompactPath<htype>(al).seq()) > 0) {
+    for(const GraphAlignment & al : read_alternatives_filtered) {
+        if(rec.countStartsWith(CompactPath(al).seq()) > 0) {
             filtered_genome_support += 1;
         }
     }
@@ -303,8 +294,8 @@ GraphAlignment<htype> processTip(logging::Logger &logger, std::ostream &out, con
         logger << read_alternatives.size() << " " << read_alternatives_filtered.size() << std::endl;
         logger << reads_storage.getRecord(tip.start());
         logger << "Read alternatives" << std::endl;
-        for (GraphAlignment<htype> &candidate : read_alternatives) {
-            logger << CompactPath<htype>(candidate) << std::endl;
+        for (GraphAlignment &candidate : read_alternatives) {
+            logger << CompactPath(candidate) << std::endl;
         }
     }
     out << " " << read_alternatives.size() << " " << genome_support << " "
@@ -314,7 +305,7 @@ GraphAlignment<htype> processTip(logging::Logger &logger, std::ostream &out, con
             logger << "Multiple choice for tip " << read_alternatives_filtered.size() << std::endl << tip.truncSeq() << std::endl;
         Sequence old = tip.truncSeq();
         std::vector<Sequence> candidates;
-        for(GraphAlignment<htype> &cand : read_alternatives_filtered) {
+        for(GraphAlignment &cand : read_alternatives_filtered) {
             if(dump)
                 logger << cand.truncSeq() << std::endl;
             Sequence candSeq = cand.truncSeq();
@@ -334,8 +325,8 @@ GraphAlignment<htype> processTip(logging::Logger &logger, std::ostream &out, con
     if(dump)
         logger << "Result " << read_alternatives_filtered.size() << std::endl;
     filtered_genome_support = 0;
-    for(const GraphAlignment<htype> & al : read_alternatives_filtered) {
-        if(rec.countStartsWith(CompactPath<htype>(al).seq()) > 0) {
+    for(const GraphAlignment & al : read_alternatives_filtered) {
+        if(rec.countStartsWith(CompactPath(al).seq()) > 0) {
             filtered_genome_support += 1;
         }
     }
@@ -349,9 +340,8 @@ GraphAlignment<htype> processTip(logging::Logger &logger, std::ostream &out, con
     }
 }
 
-template<typename htype>
-size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage<htype> &reads_storage,
-                                RecordStorage<htype> &ref_storage,
+size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_storage,
+                                RecordStorage &ref_storage,
                                 const std::experimental::filesystem::path &out_file,
                                 double threshold, size_t k, size_t threads) {
     ParallelRecordCollector<std::string> results(threads);
@@ -361,14 +351,14 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage<htype> &r
 #pragma omp parallel for default(none) shared(reads_storage, ref_storage, results, threshold, k, logger, simple_bulge_cnt, bulge_cnt)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;
-        AlignedRead<htype> &alignedRead = reads_storage[read_ind];
-        CompactPath<htype> &initial_cpath = alignedRead.path;
-        GraphAlignment<htype> path = initial_cpath.getAlignment();
-        GraphAlignment<htype> corrected_path(path.start());
+        AlignedRead &alignedRead = reads_storage[read_ind];
+        CompactPath &initial_cpath = alignedRead.path;
+        GraphAlignment path = initial_cpath.getAlignment();
+        GraphAlignment corrected_path(path.start());
         bool corrected = false;
         for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
             VERIFY_OMP(corrected_path.finish() == path.getVertex(path_pos));
-            Edge<htype> &edge = path[path_pos].contig();
+            Edge &edge = path[path_pos].contig();
             if (edge.getCoverage() >= threshold || edge.size() > 5 * k) {
 //                if(edge.size() > 5 * k) {
 //                    logger << "Very long read path segment with low coverage. Skipping." << std::endl;
@@ -387,9 +377,9 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage<htype> &r
                 size += path[step_front + path_pos + 1].size();
                 step_front += 1;
             }
-            Vertex<htype> &start = corrected_path.getVertex(corrected_path.size() - step_back);
-            Vertex<htype> &end = path.getVertex(path_pos + 1 + step_front);
-            GraphAlignment<htype> badPath = corrected_path.subPath(corrected_path.size() - step_back, corrected_path.size())
+            Vertex &start = corrected_path.getVertex(corrected_path.size() - step_back);
+            Vertex &end = path.getVertex(path_pos + 1 + step_front);
+            GraphAlignment badPath = corrected_path.subPath(corrected_path.size() - step_back, corrected_path.size())
                                             + path.subPath(path_pos, path_pos + 1 + step_front);
             corrected_path.pop_back(step_back);
             if(alignedRead.id == "m64062_190806_063919/124783250/ccs") {
@@ -402,57 +392,56 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage<htype> &r
                            << corrected_path.getVertex(corrected_path.size() - step_back).hash() << " "
                            << corrected_path.getVertex(corrected_path.size() - step_back).isCanonical()
                            << " " << corrected_path[corrected_path.size() - step_back - 1].contig().getCoverage()
-                           << corrected_path.getVertex(corrected_path.size() - step_back - 1).rcEdge(
-                                   corrected_path[corrected_path.size() - step_back - 1].contig()).getCoverage()
+                           << corrected_path[corrected_path.size() - step_back - 1].contig().rc().getCoverage()
                            << std::endl;
-                    Vertex<htype> &tmpv = corrected_path.getVertex(corrected_path.size() - step_back);
+                    Vertex &tmpv = corrected_path.getVertex(corrected_path.size() - step_back);
                     logger << tmpv.outDeg() << " " << tmpv.inDeg() << std::endl;
-                    for (Edge<htype> &e : tmpv.getOutgoing())
+                    for (Edge &e : tmpv.getOutgoing())
                         logger << "Edge out " << e.size() << " " << e.getCoverage() << std::endl;
-                    for (Edge<htype> &e : tmpv.rc().getOutgoing())
+                    for (Edge &e : tmpv.rc().getOutgoing())
                         logger << "Edge in " << e.size() << " " << e.getCoverage() << std::endl;
                 }
                 if (path_pos + 1 + step_front < path.size()) {
                     logger << "End stop " << step_front << " " << path.getVertex(path_pos + 1 + step_front).hash()
                            << " " << path.getVertex(path_pos + 1 + step_front).isCanonical()
                            << " " << path[path_pos + step_front].contig().getCoverage() << std::endl;
-                    Vertex<htype> &tmpv = path.getVertex(path_pos + step_front + 1);
+                    Vertex &tmpv = path.getVertex(path_pos + step_front + 1);
                     logger << tmpv.outDeg() << " " << tmpv.inDeg() << std::endl;
-                    for (Edge<htype> &e : tmpv.getOutgoing())
+                    for (Edge &e : tmpv.getOutgoing())
                         logger << "Edge out " << e.size() << " " << e.getCoverage() << std::endl;
-                    for (Edge<htype> &e : tmpv.rc().getOutgoing())
+                    for (Edge &e : tmpv.rc().getOutgoing())
                         logger << "Edge in " << e.size() << " " << e.getCoverage() << std::endl;
                 }
             }
             if(step_back == corrected_path.size() && step_front == path.size() - path_pos - 1) {
                 if(alignedRead.id == "m64062_190806_063919/124783250/ccs")
                     logger << "Whole read has low coverage. Skipping." << std::endl;
-                for(const Segment<Edge<htype>> &seg : badPath) {
+                for(const Segment<Edge> &seg : badPath) {
                     corrected_path.push_back(seg);
                 }
             } else if(size > 5 * k) {
                 if(alignedRead.id == "m64062_190806_063919/124783250/ccs")
                     logger << "Very long read path segment with low coverage. Skipping." << std::endl;
-                for(const Segment<Edge<htype>> &seg : badPath) {
+                for(const Segment<Edge> &seg : badPath) {
                     corrected_path.push_back(seg);
                 }
             } else if(step_back == corrected_path.size()) {
                 if(alignedRead.id == "m64062_190806_063919/124783250/ccs")
                     logger << "Processing incoming tip" << std::endl;
-                GraphAlignment<htype> rcBadPath = badPath.RC();
-                GraphAlignment<htype> substitution = processTip(logger, ss, rcBadPath, reads_storage, ref_storage, threshold, alignedRead.id == "m64062_190806_063919/124783250/ccs");
-                GraphAlignment<htype> rcSubstitution = substitution.RC();
+                GraphAlignment rcBadPath = badPath.RC();
+                GraphAlignment substitution = processTip(logger, ss, rcBadPath, reads_storage, ref_storage, threshold, alignedRead.id == "m64062_190806_063919/124783250/ccs");
+                GraphAlignment rcSubstitution = substitution.RC();
                 corrected_path = std::move(rcSubstitution);
             } else if(step_front == path.size() - path_pos - 1) {
                 if(alignedRead.id == "m64062_190806_063919/124783250/ccs")
                     logger << "Processing outgoing tip" << std::endl;
-                GraphAlignment<htype> substitution = processTip(logger, ss, badPath, reads_storage, ref_storage, threshold, alignedRead.id == "m64062_190806_063919/124783250/ccs");
-                for(const Segment<Edge<htype>> &seg : substitution) {
+                GraphAlignment substitution = processTip(logger, ss, badPath, reads_storage, ref_storage, threshold, alignedRead.id == "m64062_190806_063919/124783250/ccs");
+                for(const Segment<Edge> &seg : substitution) {
                     corrected_path.push_back(seg);
                 }
             } else {
-                GraphAlignment<htype> substitution = processBulge(logger, ss, badPath, reads_storage, ref_storage, threshold, alignedRead.id == "m64062_190806_063919/124783250/ccs");
-                for (const Segment<Edge<htype>> &seg : substitution) {
+                GraphAlignment substitution = processBulge(logger, ss, badPath, reads_storage, ref_storage, threshold, alignedRead.id == "m64062_190806_063919/124783250/ccs");
+                for (const Segment<Edge> &seg : substitution) {
                     corrected_path.push_back(seg);
                 }
                 if(badPath.size() == 1 && corrected_path.size() == 1 && badPath[0] != corrected_path[0]) {
@@ -483,15 +472,14 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage<htype> &r
     return res;
 }
 
-template<typename htype>
-GraphAlignment<htype> findAlternative(logging::Logger &logger, std::ostream &out, const GraphAlignment<htype> &bulge,
-                                   const RecordStorage<htype> &reads_storage) {
-    std::vector<GraphAlignment<htype>> read_alternatives = reads_storage.getRecord(bulge.start()).getBulgeAlternatives(bulge.finish(), 1);
-    std::vector<GraphAlignment<htype>> read_alternatives_filtered = FilterAlternatives(logger, bulge, read_alternatives,
+GraphAlignment findAlternative(logging::Logger &logger, std::ostream &out, const GraphAlignment &bulge,
+                                   const RecordStorage &reads_storage) {
+    std::vector<GraphAlignment> read_alternatives = reads_storage.getRecord(bulge.start()).getBulgeAlternatives(bulge.finish(), 1);
+    std::vector<GraphAlignment> read_alternatives_filtered = FilterAlternatives(logger, bulge, read_alternatives,
                                                                                        std::max<size_t>(100, bulge.len() / 100), 1);
     if(read_alternatives_filtered.size() != 2)
         return bulge;
-    for(GraphAlignment<htype> &al : read_alternatives_filtered) {
+    for(GraphAlignment &al : read_alternatives_filtered) {
         if(al == bulge)
             continue;
         return std::move(al);
@@ -500,45 +488,44 @@ GraphAlignment<htype> findAlternative(logging::Logger &logger, std::ostream &out
 }
 
 
-template<typename htype>
-size_t collapseBulges(logging::Logger &logger, RecordStorage<htype> &reads_storage,
-                                RecordStorage<htype> &ref_storage,
+size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage,
+                                RecordStorage &ref_storage,
                                 const std::experimental::filesystem::path &out_file,
                                 double threshold, size_t k, size_t threads) {
     ParallelRecordCollector<std::string> results(threads);
-    ParallelRecordCollector<Edge<htype>*> bulge_cnt(threads);
-    ParallelRecordCollector<Edge<htype>*> collapsable_cnt(threads);
-    ParallelRecordCollector<Edge<htype>*> genome_cnt(threads);
-    ParallelRecordCollector<Edge<htype>*> corruption_cnt(threads);
-    ParallelRecordCollector<Edge<htype>*> heavy_cnt(threads);
+    ParallelRecordCollector<Edge*> bulge_cnt(threads);
+    ParallelRecordCollector<Edge*> collapsable_cnt(threads);
+    ParallelRecordCollector<Edge*> genome_cnt(threads);
+    ParallelRecordCollector<Edge*> corruption_cnt(threads);
+    ParallelRecordCollector<Edge*> heavy_cnt(threads);
     logger.info() << "Correcting low covered regions in reads" << std::endl;
 #pragma omp parallel for default(none) shared(reads_storage, ref_storage, results, threshold, k, logger, bulge_cnt, genome_cnt, corruption_cnt, collapsable_cnt)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;
-        AlignedRead<htype> &alignedRead = reads_storage[read_ind];
-        CompactPath<htype> &initial_cpath = alignedRead.path;
-        GraphAlignment<htype> path = initial_cpath.getAlignment();
+        AlignedRead &alignedRead = reads_storage[read_ind];
+        CompactPath &initial_cpath = alignedRead.path;
+        GraphAlignment path = initial_cpath.getAlignment();
         bool corrected = false;
         for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
-            Edge<htype> &edge = path[path_pos].contig();
+            Edge &edge = path[path_pos].contig();
             if (path[path_pos].left > 0 || path[path_pos].right < path[path_pos].size()) {
                 continue;
             }
-            Vertex<htype> &start = path.getVertex(path_pos);
-            Vertex<htype> &end = path.getVertex(path_pos + 1);
+            Vertex &start = path.getVertex(path_pos);
+            Vertex &end = path.getVertex(path_pos + 1);
             if(start.outDeg() != 2 || start.getOutgoing()[0].end() != start.getOutgoing()[1].end()) {
                 continue;
             }
-            Edge<htype> & alt = edge == start.getOutgoing()[0] ? start.getOutgoing()[1] : start.getOutgoing()[0];
+            Edge & alt = edge == start.getOutgoing()[0] ? start.getOutgoing()[1] : start.getOutgoing()[0];
 
-            const VertexRecord<htype> &rec = ref_storage.getRecord(start);
+            const VertexRecord &rec = ref_storage.getRecord(start);
             if(edge.getCoverage() < 1 || alt.getCoverage() < 1) {
                 continue;
             }
             if(edge.getCoverage() > alt.getCoverage()) {
                 continue;
             }
-            Edge<htype> &rcEdge = start.rcEdge(edge);
+            Edge &rcEdge = edge.rc();
             bulge_cnt.emplace_back(&edge);
             bulge_cnt.emplace_back(&rcEdge);
             if(edge.getCoverage() + alt.getCoverage() > 35 || edge.getCoverage() > alt.getCoverage()) {
@@ -565,29 +552,28 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage<htype> &reads_stora
             path[path_pos] = {alt, 0, alt.size()};
         }
         if(corrected) {
-            GraphAlignment<htype> path0 = initial_cpath.getAlignment();
+            GraphAlignment path0 = initial_cpath.getAlignment();
             reads_storage.reroute(alignedRead, path0, path);
         }
         results.emplace_back(ss.str());
     }
-    size_t bulges = std::unordered_set<Edge<htype>*>(bulge_cnt.begin(), bulge_cnt.end()).size();
-    size_t collapsable = std::unordered_set<Edge<htype>*>(collapsable_cnt.begin(), bulge_cnt.end()).size();
-    size_t genome = std::unordered_set<Edge<htype>*>(genome_cnt.begin(), bulge_cnt.end()).size();
-    size_t corruption = std::unordered_set<Edge<htype>*>(corruption_cnt.begin(), bulge_cnt.end()).size();
+    size_t bulges = std::unordered_set<Edge*>(bulge_cnt.begin(), bulge_cnt.end()).size();
+    size_t collapsable = std::unordered_set<Edge*>(collapsable_cnt.begin(), bulge_cnt.end()).size();
+    size_t genome = std::unordered_set<Edge*>(genome_cnt.begin(), bulge_cnt.end()).size();
+    size_t corruption = std::unordered_set<Edge*>(corruption_cnt.begin(), bulge_cnt.end()).size();
     logger << "Bulge collapsing results " << bulges << " " << collapsable << " " << genome << " " << corruption << std::endl;
     return bulges;
 }
 
-template<typename htype>
-size_t correctAT(logging::Logger &logger, RecordStorage<htype> &reads_storage, size_t k, size_t threads) {
+size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k, size_t threads) {
     ParallelRecordCollector<std::string> results(threads);
     logger.info() << "Correcting dinucleotide errors in reads" << std::endl;
     ParallelCounter cnt(threads);
 #pragma omp parallel for default(none) shared (reads_storage, results, k, logger, cnt, std::cout)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
-        AlignedRead<htype> &alignedRead = reads_storage[read_ind];
-        CompactPath<htype> &initial_cpath = alignedRead.path;
-        GraphAlignment<htype> path = initial_cpath.getAlignment();
+        AlignedRead &alignedRead = reads_storage[read_ind];
+        CompactPath &initial_cpath = alignedRead.path;
+        GraphAlignment path = initial_cpath.getAlignment();
         size_t corrected = 0;
         for (size_t path_pos = 0; path_pos < path.size(); path_pos++) {
             if(path[path_pos].left > 0 || path[path_pos].right < path[path_pos].contig().size())
@@ -622,7 +608,7 @@ size_t correctAT(logging::Logger &logger, RecordStorage<htype> &reads_storage, s
             Sequence longest_candidate = sb.BuildSequence();
             Sequence best_seq;
             size_t best_support = 0;
-            const VertexRecord<htype> &rec = reads_storage.getRecord(path.getVertex(path_pos));
+            const VertexRecord &rec = reads_storage.getRecord(path.getVertex(path_pos));
             size_t initial_support = 0;
 //            for (size_t i = 0; i <= std::min(2 * max_variation, max_variation + at_cnt2 / 2); i++) {
             size_t step = 2;
@@ -631,11 +617,11 @@ size_t correctAT(logging::Logger &logger, RecordStorage<htype> &reads_storage, s
             for (size_t skip = 0; skip <= std::min(4 * max_variation, 2 * max_variation + at_cnt2); skip+=step) {
 //                size_t skip = i * 2;
                 Sequence candidate_seq = longest_candidate.Subseq(skip, skip + k);
-                GraphAlignment<htype> candidate(path.getVertex(path_pos));
+                GraphAlignment candidate(path.getVertex(path_pos));
                 candidate.extend(candidate_seq);
                 if (!candidate.valid())
                     continue;
-                CompactPath<htype> ccandidate(candidate);
+                CompactPath ccandidate(candidate);
                 size_t support = rec.countStartsWith(ccandidate.seq());
                 if(skip == 2 * max_variation) {
                     initial_support = support;
@@ -655,9 +641,9 @@ size_t correctAT(logging::Logger &logger, RecordStorage<htype> &reads_storage, s
                     << "ACGT"[seq[seq.size() - 2]] << "ACGT"[seq[seq.size() - 1]] << " "
                     << extension.size() << " " << best_seq.size() << std::endl;
             VERIFY_OMP(best_support > 0);
-            GraphAlignment<htype> rerouting(path.getVertex(path_pos));
+            GraphAlignment rerouting(path.getVertex(path_pos));
             rerouting.extend(best_seq);
-            GraphAlignment<htype> old_path(path.getVertex(path_pos));
+            GraphAlignment old_path(path.getVertex(path_pos));
             old_path.extend(extension);
             VERIFY_OMP(old_path.valid());
             VERIFY_OMP(rerouting.valid());
@@ -666,7 +652,7 @@ size_t correctAT(logging::Logger &logger, RecordStorage<htype> &reads_storage, s
                 rerouting.pop_back();
                 old_path.pop_back();
             }
-            GraphAlignment<htype> prev_path = path;
+            GraphAlignment prev_path = path;
             path = path.reroute(path_pos, path_pos + old_path.size(), rerouting.path());
             reads_storage.reroute(alignedRead, prev_path, path);
 //            std::cout << "Rerouted " << alignedRead.id << " " << initial_support << " " << best_support << std::endl;
@@ -686,8 +672,7 @@ size_t correctAT(logging::Logger &logger, RecordStorage<htype> &reads_storage, s
     return cnt.get();
 }
 
-template<typename htype>
-void initialCorrect(SparseDBG<htype> &sdbg, logging::Logger &logger,
+void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &out_file,
                     const std::experimental::filesystem::path &out_reads,
                     const io::Library &reads_lib,
@@ -697,20 +682,20 @@ void initialCorrect(SparseDBG<htype> &sdbg, logging::Logger &logger,
     logger.info() << "Collecting info from reads" << std::endl;
     size_t extension_size = std::max(std::min(min_read_size * 3 / 4, sdbg.hasher().k * 11 / 2), sdbg.hasher().k * 3 / 2);
     size_t min_extension = sdbg.hasher().k * 2 / 3;
-    RecordStorage<htype> reads_storage(sdbg, min_extension, extension_size, true);
+    RecordStorage reads_storage(sdbg, min_extension, extension_size, true);
     io::SeqReader readReader(reads_lib);
     reads_storage.fill(readReader.begin(), readReader.end(), min_read_size, logger, threads);
     logger.info() << "Collecting info from reference" << std::endl;
-    RecordStorage<htype> ref_storage(sdbg, min_extension, extension_size, false);
+    RecordStorage ref_storage(sdbg, min_extension, extension_size, false);
     io::SeqReader refReader(ref);
     ref_storage.fill(refReader.begin(), refReader.end(), min_read_size, logger, threads);
     size_t clow = 0;
     size_t cerr = 0;
     size_t both = 0;
     for(auto &it :sdbg) {
-        for(Vertex<htype> * vit : {&it.second, &it.second.rc()}) {
-            Vertex<htype> &v = *vit;
-            for(Edge<htype> e : v.getOutgoing()) {
+        for(Vertex * vit : {&it.second, &it.second.rc()}) {
+            Vertex &v = *vit;
+            for(Edge &e : v.getOutgoing()) {
                 bool low = e.getCoverage() < threshold;
                 bool err = ref_storage.getRecord(v).countStartsWith(Sequence(std::vector<char>({char(e.seq[0])}))) == 0;
                 if(low)
@@ -741,7 +726,7 @@ void initialCorrect(SparseDBG<htype> &sdbg, logging::Logger &logger,
     std::ofstream ors;
     ors.open(out_reads);
     for(auto it = reads_storage.begin(); it != reads_storage.end(); ++it) {
-        AlignedRead<htype> &alignedRead = *it;
+        AlignedRead &alignedRead = *it;
         ors << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
     }
     ors.close();

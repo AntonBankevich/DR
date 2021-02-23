@@ -1,3 +1,4 @@
+#include "graph_algorithms.hpp"
 #include "dbg_construction.hpp"
 #include "crude_correct.hpp"
 #include "rolling_hash.hpp"
@@ -34,7 +35,7 @@ int main(int argc, char **argv) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
         k += 1;
     }
-    RollingHash<htype128> hasher(k, std::stoi(parser.getValue("base")));
+    RollingHash hasher(k, std::stoi(parser.getValue("base")));
     const size_t w = std::stoi(parser.getValue("window"));
     io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     size_t threads = std::stoi(parser.getValue("threads"));
@@ -42,7 +43,7 @@ int main(int argc, char **argv) {
     std::function<void()> initial_dbg_task = [&dir, &logger, &hasher, w, &lib, threads, threshold] {
         const std::experimental::filesystem::path initial_dir = dir / "initial_graph";
         ensure_dir_existance(initial_dir);
-        SparseDBG<htype128> dbg = DBGPipeline(logger, hasher, w, lib, initial_dir, threads);
+        SparseDBG dbg = DBGPipeline(logger, hasher, w, lib, initial_dir, threads);
         dbg.fillAnchors(w, logger, threads);
         CalculateCoverage(dir, hasher, w, lib, threads, logger, dbg);
 
@@ -64,7 +65,7 @@ int main(int argc, char **argv) {
     std::experimental::filesystem::path corrected_reads = dir / "corrected.fasta";
     io::Library corrected_lib = {corrected_reads};
     logger.info() << "Reconstructing dbg from corrected reads" << std::endl;
-    SparseDBG<htype128> dbg_corrected = DBGPipeline(logger, hasher, w, corrected_lib, dir, threads);
+    SparseDBG dbg_corrected = DBGPipeline(logger, hasher, w, corrected_lib, dir, threads);
     dbg_corrected.fillAnchors(w, logger, threads);
     CalculateCoverage(dir, hasher, w, corrected_lib, threads, logger, dbg_corrected);
     {

@@ -9,23 +9,21 @@
 #include <vector>
 
 
-template<typename htype>
-size_t maxOutgoingCov(const Vertex<htype> &rec) {
+size_t maxOutgoingCov(const Vertex &rec) {
     size_t res = 0;
-    for(const Edge<htype> &edge : rec.getOutgoing())
+    for(const Edge &edge : rec.getOutgoing())
         res = std::max(res, edge.end()->coverage());
     return res;
 }
 
-template<typename htype>
-void processVertex(Vertex<htype> &rec, size_t threshold, size_t k) {
+void processVertex(Vertex &rec, size_t threshold, size_t k) {
     rec.lock();
     rec.rc().lock();
     if (rec.outDeg() > 1 && rec.coverage() > threshold && maxOutgoingCov(rec) < threshold) {
-        for (const Edge<htype> &edge : rec.getOutgoing()) {
+        for (const Edge &edge : rec.getOutgoing()) {
             VERIFY(edge.end() != nullptr);
-            std::vector<Edge<htype>> path = rec.walkForward(edge);
-            Vertex<htype> &end = path.back().end()->rc();
+            Path path = edge.walkForward();
+            Vertex &end = path.back().end()->rc();
             if (end.hash() <= rec.hash())
                 continue;
             end.lock();
@@ -37,14 +35,14 @@ void processVertex(Vertex<htype> &rec, size_t threshold, size_t k) {
             }
             bool ok = true;
             size_t len = 0;
-            for (const Edge<htype> &path_edge : path) {
+            for (const Edge &path_edge : path) {
                 len += path_edge.size();
                 if (path_edge.end()->coverage() > threshold) {
                     ok = false;
                     break;
                 }
             }
-            const Edge<htype> & rcStart = end.removeEdgesTo();
+            const Edge & rcStart = end.removeEdgesTo();
             end.unlock();
             end.rc().unlock();
         }
@@ -53,14 +51,13 @@ void processVertex(Vertex<htype> &rec, size_t threshold, size_t k) {
     rec.rc().unlock();
 }
 
-template<typename htype>
-void simplifySparseGraph(logging::Logger & logger, SparseDBG<htype> &sdbg, size_t threshold, size_t threads) {
+void simplifySparseGraph(logging::Logger & logger, SparseDBG &sdbg, size_t threshold, size_t threads) {
 #pragma omp parallel default(none) shared(sdbg, threshold)
     {
 #pragma omp single
         {
             for(auto it = sdbg.begin(); it != sdbg.end(); ++it) {
-                Vertex<htype> &rec = it->second;
+                Vertex &rec = it->second;
                 htype hash = it->first;
                 if(!rec.isJunction())
                     continue;

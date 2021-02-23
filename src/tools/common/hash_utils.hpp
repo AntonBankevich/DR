@@ -1,9 +1,7 @@
-//
-// Created by anton on 7/24/20.
-//
-
 #pragma once
-typedef unsigned __int128 htype128;
+typedef unsigned __int128 htype;
+#include <iostream>
+#include <vector>
 
 template<class Key>
 struct alt_hasher {
@@ -11,15 +9,15 @@ struct alt_hasher {
 };
 
 template <>
-struct alt_hasher<htype128>
+struct alt_hasher<htype>
 {
-    size_t operator()( const htype128& x ) const
+    size_t operator()( const htype& x ) const
     {
         return (size_t(x) * 31) ^ size_t(x >> 64u);
     }
 };
 
-inline std::ostream &operator<<(std::ostream &os, htype128 val) {
+inline std::ostream &operator<<(std::ostream &os, htype val) {
     std::vector<size_t> res;
     while(val != 0) {
         res.push_back(val%10);
@@ -31,7 +29,7 @@ inline std::ostream &operator<<(std::ostream &os, htype128 val) {
     return os;
 }
 
-inline std::istream &operator>>(std::istream &is, htype128 &val) {
+inline std::istream &operator>>(std::istream &is, htype &val) {
     val = 0;
     std::string tmp;
     is >> tmp;
@@ -41,28 +39,28 @@ inline std::istream &operator>>(std::istream &is, htype128 &val) {
     return is;
 }
 
-inline void writeHashs(std::ostream &os, const std::vector<htype128> &hash_list) {
+inline void writeHashs(std::ostream &os, const std::vector<htype> &hash_list) {
     os << hash_list.size() << std::endl;
-    for(htype128 h : hash_list) {
+    for(htype h : hash_list) {
         size_t * tmp = reinterpret_cast<size_t*>(&h);
         os << *tmp << " " << *(tmp + 1) << std::endl;
     }
 }
 
-inline std::vector<htype128> readHashs(std::istream &is) {
-    std::vector<htype128> result;
+inline std::vector<htype> readHashs(std::istream &is) {
+    std::vector<htype> result;
     size_t len;
     is >> len;
     size_t a[2];
     for(size_t i = 0; i < len; i++) {
         is >> a[0] >> a[1];
-        htype128 * tmp = reinterpret_cast<htype128 *>(a);
+        htype * tmp = reinterpret_cast<htype *>(a);
         result.push_back(*tmp);
     }
     return std::move(result);
 }
 
-inline std::string decimal_string(htype128 n) {
+inline std::string decimal_string(htype n) {
     std::vector<char> res;
     while(n) {
         res.push_back('0' + n%10);
@@ -71,8 +69,8 @@ inline std::string decimal_string(htype128 n) {
     return std::string(res.rbegin(), res.rend());
 }
 
-inline htype128 string128(const std::string &s) {
-    htype128 res = 0;
+inline htype string128(const std::string &s) {
+    htype res = 0;
     for(char c : s)
         res = res * 10 + c;
     return res;

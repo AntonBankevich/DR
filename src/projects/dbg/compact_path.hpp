@@ -1,35 +1,35 @@
 #pragma once
 #include "sparse_dbg.hpp"
 #include <parallel/algorithm>
+#include <utility>
 
 
-template<typename htype>
 class CompactPath {
 private:
-    Vertex<htype> *_start;
+    Vertex *_start;
     Sequence _edges;
     size_t _first_skip;
     size_t _last_skip;
 public:
-    CompactPath(Vertex<htype> &start, const Sequence& edges, size_t first_skip = 0, size_t last_skip = 0) :
+    CompactPath(Vertex &start, const Sequence& edges, size_t first_skip = 0, size_t last_skip = 0) :
             _start(&start), _edges(edges), _first_skip(first_skip), _last_skip(last_skip) {
     }
 
-    explicit CompactPath(const Path<htype> &path, size_t first_skip = 0, size_t last_skip = 0) :
+    explicit CompactPath(const Path &path, size_t first_skip = 0, size_t last_skip = 0) :
             _start(&path.getVertex(0)), _first_skip(first_skip), _last_skip(last_skip) {
         std::vector<char> edges;
         for(size_t i = 0; i < path.size(); i++) {
-            Edge<htype> &edge = path[i];
+            Edge &edge = path[i];
             edges.push_back(edge.seq[0]);
         }
         _edges = Sequence(edges);
     }
 
-    explicit CompactPath(const GraphAlignment<htype> &path) :
+    explicit CompactPath(const GraphAlignment &path) :
             _start(&path.getVertex(0)), _first_skip(path.leftSkip()), _last_skip(path.rightSkip()) {
         std::vector<char> edges;
         for(size_t i = 0; i < path.size(); i++) {
-            const Segment<Edge<htype>> &seg = path[i];
+            const Segment<Edge> &seg = path[i];
             edges.push_back(seg.contig().seq[0]);
         }
         _edges = Sequence(edges);
@@ -39,11 +39,11 @@ public:
         return _edges;
     }
 
-    GraphAlignment<htype> getAlignment() {
-        std::vector<Segment<Edge<htype>>> path;
-        Vertex<htype> *cur = _start;
+    GraphAlignment getAlignment() {
+        std::vector<Segment<Edge>> path;
+        Vertex *cur = _start;
         for(size_t i = 0; i < _edges.size(); i++) {
-            Edge<htype> &edge = cur->getOutgoing(_edges[i]);
+            Edge &edge = cur->getOutgoing(_edges[i]);
             path.emplace_back(edge, 0, edge.size());
             cur = edge.end();
         }
@@ -52,22 +52,22 @@ public:
         return {_start, std::move(path)};
     }
 
-    Path<htype> getPath() {
-        std::vector<Edge<htype> *> path;
-        Vertex<htype> *cur = _start;
+    Path getPath() {
+        std::vector<Edge *> path;
+        Vertex *cur = _start;
         for(size_t i = 0; i < _edges.size(); i++) {
-            Edge<htype> &edge = cur->getOutgoing(_edges[i]);
+            Edge &edge = cur->getOutgoing(_edges[i]);
             path.emplace_back(&edge);
             cur = edge.end();
         }
         return {*_start, std::move(path)};
     }
 
-    Vertex<htype> &start() {
+    Vertex &start() {
         return *_start;
     }
 
-    const Vertex<htype> &start() const {
+    const Vertex &start() const {
         return *_start;
     }
 
@@ -92,28 +92,25 @@ public:
     }
 };
 
-template<typename htype>
-std::ostream& operator<<(std::ostream  &os, const CompactPath<htype> &cpath) {
+std::ostream& operator<<(std::ostream  &os, const CompactPath &cpath) {
     return os << cpath.start().hash() << cpath.start().isCanonical() << " " << cpath.cpath() << " " << cpath.leftSkip() << " " << cpath.rightSkip();
 }
 
-template<typename htype>
 class AlignedRead {
 public:
     std::string id;
-    CompactPath<htype> path;
+    CompactPath path;
 
-    AlignedRead(const Contig &read, GraphAlignment<htype> &_path) : id(read.id), path(_path) {}
-    AlignedRead(const Contig &read, CompactPath<htype> &_path) : id(read.id), path(_path) {}
+    AlignedRead(const Contig &read, GraphAlignment &_path) : id(read.id), path(_path) {}
+    AlignedRead(const Contig &read, CompactPath &_path) : id(read.id), path(_path) {}
 };
 
-template<typename htype>
 class AlignedReadStorage {
 private:
-    SparseDBG<htype> &dbg;
-    std::vector<AlignedRead<htype>> reads;
+    SparseDBG &dbg;
+    std::vector<AlignedRead> reads;
 public:
-    AlignedReadStorage(SparseDBG<htype> &_dbg) : dbg(_dbg) {
+    explicit AlignedReadStorage(SparseDBG &_dbg) : dbg(_dbg) {
     }
 
     template<class I>
@@ -121,30 +118,29 @@ public:
 //        TODO make parallel
         while(begin != end) {
             StringContig read = *begin;
-            GraphAlignment<htype> path = dbg.align(read.seq);
+            GraphAlignment path = dbg.align(read.makeSequence());
             reads.emplace_back(read.makeContig(), path);
             ++begin;
         }
     }
 };
 
-template<typename htype>
 struct VertexRecord {
 private:
-    Vertex<htype> &v;
+    Vertex &v;
     std::vector<std::pair<Sequence, size_t>> paths;
     size_t zero_cnt = 0;
     size_t cov = 0;
 public:
-    explicit VertexRecord(Vertex<htype> &_v) : v(_v) {
+    explicit VertexRecord(Vertex &_v) : v(_v) {
     }
 
-    VertexRecord(const VertexRecord<htype> &) = delete;
+    VertexRecord(const VertexRecord &) = delete;
 
-    VertexRecord(VertexRecord<htype> &&other)  noexcept : v(other.v), paths(std::move(other.paths)), zero_cnt(other.zero_cnt), cov(other.cov) {
+    VertexRecord(VertexRecord &&other)  noexcept : v(other.v), paths(std::move(other.paths)), zero_cnt(other.zero_cnt), cov(other.cov) {
     }
 
-    VertexRecord<htype> & operator=(const VertexRecord<htype> &) = delete;
+    VertexRecord & operator=(const VertexRecord &) = delete;
 
     void lock() const {
         v.lock();
@@ -235,11 +231,11 @@ public:
         return true;
     }
 
-    std::vector<GraphAlignment<htype>> getBulgeAlternatives(const Vertex<htype> &end, double threshold) const {
+    std::vector<GraphAlignment> getBulgeAlternatives(const Vertex &end, double threshold) const {
         lock();
         std::vector<std::pair<Sequence, size_t>> candidates;
         for(const auto & extension : paths) {
-            Path<htype> unpacked = CompactPath<htype>(v, extension.first).getPath();
+            Path unpacked = CompactPath(v, extension.first).getPath();
             for(size_t i = 1; i <= unpacked.size(); i++) {
                 if(end == unpacked.getVertex(i)){
                     candidates.emplace_back(extension.first.Subseq(0, i), extension.second);
@@ -250,42 +246,42 @@ public:
         if(candidates.empty())
             return {};
         std::sort(candidates.begin(), candidates.end());
-        std::vector<GraphAlignment<htype>> res;
+        std::vector<GraphAlignment> res;
         size_t cnt = 0;
         for(size_t i = 0; i < candidates.size(); i++) {
             if(i > 0 && candidates[i-1].first != candidates[i].first) {
                 if(cnt >= threshold)
-                    res.emplace_back(CompactPath<htype>(v, candidates[i - 1].first).getAlignment());
+                    res.emplace_back(CompactPath(v, candidates[i - 1].first).getAlignment());
                 cnt = 0;
             }
             cnt += candidates[i].second;
         }
         if(cnt >= threshold)
-            res.emplace_back(CompactPath<htype>(v, candidates.back().first).getAlignment());
+            res.emplace_back(CompactPath(v, candidates.back().first).getAlignment());
         return std::move(res);
     }
 
-    std::vector<GraphAlignment<htype>> getTipAlternatives(size_t len, double threshold) const {
+    std::vector<GraphAlignment> getTipAlternatives(size_t len, double threshold) const {
         len += std::max<size_t>(30, len / 20);
         lock();
         std::vector<std::pair<Sequence, size_t>> candidates;
         for(const auto & extension : paths) {
-            GraphAlignment<htype> unpacked = CompactPath<htype>(v, extension.first).getAlignment();
+            GraphAlignment unpacked = CompactPath(v, extension.first).getAlignment();
             if(unpacked.len() >= len) {
                 unpacked.cutBack(unpacked.len() - len);
-                candidates.emplace_back(CompactPath<htype>(unpacked).seq(), extension.second);
+                candidates.emplace_back(CompactPath(unpacked).seq(), extension.second);
             }
         }
         unlock();
         if(candidates.empty())
             return {};
         std::sort(candidates.begin(), candidates.end());
-        std::vector<GraphAlignment<htype>> res;
+        std::vector<GraphAlignment> res;
         size_t cnt = 0;
         for(size_t i = 0; i < candidates.size(); i++) {
             if(i > 0 && candidates[i - 1].first != candidates[i].first) {
                 if(cnt >= threshold) {
-                    GraphAlignment<htype> cp = CompactPath<htype>(v, candidates[i - 1].first).getAlignment();
+                    GraphAlignment cp = CompactPath(v, candidates[i - 1].first).getAlignment();
                     cp.cutBack(cp.len() - len);
                     res.emplace_back(cp);
                 }
@@ -294,7 +290,7 @@ public:
             cnt += candidates[i].second;
         }
         if(cnt >= threshold) {
-            GraphAlignment<htype> cp = CompactPath<htype>(v, candidates.back().first).getAlignment();
+            GraphAlignment cp = CompactPath(v, candidates.back().first).getAlignment();
             cp.cutBack(cp.len() - len);
             res.emplace_back(cp);
         }
@@ -316,24 +312,22 @@ public:
     }
 };
 
-template<typename htype>
-std::ostream& operator<<(std::ostream  &os, const VertexRecord<htype> &rec) {
+std::ostream& operator<<(std::ostream  &os, const VertexRecord &rec) {
     return os << rec.str();
 }
 
-template<typename htype>
 class RecordStorage {
 private:
-    SparseDBG<htype> &dbg;
-    std::vector<AlignedRead<htype>> reads;
+    SparseDBG &dbg;
+    std::vector<AlignedRead> reads;
     size_t min_len;
     size_t max_len;
     bool track_cov;
-    std::unordered_map<const Vertex<htype> *, VertexRecord<htype>> data;
+    std::unordered_map<const Vertex *, VertexRecord> data;
 
-    void processPath(const GraphAlignment<htype> &path, const std::function<void(Vertex<htype> &, const Sequence &)> &task,
+    void processPath(const GraphAlignment &path, const std::function<void(Vertex &, const Sequence &)> &task,
                      size_t right = size_t(-1)) {
-        CompactPath<htype> cpath(path);
+        CompactPath cpath(path);
         size_t j = 0;
         size_t clen = 0;
         right = std::min(right, cpath.size());
@@ -349,17 +343,17 @@ private:
         }
     }
 
-    void processPath(CompactPath<htype> &cpath, const std::function<void(Vertex<htype> &, const Sequence &)> &task,
-                     const std::function<void(Segment<Edge<htype>>)> &edge_task = [](Segment<Edge<htype>>){},
+    void processPath(CompactPath &cpath, const std::function<void(Vertex &, const Sequence &)> &task,
+                     const std::function<void(Segment<Edge>)> &edge_task = [](Segment<Edge>){},
                      size_t left = 0, size_t right = size_t(-1)) {
-        Vertex<htype> *left_vertex = &cpath.start();
-        Vertex<htype> *right_vertex = &cpath.start();
+        Vertex *left_vertex = &cpath.start();
+        Vertex *right_vertex = &cpath.start();
         size_t j = 0;
         size_t clen = 0;
         right = std::min(right, cpath.size());
         for (size_t i = 0; i < right; i++) {
             while (j < cpath.size() && clen < max_len) {
-                Edge<htype> &edge = right_vertex->getOutgoing(cpath[j]);
+                Edge &edge = right_vertex->getOutgoing(cpath[j]);
                 clen += edge.size();
                 j++;
                 right_vertex = edge.end();
@@ -368,11 +362,11 @@ private:
                 break;
             if(j > left)
                 task(*left_vertex, cpath.cpath().Subseq(i, j));
-            Edge<htype> &edge = left_vertex->getOutgoing(cpath[i]);
+            Edge &edge = left_vertex->getOutgoing(cpath[i]);
             if(i >= left) {
                 size_t seg_left = i == 0 ? cpath.leftSkip() : 0;
                 size_t seg_right = i == cpath.size() - 1 ? edge.size() - cpath.rightSkip() : edge.size();
-                edge_task(Segment<Edge<htype>>(edge, seg_left, seg_right));
+                edge_task(Segment<Edge>(edge, seg_left, seg_right));
             }
             clen -= edge.size();
             left_vertex = edge.end();
@@ -380,37 +374,37 @@ private:
     }
 
 public:
-    RecordStorage(SparseDBG<htype> &_dbg, size_t _min_len, size_t _max_len, bool _track_cov = false) :
+    RecordStorage(SparseDBG &_dbg, size_t _min_len, size_t _max_len, bool _track_cov = false) :
             dbg(_dbg), min_len(_min_len), max_len(_max_len), track_cov(_track_cov) {
         for(auto &it : dbg) {
-            data.emplace(&it.second, VertexRecord<htype>(it.second));
-            data.emplace(&it.second.rc(), VertexRecord<htype>(it.second.rc()));
+            data.emplace(&it.second, VertexRecord(it.second));
+            data.emplace(&it.second.rc(), VertexRecord(it.second.rc()));
         }
     }
 
-    const VertexRecord<htype> &getRecord(const Vertex<htype> &v) const {
+    const VertexRecord &getRecord(const Vertex &v) const {
         return data.find(&v)->second;
     }
 
-    void addSubpath(CompactPath<htype> &cpath, size_t left = 0, size_t right = size_t(-1)) {
-        std::function<void(Vertex<htype> &, const Sequence &)> vertex_task = [this](Vertex<htype> &v, const Sequence &s) {
+    void addSubpath(CompactPath &cpath, size_t left = 0, size_t right = size_t(-1)) {
+        std::function<void(Vertex &, const Sequence &)> vertex_task = [this](Vertex &v, const Sequence &s) {
             data.find(&v)->second.addPath(s);
         };
-        std::function<void(Segment<Edge<htype>>)> edge_task = [](Segment<Edge<htype>> seg){};
+        std::function<void(Segment<Edge>)> edge_task = [](Segment<Edge> seg){};
         if(track_cov)
-            edge_task = [](Segment<Edge<htype>> seg){
+            edge_task = [](Segment<Edge> seg){
                 seg.contig().incCov(seg.size());
             };
         processPath(cpath, vertex_task, edge_task, left, right);
     }
 
-    void removeSubpath(CompactPath<htype> &cpath, size_t left = 0, size_t right = size_t(-1)) {
-        std::function<void(Vertex<htype> &, const Sequence &)> vertex_task = [this](Vertex<htype> &v, const Sequence &s) {
+    void removeSubpath(CompactPath &cpath, size_t left = 0, size_t right = size_t(-1)) {
+        std::function<void(Vertex &, const Sequence &)> vertex_task = [this](Vertex &v, const Sequence &s) {
             data.find(&v)->second.removePath(s);
         };
-        std::function<void(Segment<Edge<htype>>)> edge_task = [](Segment<Edge<htype>> seg){};
+        std::function<void(Segment<Edge>)> edge_task = [](Segment<Edge> seg){};
         if(track_cov)
-            edge_task = [](Segment<Edge<htype>> seg) {
+            edge_task = [](Segment<Edge> seg) {
                 seg.contig().incCov(size_t(-seg.size()));
             };
         processPath(cpath, vertex_task, edge_task, left, right);
@@ -419,16 +413,16 @@ public:
     template<class I>
     void fill(I begin, I end, size_t min_read_size, logging::Logger &logger, size_t threads) {
         logger.info() << "Collecting alignments of sequences to the graph" << std::endl;
-        ParallelRecordCollector<AlignedRead<htype>> tmpReads(threads);
+        ParallelRecordCollector<AlignedRead> tmpReads(threads);
         ParallelCounter cnt(threads);
         std::function<void(StringContig &)> read_task = [this, min_read_size, &tmpReads, &cnt](StringContig & scontig) {
             Contig contig = scontig.makeContig();
             if(contig.size() < min_read_size)
                 return;
-            GraphAlignment<htype> path = dbg.align(contig.seq);
-            GraphAlignment<htype> rcPath = path.RC();
-            CompactPath<htype> cpath(path);
-            CompactPath<htype> crcPath(rcPath);
+            GraphAlignment path = dbg.align(contig.seq);
+            GraphAlignment rcPath = path.RC();
+            CompactPath cpath(path);
+            CompactPath crcPath(rcPath);
             addSubpath(cpath);
             addSubpath(crcPath);
             tmpReads.emplace_back(contig, cpath);
@@ -439,13 +433,13 @@ public:
         logger.info() << "Alignment collection finished. Total length of alignments is " << cnt.get() << std::endl;
     }
 
-    void reroute(AlignedRead<htype> &alignedRead, GraphAlignment<htype> &initial, GraphAlignment<htype> &corrected) {
-        GraphAlignment<htype> rcInitial = initial.RC();
-        GraphAlignment<htype> rcCorrected = corrected.RC();
-        CompactPath<htype> cInitial(initial);
-        CompactPath<htype> cCorrected(corrected);
-        CompactPath<htype> crcInitial(rcInitial);
-        CompactPath<htype> crcCorrected(rcCorrected);
+    void reroute(AlignedRead &alignedRead, GraphAlignment &initial, GraphAlignment &corrected) {
+        GraphAlignment rcInitial = initial.RC();
+        GraphAlignment rcCorrected = corrected.RC();
+        CompactPath cInitial(initial);
+        CompactPath cCorrected(corrected);
+        CompactPath crcInitial(rcInitial);
+        CompactPath crcCorrected(rcCorrected);
         this->removeSubpath(cInitial);
         this->removeSubpath(crcInitial);
         this->addSubpath(cCorrected);
@@ -453,8 +447,8 @@ public:
         alignedRead.path = cCorrected;
     }
 
-    typedef typename std::vector<AlignedRead<htype>>::iterator iterator;
-    typedef typename std::vector<AlignedRead<htype>>::const_iterator const_iterator;
+    typedef typename std::vector<AlignedRead>::iterator iterator;
+    typedef typename std::vector<AlignedRead>::const_iterator const_iterator;
 
     iterator begin() {
         return reads.begin();
@@ -472,11 +466,11 @@ public:
         return reads.end();
     }
 
-    AlignedRead<htype> &operator[](size_t ind) {
+    AlignedRead &operator[](size_t ind) {
         return reads[ind];
     }
 
-    const AlignedRead<htype> &operator[](size_t ind) const {
+    const AlignedRead &operator[](size_t ind) const {
         return reads[ind];
     }
 
@@ -485,45 +479,49 @@ public:
     }
 };
 
-template<typename htype>
 class CompactPath;
 
-template<typename htype>
 struct GraphError {
-    AlignedRead<htype> *read;
+    AlignedRead *read;
     size_t from;
     size_t to;
     size_t _size;
-    GraphAlignment<htype> correction;
+    GraphAlignment correction;
 
-    bool operator==(const GraphError<htype> &other) const {
-        return read = other.read && from == other.from && to == other.to;
+    GraphError(AlignedRead *read, size_t from, size_t to, size_t size) :
+                    read(read), from(from), to(to), _size(size) {}
+
+    size_t size() const {
+        return _size;
+    }
+
+    bool operator==(const GraphError &other) const {
+        return read == other.read && from == other.from && to == other.to;
     }
 };
 
-template<typename htype>
 class ErrorStorage {
 private:
-    std::vector<GraphError<htype>> errors;
-    RecordStorage<htype> &recs;
+    std::vector<GraphError> errors;
+    RecordStorage &recs;
 public:
 
-    explicit ErrorStorage(RecordStorage<htype> &_recs): recs(_recs){
+    explicit ErrorStorage(RecordStorage &_recs): recs(_recs){
     };
 
-    void fill(logging::Logger &logger, double error_threshold, double extend_threshold) {
+    void fill(logging::Logger &logger, size_t threads, double error_threshold, double extend_threshold) {
         logger.info() << "Correcting low covered regions in reads" << std::endl;
-        ParallelRecordCollector<GraphError<htype>> result;
+        ParallelRecordCollector<GraphError> result(threads);
 #pragma omp parallel for default(none) shared(error_threshold, extend_threshold, result, logger)
         for(size_t read_ind = 0; read_ind < recs.size(); read_ind++) {
-            AlignedRead<htype> &alignedRead = recs[read_ind];
+            AlignedRead &alignedRead = recs[read_ind];
             std::stringstream ss;
-            CompactPath<htype> &initial_cpath = alignedRead.path;
-            GraphAlignment<htype> path = initial_cpath.getAlignment();
-            GraphAlignment<htype> corrected_path(path.start());
+            CompactPath &initial_cpath = alignedRead.path;
+            GraphAlignment path = initial_cpath.getAlignment();
+            GraphAlignment corrected_path(path.start());
             for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
                 VERIFY_OMP(corrected_path.finish() == path.getVertex(path_pos));
-                Edge<htype> &edge = path[path_pos].contig();
+                Edge &edge = path[path_pos].contig();
                 if (edge.getCoverage() >= error_threshold) {
                     continue;
                 }
@@ -541,18 +539,19 @@ public:
                     size += path[step_front + path_pos + 1].size();
                     step_front += 1;
                 }
-                result.emplace_back(&alignedRead, corrected_path.size() - step_back, step_front + path_pos + 1, size, {});
+                result.emplace_back(&alignedRead, corrected_path.size() - step_back, step_front + path_pos + 1, size);
                 path_pos += step_front;
             }
         }
-        errors.insert(errors.back(), result.begin(), result.end());
+        for(GraphError &error : result)
+            errors.emplace_back(error);
     }
 
     void apply() {
-        std::function<bool(const GraphError<htype> &, const GraphError<htype> &)> compare =
-                [](const GraphError<htype> &a, const GraphError<htype> &b) {
-            if (a.path != b.path)
-                return a.path < b.path;
+        std::function<bool(const GraphError &, const GraphError &)> compare =
+                [](const GraphError &a, const GraphError &b) {
+            if (a.read != b.read)
+                return a.read < b.read;
             if(a.from != b.from)
                 return a.from < b.from;
             return a.to < b.to;
@@ -563,8 +562,8 @@ public:
             if(i > 0 && errors[i].read == errors[i - 1].read) {
                 continue;
             }
-            std::vector<GraphError<htype>> corrected_errors;
-            AlignedRead<htype> &read = *errors[i].read;
+            std::vector<GraphError> corrected_errors;
+            AlignedRead &read = *errors[i].read;
             for(size_t j = i; j < errors.size(); j++) {
                 if(errors[j].read != errors[i].read)
                     break;
@@ -572,13 +571,13 @@ public:
                     corrected_errors.push_back(errors[j]);
                 }
             }
-            if(corrected_errors.size() == 0)
+            if(corrected_errors.empty())
                 continue;
-            GraphAlignment<htype> initial = read.path.getAlignment();
-            std::vector<Segment<Edge<htype>>> corrected;
-            Vertex<htype> &start = corrected_errors[0].from == 0 ? corrected_errors[0].start() : initial.start();
+            GraphAlignment initial = read.path.getAlignment();
+            std::vector<Segment<Edge>> corrected;
+            Vertex &start = corrected_errors[0].from == 0 ? corrected_errors[0].correction.start() : initial.start();
             size_t prev = 0;
-            for(GraphError<htype> & error : corrected_errors) {
+            for(GraphError & error : corrected_errors) {
                 for(size_t j = prev; j < error.from; j++) {
                     corrected.emplace_back(initial[j]);
                 }
@@ -590,14 +589,14 @@ public:
             for(size_t j = prev; j < initial.size(); j++) {
                 corrected.emplace_back(initial[j]);
             }
-            GraphAlignment<htype> corrected_alignment(&start, corrected);
+            GraphAlignment corrected_alignment(&start, std::move(corrected));
             recs.reroute(read, initial, corrected_alignment);
         }
     }
 
     void sortByLength() {
-        std::function<bool(const GraphError<htype> &, const GraphError<htype> &)> compare =
-                [](const GraphError<htype> &a, const GraphError<htype> &b) {
+        std::function<bool(const GraphError &, const GraphError &)> compare =
+                [](const GraphError &a, const GraphError &b) {
                     return a._size < b._size;
                 };
         __gnu_parallel::sort(errors.begin(), errors.end(), compare);

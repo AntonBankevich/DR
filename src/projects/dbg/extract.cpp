@@ -33,11 +33,11 @@ int main(int argc, char **argv) {
     std::experimental::filesystem::path dbg_file(parser.getValue("dbg"));
     std::experimental::filesystem::path dir(parser.getValue("output-dir"));
     size_t k = std::stoull(parser.getValue("k-mer-size"));
-    RollingHash<htype128> hasher(k, std::stoi(parser.getValue("base")));
+    RollingHash hasher(k, std::stoi(parser.getValue("base")));
     io::Library contigs_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("contigs"));
     std::vector<std::string> contig_segments = parser.getListValue("segment");
 
-    SparseDBG<htype128> dbg = SparseDBG<htype128>::loadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
+    SparseDBG dbg = SparseDBG::loadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
     dbg.fillAnchors(1000, logger, threads);
 
     std::vector<std::tuple<std::string, size_t, size_t, std::string>> seg_recs;
@@ -57,12 +57,12 @@ int main(int argc, char **argv) {
             }
         }
     }
-    std::vector<Component<htype128>> components;
+    std::vector<Component> components;
     for(Contig &seg : segs) {
         const std::experimental::filesystem::path seg_file = dir / ("seg_" + seg.id + ".dot");
         logger.info() << "Printing segment " << seg.id << " to file dot file " << (seg_file) << std::endl;
         std::ofstream coordinates_dot;
-        components.emplace_back(Component<htype128>::neighbourhood(dbg, seg, dbg.hasher().k + 100));
+        components.emplace_back(Component::neighbourhood(dbg, seg, dbg.hasher().k + 100));
     }
 
     return 0;

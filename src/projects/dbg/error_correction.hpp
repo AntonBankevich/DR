@@ -4,10 +4,11 @@
 
 #pragma once
 
-#include <queue>
-#include "common/simple_computation.hpp"
 #include "sparse_dbg.hpp"
 #include "common/output_utils.hpp"
+#include "common/simple_computation.hpp"
+#include <queue>
+#include <functional>
 
 namespace error_correction {
     inline std::ostream& operator<<(std::ostream& out, const unsigned __int128& item) {
@@ -19,21 +20,20 @@ namespace error_correction {
         }
         return out << std::string(res.rbegin(), res.rend());
     }
-    template<typename htype>
-    struct State {
+    struct  State {
         State() = default;
 
-        State(size_t lastMatch, size_t diff, Vertex<htype> *graphPosition, bool match) : last_match(lastMatch),
+        State(size_t lastMatch, size_t diff, Vertex *graphPosition, bool match) : last_match(lastMatch),
                                                                                          diff(diff),
                                                                                          graph_position(graphPosition),
                                                                                          match(match) {}
 
         size_t last_match;
         size_t diff;
-        Vertex<htype> *graph_position;
+        Vertex *graph_position;
         bool match;
 
-        bool operator==(const State<htype> &other) const {
+        bool operator==(const State &other) const {
             return last_match == other.last_match && diff == other.diff &&
                    graph_position == other.graph_position && match == other.match;
         }
@@ -44,17 +44,16 @@ namespace error_correction {
         }
     };
 
-    template<class htype>
-    std::ostream& operator<<(std::ostream& out, const State<htype> & item) {
+    std::ostream& operator<<(std::ostream& out, const State & item) {
         return out << "(" << item.last_match << " " << item.diff << " " << item.graph_position->hash() << " " << item.match << ")";
     }
 
 }
 
 namespace std {
-    template<typename htype>
-    struct hash<error_correction::State<htype>> {
-        std::size_t operator()(const error_correction::State<htype> &state) const {
+    template <>
+    struct hash<error_correction::State> {
+        std::size_t operator()(const error_correction::State &state) const {
             return std::hash<size_t>()(state.last_match) ^ std::hash<size_t>()(state.diff) ^
                    std::hash<void *>()(state.graph_position) ^ std::hash<bool>()(state.match);
         }
@@ -63,38 +62,35 @@ namespace std {
 
 namespace error_correction {
 
-    template<typename htype>
     struct ResRecord {
-        ResRecord(ResRecord<htype> *prev, Edge<htype> *lastEdge, bool goodmatch) :
+        ResRecord(ResRecord *prev, Edge *lastEdge, bool goodmatch) :
                     prev(prev), last_edge(lastEdge), good_match(goodmatch) {}
-        ResRecord<htype> *prev;
-        Edge<htype> *last_edge;
+        ResRecord *prev;
+        Edge *last_edge;
         bool good_match;
     };
 
-    template<typename htype>
     struct ScoredState {
-        State<htype> state;
-        ResRecord<htype> resRecord;
+        State state;
+        ResRecord resRecord;
         size_t score;
 
-        ScoredState(const State<htype> &state, const ResRecord<htype> &resRecord, size_t score) : state(state),
+        ScoredState(const State &state, const ResRecord &resRecord, size_t score) : state(state),
                                                                                                   resRecord(resRecord),
                                                                                                   score(score) {}
 
-        bool operator<(const ScoredState<htype> &other) const {
+        bool operator<(const ScoredState &other) const {
             return score > other.score;
         }
     };
 
-    template<typename htype>
     struct CorrectionResult {
-        CorrectionResult(const Path<htype> &path, size_t score, size_t iterations) : path(path),
+        CorrectionResult(const Path &path, size_t score, size_t iterations) : path(path),
                                                                                                   score(score),
                                                                                                   iterations(
                                                                                                           iterations) {}
 
-        Path<htype> path;
+        Path path;
         size_t score;
         size_t iterations;
     };
@@ -110,8 +106,7 @@ namespace error_correction {
         size_t high_coverage_penalty = 50;
         size_t match_to_freeze = 100;
 
-        template<typename htype>
-        size_t scoreMatchingEdge(const Edge<htype> &edge) const {
+        size_t scoreMatchingEdge(const Edge &edge) const {
             if (edge.getCoverage() <= very_bad_coverage) {
                 return very_bad_covereage_penalty * edge.size();
             } else if (edge.getCoverage() < cov_threshold) {
@@ -121,8 +116,7 @@ namespace error_correction {
             }
         }
 
-        template<typename htype>
-        size_t scoreAlternativeEdge(const Edge<htype> &edge) const {
+        size_t scoreAlternativeEdge(const Edge &edge) const {
             if (edge.getCoverage() <= very_bad_coverage) {
                 return (very_bad_covereage_penalty + alternative_penalty) * edge.size();
             } else if (edge.getCoverage() < cov_threshold) {
@@ -133,8 +127,7 @@ namespace error_correction {
         }
 
 
-        template<typename htype>
-        size_t scoreRemovedEdge(const Edge<htype> &edge) const {
+        size_t scoreRemovedEdge(const Edge &edge) const {
             if (edge.getCoverage() > cov_threshold) {
                 return high_coverage_penalty * edge.size();
             } else {
@@ -143,10 +136,9 @@ namespace error_correction {
         }
     };
 
-    template<typename htype>
-    std::vector<Edge<htype>*> restoreResult(const std::unordered_map<State<htype>, ResRecord<htype>> stateMap,
-            ResRecord<htype> *resRecord) {
-        std::vector<Edge<htype>*> res;
+    std::vector<Edge*> restoreResult(const std::unordered_map<State, ResRecord> stateMap,
+            ResRecord *resRecord) {
+        std::vector<Edge*> res;
         while(resRecord->prev != nullptr) {
             if (resRecord->last_edge != nullptr) {
                 res.push_back(resRecord->last_edge);
@@ -156,9 +148,8 @@ namespace error_correction {
         return {res.rbegin(), res.rend()};
     }
 
-    template<typename htype>
-    size_t checkPerfect(const std::unordered_map<State<htype>, ResRecord<htype>> stateMap,
-                                           ResRecord<htype> *resRecord, size_t length) {
+    size_t checkPerfect(const std::unordered_map<State, ResRecord> stateMap,
+                                           ResRecord *resRecord, size_t length) {
         size_t len = 0;
         size_t cnt = 0;
         while(resRecord->prev != nullptr) {
@@ -174,8 +165,7 @@ namespace error_correction {
         return size_t(-1);
     }
 
-    template<typename htype>
-    CorrectionResult<htype> correct(Path<htype> & initial_path, ScoreScheme scores = {}) {
+    CorrectionResult correct(Path & initial_path, ScoreScheme scores = {}) {
 //        std::cout << "New read " << path.size() << std::endl;
 //        for (size_t i = 0; i < path.size(); i++) {
 //            std::cout << " " << path[i].end()->hash() << " " << path[i].getCoverage() << " " << path[i].size();
@@ -197,19 +187,19 @@ namespace error_correction {
 //            std::cout << "Finished fail " << (size_t(-1) >> 1u) << std::endl;
             return {initial_path, size_t(-1) >> 1u, size_t(-1) >> 1u};
         }
-        Path<htype> path = initial_path.subPath(from, to);
-        std::priority_queue<ScoredState<htype>> queue;
-        queue.emplace(State<htype>(0, 0, &path.start(), true), ResRecord<htype>(nullptr, nullptr, false), 0);
-        std::unordered_map<State<htype>, ResRecord<htype>> res;
+        Path path = initial_path.subPath(from, to);
+        std::priority_queue<ScoredState> queue;
+        queue.emplace(State(0, 0, &path.start(), true), ResRecord(nullptr, nullptr, false), 0);
+        std::unordered_map<State, ResRecord> res;
         size_t cnt = 0;
         size_t frozen = 0;
         while(!queue.empty()) {
-            ScoredState<htype> next = queue.top();
+            ScoredState next = queue.top();
             queue.pop();
             if(next.state.last_match == path.size()) {
                 VERIFY(next.state.match);
 //                std::cout << "Finished " << next.score << " " << cnt << std::endl;
-                return {Path<htype>(path.start(), restoreResult(res, &next.resRecord)), next.score, cnt};
+                return {Path(path.start(), restoreResult(res, &next.resRecord)), next.score, cnt};
             }
 //            std::cout<< "New state " << next.state << " " << next.score << " " << next.state.graph_position->outDeg();
 //            for(size_t i = 0; i < next.state.graph_position->outDeg(); i++) {
@@ -220,8 +210,8 @@ namespace error_correction {
 //            std::cout << std::endl;
             if(res.find(next.state) != res.end() || next.state.last_match < frozen)
                 continue;
-            ResRecord<htype> &prev = res.emplace(next.state, next.resRecord).first->second;
-            State<htype> &state = next.state;
+            ResRecord &prev = res.emplace(next.state, next.resRecord).first->second;
+            State &state = next.state;
             if(next.state.match && !prev.good_match) {
                 size_t perfect_len = 0;
                 size_t right = state.last_match;
@@ -236,20 +226,20 @@ namespace error_correction {
                 if (left > state.last_match) {
 //                    std::cout << "Skip to " << left << " " << &path.getVertex(left) << std::endl;
                     frozen = left;
-                    ResRecord<htype> *prev_ptr = &prev;
+                    ResRecord *prev_ptr = &prev;
                     for(size_t i = state.last_match; i + 1 < left; i++) {
-                        prev_ptr = &res.emplace(State<htype>(i + 1, 0, &path.getVertex(i + 1), true),
-                                ResRecord<htype>(prev_ptr, &path[i], true)).first->second;
+                        prev_ptr = &res.emplace(State(i + 1, 0, &path.getVertex(i + 1), true),
+                                ResRecord(prev_ptr, &path[i], true)).first->second;
                     }
-                    queue.emplace(State<htype>(left, 0, &path.getVertex(left), true),
-                                                ResRecord<htype>(prev_ptr, &path[left - 1], true), next.score);
+                    queue.emplace(State(left, 0, &path.getVertex(left), true),
+                                                ResRecord(prev_ptr, &path[left - 1], true), next.score);
                     continue;
                 }
 
             }
             if(next.state.match) {
-                queue.emplace(State<htype>(next.state.last_match + 1, 0, &path.getVertex(next.state.last_match + 1), true),
-                        ResRecord<htype>(&prev, &path[next.state.last_match], path[next.state.last_match].getCoverage() > scores.cov_threshold),
+                queue.emplace(State(next.state.last_match + 1, 0, &path.getVertex(next.state.last_match + 1), true),
+                        ResRecord(&prev, &path[next.state.last_match], path[next.state.last_match].getCoverage() > scores.cov_threshold),
                         next.score + scores.scoreMatchingEdge(path[next.state.last_match]));
 //                std::cout << "Add perfect " << next.score + scores.scoreMatchingEdge(path[next.state.last_match]) << std::endl;
             } else {
@@ -263,18 +253,18 @@ namespace error_correction {
                     }
                     if(path_dist > next.state.diff - scores.max_diff && &path.getVertex(i + 1) == next.state.graph_position) {
                         size_t diff = std::min<size_t>(path_dist - next.state.diff, next.state.diff - path_dist);
-                        queue.emplace(State<htype>(i + 1, 0, next.state.graph_position, true),
-                                      ResRecord<htype>(&prev, nullptr, false),
+                        queue.emplace(State(i + 1, 0, next.state.graph_position, true),
+                                      ResRecord(&prev, nullptr, false),
                                       next.score + extra_score + diff * scores.diff_penalty);
 //                        std::cout << "Add back to good " << next.score + extra_score + diff * scores.diff_penalty << std::endl;
                     }
                 }
             }
             for(size_t i = 0; i < next.state.graph_position->outDeg(); i++) {
-                Edge<htype> &edge = next.state.graph_position->getOutgoing()[i];
+                Edge &edge = next.state.graph_position->getOutgoing()[i];
                 if (!next.state.match || edge.seq != path[next.state.last_match].seq) {
-                    queue.emplace(State<htype>(next.state.last_match, next.state.diff + edge.size(), edge.end(), false),
-                                  ResRecord<htype>(&prev, &edge, false),
+                    queue.emplace(State(next.state.last_match, next.state.diff + edge.size(), edge.end(), false),
+                                  ResRecord(&prev, &edge, false),
                                   next.score + scores.scoreAlternativeEdge(edge));
 //                    std::cout << "Add bad " << next.score + scores.scoreAlternativeEdge(edge) << std::endl;
                 }
@@ -289,8 +279,8 @@ namespace error_correction {
         return {initial_path, size_t(-1) >> 1u, cnt};
     }
 
-    template<typename htype, class Iterator>
-    void correctSequences(SparseDBG<htype> &sdbg, logging::Logger &logger, Iterator begin, Iterator end,
+    template<class Iterator>
+    void correctSequences(SparseDBG &sdbg, logging::Logger &logger, Iterator begin, Iterator end,
           const std::experimental::filesystem::path& output_file,
           const std::experimental::filesystem::path& bad_file,
           size_t threads, const size_t min_read_size) {
@@ -311,8 +301,8 @@ namespace error_correction {
         std::function<void(ContigType &)> task = [&sdbg, &times, &scores, min_read_size, &result,  &bad_reads](ContigType & contig) {
             Sequence seq = contig.makeSequence();
             if(seq.size() >= min_read_size) {
-                Path<htype> path = sdbg.align(seq).path();
-                CorrectionResult<htype> res = correct(path);
+                Path path = sdbg.align(seq).path();
+                CorrectionResult res = correct(path);
                 times.emplace_back(res.iterations);
                 scores.emplace_back(res.score);
                 result.emplace_back(res.path.Seq(), contig.id + " " + std::to_string(res.score));

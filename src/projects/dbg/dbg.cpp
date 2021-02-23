@@ -2,6 +2,7 @@
 // Created by anton on 17.07.2020.
 //
 #define _GLIBCXX_PARALLEL
+#include "graph_algorithms.hpp"
 #include "visualization.hpp"
 #include "error_correction.hpp"
 #include "dbg_construction.hpp"
@@ -26,58 +27,6 @@
 
 using logging::Logger;
 
-//
-//class htype128 {
-//    unsigned __int_128 val;
-//public:
-//    template<class T>
-//    htype128(cosnt T &_val) : val(_val) {
-//    }
-//
-//    htype128 operator+(const htype128& other) const {
-//        return htype128(val + other.val);
-//    }
-//
-//    htype128 operator+(const htype128& other) const {
-//        return htype128(val + other.val);
-//    }
-//
-//    htype128 operator*(const htype128& other) const {
-//        return htype128(val * other.val);
-//    }
-//
-//    htype128 operator/(const htype128& other) const {
-//        return htype128(val / other.val);
-//    }
-//
-//    bool operator<(const htype128& other) const {
-//        return hval < other.val;
-//    }
-//    bool operator>(const htype128& other) const {
-//        return hval > other.val;
-//    }
-//    bool operator<=(const htype128& other) const {
-//        return hval <= other.val;
-//    }
-//    bool operator>=(const htype128& other) const {
-//        return hval >= other.val;
-//    }
-//    bool operator==(const htype128& other) const {
-//        return hval == other.val;
-//    }
-//    bool operator!=(const htype128& other) const {
-//        return hval != other.val;
-//    }
-//};
-//
-//std::ostream &operator<<(std::ostream &os, htype128 val) {
-//    while(val > 0) {
-//        os << size_t(val % 10);
-//        val /= 10;
-//    }
-//    return os;
-//}
-
 struct hash_pair {
     template <class T1, class T2>
     size_t operator()(const std::pair<T1, T2>& p) const
@@ -88,13 +37,13 @@ struct hash_pair {
     }
 };
 
-void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, size_t min_len,
+void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
                    const std::experimental::filesystem::path &path_dump,
                    const std::experimental::filesystem::path &mult_dump, Logger &logger) {
     logger.info() << "Reading reference" << std::endl;
     std::vector<StringContig> ref = io::SeqReader(ref_file).readAll();
     logger.info() << "Finished reading reference. Starting alignment" << std::endl;
-    std::vector<Segment<Edge<htype128>>> path;
+    std::vector<Segment<Edge>> path;
     std::ofstream os;
     os.open(path_dump);
     size_t cur = 0;
@@ -106,7 +55,7 @@ void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, size_t
         }
         auto tmp = dbg.align(seq);
         for(size_t i = 0; i < tmp.size(); i++) {
-            const Segment<Edge<htype128>> &seg = tmp[i];
+            const Segment<Edge> &seg = tmp[i];
             os << "[" << cur << ", " << cur + seg.size() << "] -> [" << seg.left << ", " << seg.right <<"] ";
             os << tmp.getVertex(i).hash() << tmp.getVertex(i).isCanonical() << " "
                << tmp.getVertex(i + 1).hash() << tmp.getVertex(i + 1).isCanonical() << " "
@@ -118,15 +67,6 @@ void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, size_t
     }
     os.close();
     logger.info() << "Reference path consists of " << path.size() << " edges" << std::endl;
-//    std::vector<size_t> fill_distr(11);
-//    std::vector<size_t> fill_distr_len(11);
-//    for(const std::pair<const Edge<htype128> *, size_t> & val : path) {
-//        size_t ind = val.second * 10 / val.first->size();
-//        fill_distr[ind] += 1;
-//        fill_distr_len[ind] += 1;
-//    }
-//    logger.info() << "Edge filling distribution" <<std::endl;
-//    logger << fill_distr << std::endl << fill_distr_len << std::endl;
     size_t max_cov = 50;
     std::vector<size_t> cov(max_cov + 1);
     std::vector<size_t> cov_len(max_cov + 1);
@@ -134,9 +74,9 @@ void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, size_t
     std::vector<size_t> cov_bad_len(max_cov + 1);
     std::vector<size_t> cov_good(max_cov + 1);
     std::vector<size_t> cov_good_len(max_cov + 1);
-    std::unordered_map<Edge<htype128> const *, size_t> eset;
+    std::unordered_map<Edge const *, size_t> eset;
     for(size_t i = 0; i < path.size(); i++) {
-        const Edge<htype128> &edge = path[i].contig();
+        const Edge &edge = path[i].contig();
         eset[&edge] += 1;
     }
     std::ofstream os_mult;
@@ -146,10 +86,10 @@ void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, size_t
     }
     os_mult.close();
     for(auto & pair : dbg) {
-        Vertex<htype128> &vert = pair.second;
-        for (Edge<htype128> &edge : vert.getOutgoing()) {
+        Vertex &vert = pair.second;
+        for (Edge &edge : vert.getOutgoing()) {
             size_t cov_val = std::min(max_cov, size_t(edge.getCoverage()));
-            if (eset.find(&edge) == eset.end() && eset.find(&vert.rcEdge(edge)) == eset.end()) {
+            if (eset.find(&edge) == eset.end() && eset.find(&edge.rc()) == eset.end()) {
                 cov_bad[cov_val] += 1;
                 cov_bad_len[cov_val] += edge.size();
             } else {
@@ -168,16 +108,16 @@ void analyseGenome(SparseDBG<htype128> &dbg, const std::string &ref_file, size_t
     logger << cov_bad << std::endl << cov_bad_len << std::endl;
 }
 
-void LoadCoverage(const std::experimental::filesystem::path &fname, Logger &logger, SparseDBG<htype128> &dbg) {
+void LoadCoverage(const std::experimental::filesystem::path &fname, Logger &logger, SparseDBG &dbg) {
     logger.info() << "Loading edge coverages." << std::endl;
     std::ifstream is;
     is.open(fname);
     size_t n;
     is >> n;
     for (size_t i = 0; i < n; i++) {
-        htype128 vid;
+        htype vid;
         is >> vid;
-        Vertex<htype128> *v = &dbg.getVertex(vid);
+        Vertex *v = &dbg.getVertex(vid);
         size_t inDeg, outDeg;
         is >> outDeg >> inDeg;
         for (size_t j = 0; j < inDeg + outDeg; j++) {
@@ -185,7 +125,7 @@ void LoadCoverage(const std::experimental::filesystem::path &fname, Logger &logg
                 v = &v->rc();
             size_t next;
             is >> next;
-            Edge<htype128> &edge = v->getOutgoing(char(next));
+            Edge &edge = v->getOutgoing(char(next));
             size_t cov;
             is >> cov;
             edge.incCov(cov);
@@ -247,7 +187,7 @@ int main(int argc, char **argv) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
         k += 1;
     }
-    RollingHash<htype128> hasher(k, std::stoi(parser.getValue("base")));
+    RollingHash hasher(k, std::stoi(parser.getValue("base")));
     const size_t w = std::stoi(parser.getValue("window"));
     io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     io::Library paths_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("paths"));
@@ -264,9 +204,9 @@ int main(int argc, char **argv) {
     std::string disjointigs_file = parser.getValue("disjointigs");
     std::string vertices_file = parser.getValue("vertices");
     std::string dbg_file = parser.getValue("dbg");
-    SparseDBG<htype128> dbg = dbg_file == "none" ?
+    SparseDBG dbg = dbg_file == "none" ?
             DBGPipeline(logger, hasher, w, lib, dir, threads, disjointigs_file, vertices_file) :
-          SparseDBG<htype128>::loadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
+          SparseDBG::loadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
 
     bool calculate_coverage = parser.getCheck("coverage") || parser.getCheck("simplify") ||
             parser.getCheck("correct") || parser.getValue("segments") != "none" ||
@@ -295,7 +235,7 @@ int main(int argc, char **argv) {
     if(!paths_lib.empty()) {
         logger << "Printing additional figures with paths" << std::endl;
         logger << "Aligning contigs from paths files" << std::endl;
-        GraphAlignmentStorage<htype128> storage(dbg);
+        GraphAlignmentStorage storage(dbg);
         io::SeqReader reader(paths_lib);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
@@ -320,7 +260,7 @@ int main(int argc, char **argv) {
     if(!path_segments.empty()) {
         logger.info() << "Printing segments of paths" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
-        GraphAlignmentStorage<htype128> storage(dbg);
+        GraphAlignmentStorage storage(dbg);
         std::vector<std::tuple<std::string, size_t, size_t, std::string>> seg_recs;
         for(const std::string& s : path_segments) {
             std::vector<std::string> parsed = split(s, "[,]");
@@ -343,9 +283,9 @@ int main(int argc, char **argv) {
             const std::experimental::filesystem::path seg_file = dir / ("seg_" + seg.id + ".dot");
             logger.info() << "Printing segment " << seg.id << " to file dot file " << (seg_file) << std::endl;
             std::ofstream coordinates_dot;
-            Component<htype128> comp = Component<htype128>::neighbourhood(dbg, seg, dbg.hasher().k + 100);
+            Component comp = Component::neighbourhood(dbg, seg, dbg.hasher().k + 100);
             coordinates_dot.open(seg_file);
-            std::function<std::string(Edge<htype128> &)> labeler = [&storage](Edge<htype128> &edge) {
+            std::function<std::string(Edge &)> labeler = [&storage](Edge &edge) {
                 return storage(edge);
             };
             comp.printDot(coordinates_dot, labeler);
@@ -356,7 +296,7 @@ int main(int argc, char **argv) {
     if(parser.getCheck("genome-path")) {
         logger.info() << "Printing additional figures with reference alignments" << std::endl;
         logger.info() << "Aligning genome" << std::endl;
-        GraphAlignmentStorage<htype128> storage(dbg);
+        GraphAlignmentStorage storage(dbg);
         io::SeqReader reader(genome_lib);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
@@ -404,14 +344,14 @@ int main(int argc, char **argv) {
             Contig read = contig.makeContig();
             if(read.size() < w + hasher.k - 1)
                 return;
-            GraphAlignment<htype128> gal = dbg.align(read.seq);
+            GraphAlignment gal = dbg.align(read.seq);
             if (gal.size() > 0 && gal.front().contig().getCoverage() < 2 && gal.start().inDeg() == 0 && gal.start().outDeg() == 1) {
                 gal = gal.subalignment(1, gal.size());
             }
             if (gal.size() > 0 && gal.back().contig().getCoverage() < 2 && gal.finish().outDeg() == 0 && gal.finish().inDeg() == 1) {
                 gal = gal.subalignment(0, gal.size() - 1);
             }
-            for(Segment<Edge<htype128>> seg : gal) {
+            for(Segment<Edge> seg : gal) {
                 if (seg.contig().getCoverage() < 2)
                     return;
             }
@@ -451,13 +391,13 @@ int main(int argc, char **argv) {
         size_t cnt = 0;
         for(StringContig scontig : segs) {
             Contig s = scontig.makeContig();
-            std::vector<std::pair<const Edge<htype128> *, size_t>> path = dbg.carefulAlign(s.seq);
-            std::vector<htype128> hashs;
+            std::vector<std::pair<const Edge *, size_t>> path = dbg.carefulAlign(s.seq);
+            std::vector<htype> hashs;
             hashs.reserve(path.size());
             for(auto & tmp : path) {
                 hashs.push_back(tmp.first->end()->hash());
             }
-            Component<htype128> comp = Component<htype128>::neighbourhood(dbg, hashs.begin(), hashs.end(), 600, 2);
+            Component comp = Component::neighbourhood(dbg, hashs.begin(), hashs.end(), 600, 2);
             std::ofstream os;
             os.open(dir/ "pictures" / (logging::itos(cnt) + ".dot"));
             comp.printCompressedDot(os, 2);
@@ -473,17 +413,17 @@ int main(int argc, char **argv) {
         logger.info() << "Removing low covered edges" << std::endl;
         size_t threshold = std::stoull(parser.getValue("cov-threshold"));
         std::vector<Sequence> edges;
-        std::vector<htype128> vertices_again;
+        std::vector<htype> vertices_again;
         for(auto & it : dbg) {
-            Vertex<htype128> &vert = it.second;
+            Vertex &vert = it.second;
             bool add = false;
-            for(Edge<htype128> & edge : vert.getOutgoing()) {
+            for(Edge & edge : vert.getOutgoing()) {
                 if (edge.getCoverage() >= threshold) {
                     edges.push_back(vert.seq + edge.seq);
                     add = true;
                 }
             }
-            for(Edge<htype128> & edge : vert.rc().getOutgoing()) {
+            for(Edge & edge : vert.rc().getOutgoing()) {
                 if (edge.getCoverage() >= threshold){
                     edges.push_back(vert.rc().seq + edge.seq);
                     add = true;
@@ -492,16 +432,16 @@ int main(int argc, char **argv) {
             if (add)
                 vertices_again.push_back(vert.hash());
         }
-        SparseDBG<htype128> simp_dbg(vertices_again.begin(), vertices_again.end(), hasher);
+        SparseDBG simp_dbg(vertices_again.begin(), vertices_again.end(), hasher);
         simp_dbg.fillSparseDBGEdges(edges.begin(), edges.end(), logger, threads, 0);
         for(auto & it : simp_dbg) {
-            Vertex<htype128> &vert = it.second;
-            Vertex<htype128> &other = dbg.getVertex(vert.hash());
+            Vertex &vert = it.second;
+            Vertex &other = dbg.getVertex(vert.hash());
             bool add = false;
-            for(Edge<htype128> & edge : vert.getOutgoing()) {
+            for(Edge & edge : vert.getOutgoing()) {
                 edge.incCov(other.getOutgoing(edge.seq[0]).intCov());
             }
-            for(Edge<htype128> & edge : vert.rc().getOutgoing()) {
+            for(Edge & edge : vert.rc().getOutgoing()) {
                 edge.incCov(other.rc().getOutgoing(edge.seq[0]).intCov());
             }
         }
