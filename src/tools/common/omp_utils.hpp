@@ -212,7 +212,7 @@ public:
                 }
             }
             doAfter();
-            logger.info() << items.size() << " items of total length "<< clen << " processed " << std::endl;
+            logger.info() << items.size() << " items of total length "<< clen << " processed " << " " << oppa_cnt << std::endl;
             total += items.size();
             items.clear();
             total_len += clen;

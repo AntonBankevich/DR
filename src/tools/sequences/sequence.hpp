@@ -25,6 +25,8 @@ struct log_<0, base> {
     const static size_t value = 0;
 };
 
+static size_t oppa_cnt = 0;
+
 class Sequence {
     // Type to store Seq in Sequences
     typedef u_int64_t ST;
@@ -38,10 +40,14 @@ class Sequence {
     class ManagedNuclBuffer final : public llvm::ThreadSafeRefCountedBase<ManagedNuclBuffer> {
     public:
         explicit ManagedNuclBuffer(size_t nucls) : _data(new ST[Sequence::DataSize(nucls)]) {
+#pragma omp atomic
+            oppa_cnt += 1;
         }
 
         ManagedNuclBuffer(size_t nucls, ST *buf) : _data(new ST[Sequence::DataSize(nucls)]) {
             std::uninitialized_copy(buf, buf + Sequence::DataSize(nucls), data());
+#pragma omp atomic
+            oppa_cnt += 1;
         }
 
     private:
@@ -53,6 +59,8 @@ class Sequence {
 
         ~ManagedNuclBuffer() {
             delete[] _data;
+#pragma omp atomic
+            oppa_cnt -= 1;
         }
 
     };
