@@ -22,6 +22,14 @@ std::vector<htype> constructMinimizers(logging::Logger &logger, const io::Librar
         }
     };
     io::SeqReader reader(reads_file, (hasher.k + w) * 20, (hasher.k + w) * 4);
+    size_t cnt = 0;
+    for(auto it = reader.begin(); it != reader.end(); ++it) {
+        StringContig contig = *it;
+        cnt += 1;
+        if (cnt % 100000 == 0) {
+            logger.info() << cnt << " " << oppa_cnt << std::endl;
+        }
+    }
     processRecords(reader.begin(), reader.end(), logger, threads, task);
 
     logger.info() << "Finished read processing" << std::endl;
