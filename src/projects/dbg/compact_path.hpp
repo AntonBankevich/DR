@@ -557,7 +557,7 @@ public:
             return a.to < b.to;
         };
         __gnu_parallel::sort(errors.begin(), errors.end(), compare);
-#pragma omp parallel for default(none) shared(errors, recs)
+//#pragma omp parallel for default(none) shared(errors, recs)
         for(size_t i = 0; i < errors.size(); i++) {
             if(i > 0 && errors[i].read == errors[i - 1].read) {
                 continue;

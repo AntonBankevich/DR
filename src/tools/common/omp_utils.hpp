@@ -182,6 +182,11 @@ public:
             std::vector<V> items;
             items.reserve(buffer_size);
             doBefore();
+                        while (begin != end && items.size() < buffer_size && clen < max_length) {
+                            items.emplace_back(*begin);
+                            ++begin; 
+                            clen += items.back().size();
+                        }
 #pragma omp parallel default(none) shared(begin, end, items, buffer_size, clen, max_length, bucket_length, self, std::cout)
             {
 #pragma omp single
@@ -190,19 +195,18 @@ public:
                     {
                         self.doInParallel();
                     }
-                    while (begin != end && items.size() < buffer_size && clen < max_length) {
-                        size_t left = items.size();
-                        size_t right = items.size();
+                    size_t cur_pos = 0;
+                    while (cur_pos < items.size()) {
+                        size_t left = cur_pos;
+                        size_t right = cur_pos;
                         size_t cur_length = 0;
-                        while (begin != end && items.size() < buffer_size && clen < max_length && cur_length < bucket_length) {
-                            items.emplace_back(*begin);
-                            ++begin;
+                        while (right < items.size() && cur_length < bucket_length) {
                             right += 1;
-                            V &item = items.back();
-                            clen += item.size();
+                            V &item = items[right - 1];
                             cur_length += item.size();
                             self.doInOneThread(item);
                         }
+                        cur_pos = right;
 #pragma omp task default(none) shared(items, self, std::cout) firstprivate(left, right)
                         {
                             for(size_t i = left; i < right; i++)

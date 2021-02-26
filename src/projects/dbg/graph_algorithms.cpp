@@ -103,7 +103,7 @@ void findTips(logging::Logger &logger, SparseDBG &sdbg, size_t threads) {
         {
             for (auto &it: sdbg) {
                 Vertex &rec = it.second;
-                VERIFY(!rec.seq.empty());
+                VERIFY_OMP(!rec.seq.empty());
 #pragma omp task default(none) shared(sdbg, rec, logger, queue)
                 {
                     UpdateVertexTips(rec, queue);
@@ -124,7 +124,7 @@ void findTips(logging::Logger &logger, SparseDBG &sdbg, size_t threads) {
             {
                 for (auto &it: prev_queue) {
                     Vertex &rec = *it;
-                    VERIFY(!rec.seq.empty());
+                    VERIFY_OMP(!rec.seq.empty());
 #pragma omp task default(none) shared(sdbg, rec, logger, queue)
                     {
                         UpdateVertexTips(rec, queue);
