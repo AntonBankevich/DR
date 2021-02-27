@@ -732,8 +732,10 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
         AlignedRead &alignedRead = *it;
         ors << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
         for(auto edge_it : alignedRead.path.getAlignment().path()) {
-            if(edge_it->getCoverage() < threshold)
+            if(edge_it->getCoverage() < threshold) {
                 brs << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
+                break;
+            }
         }
     }
     ors.close();

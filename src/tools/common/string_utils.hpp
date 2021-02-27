@@ -38,6 +38,15 @@ static inline std::string & compress_inplace(std::string &s) {
     return s;
 }
 
+static inline std::string mask(const std::string &s, const std::string &pattern = "/\\\"", char value = '_') {
+    std::string res = s;
+    for(char &c : res) {
+        if(pattern.find(c) != size_t(-1))
+            c = value;
+    }
+    return std::move(res);
+}
+
 inline std::string join(const std::string &s, const std::vector<std::string> &arr) {
     if(arr.empty())
         return "";

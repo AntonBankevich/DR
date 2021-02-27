@@ -281,8 +281,8 @@ int main(int argc, char **argv) {
             }
         }
         for(Contig &seg : segs) {
-            const std::experimental::filesystem::path seg_file = dir / ("seg_" + seg.id + ".dot");
-            logger.info() << "Printing segment " << seg.id << " to file dot file " << (seg_file) << std::endl;
+            const std::experimental::filesystem::path seg_file = dir / ("seg_" + mask(seg.id) + ".dot");
+            logger.info() << "Printing segment " << seg.id << " to dot file " << (seg_file) << std::endl;
             std::ofstream coordinates_dot;
             Component comp = Component::neighbourhood(dbg, seg, dbg.hasher().k + 100);
             coordinates_dot.open(seg_file);
