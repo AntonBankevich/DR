@@ -130,8 +130,20 @@ GraphAlignment processBulge(logging::Logger &logger, std::ostream &out, const Gr
                 << bulge.finish().outDeg() << " " << bulge.finish().inDeg() << std::endl;
     }
     std::vector<GraphAlignment> read_alternatives = reads_storage.getRecord(bulge.start()).getBulgeAlternatives(bulge.finish(), threshold);
+    if(dump) {
+        logger << "Alternatives" << std::endl;
+        for(auto it : read_alternatives) {
+            logger << CompactPath(it).cpath() << std::endl;
+        }
+    }
     std::vector<GraphAlignment> read_alternatives_filtered = FilterAlternatives(logger, bulge, read_alternatives,
                                                                                        std::max<size_t>(100, bulge.len() / 100), threshold);
+    if(dump) {
+        logger << "Filtered alternatives" << std::endl;
+        for(auto it : read_alternatives) {
+            logger << CompactPath(it).cpath() << std::endl;
+        }
+    }
     const VertexRecord &rec = ref_storage.getRecord(bulge.start());
     size_t genome_support = 0;
     for(const GraphAlignment & al : read_alternatives) {
@@ -343,12 +355,14 @@ GraphAlignment processTip(logging::Logger &logger, std::ostream &out, const Grap
 size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_storage,
                                 RecordStorage &ref_storage,
                                 const std::experimental::filesystem::path &out_file,
-                                double threshold, size_t k, size_t threads) {
+                                double threshold, size_t k, size_t threads, bool dump) {
     ParallelRecordCollector<std::string> results(threads);
     ParallelCounter simple_bulge_cnt(threads);
     ParallelCounter bulge_cnt(threads);
     logger.info() << "Correcting low covered regions in reads" << std::endl;
-#pragma omp parallel for default(none) shared(reads_storage, ref_storage, results, threshold, k, logger, simple_bulge_cnt, bulge_cnt)
+    if(dump)
+        omp_set_num_threads(1);
+#pragma omp parallel for default(none) shared(reads_storage, ref_storage, results, threshold, k, logger, simple_bulge_cnt, bulge_cnt, dump)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;
         AlignedRead &alignedRead = reads_storage[read_ind];
@@ -382,7 +396,7 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
             GraphAlignment badPath = corrected_path.subPath(corrected_path.size() - step_back, corrected_path.size())
                                             + path.subPath(path_pos, path_pos + 1 + step_front);
             corrected_path.pop_back(step_back);
-            if(alignedRead.id == "m64062_190806_063919/124783250/ccs") {
+            if(dump) {
                 logger << "Bad read segment " << alignedRead.id << " " << path_pos << " " << step_back << " "
                        << step_front << " " << path.size()
                        << " " << size << " " << edge.getCoverage() << " size " << step_back + step_front + 1
@@ -414,33 +428,33 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
                 }
             }
             if(step_back == corrected_path.size() && step_front == path.size() - path_pos - 1) {
-                if(alignedRead.id == "m64062_190806_063919/124783250/ccs")
+                if(dump)
                     logger << "Whole read has low coverage. Skipping." << std::endl;
                 for(const Segment<Edge> &seg : badPath) {
                     corrected_path.push_back(seg);
                 }
             } else if(size > 5 * k) {
-                if(alignedRead.id == "m64062_190806_063919/124783250/ccs")
+                if(dump)
                     logger << "Very long read path segment with low coverage. Skipping." << std::endl;
                 for(const Segment<Edge> &seg : badPath) {
                     corrected_path.push_back(seg);
                 }
             } else if(step_back == corrected_path.size()) {
-                if(alignedRead.id == "m64062_190806_063919/124783250/ccs")
+                if(dump)
                     logger << "Processing incoming tip" << std::endl;
                 GraphAlignment rcBadPath = badPath.RC();
-                GraphAlignment substitution = processTip(logger, ss, rcBadPath, reads_storage, ref_storage, threshold, alignedRead.id == "m64062_190806_063919/124783250/ccs");
+                GraphAlignment substitution = processTip(logger, ss, rcBadPath, reads_storage, ref_storage, threshold, dump);
                 GraphAlignment rcSubstitution = substitution.RC();
                 corrected_path = std::move(rcSubstitution);
             } else if(step_front == path.size() - path_pos - 1) {
-                if(alignedRead.id == "m64062_190806_063919/124783250/ccs")
+                if(dump)
                     logger << "Processing outgoing tip" << std::endl;
-                GraphAlignment substitution = processTip(logger, ss, badPath, reads_storage, ref_storage, threshold, alignedRead.id == "m64062_190806_063919/124783250/ccs");
+                GraphAlignment substitution = processTip(logger, ss, badPath, reads_storage, ref_storage, threshold, dump);
                 for(const Segment<Edge> &seg : substitution) {
                     corrected_path.push_back(seg);
                 }
             } else {
-                GraphAlignment substitution = processBulge(logger, ss, badPath, reads_storage, ref_storage, threshold, alignedRead.id == "m64062_190806_063919/124783250/ccs");
+                GraphAlignment substitution = processBulge(logger, ss, badPath, reads_storage, ref_storage, threshold, dump);
                 for (const Segment<Edge> &seg : substitution) {
                     corrected_path.push_back(seg);
                 }
@@ -678,7 +692,7 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &bad_reads,
                     const io::Library &reads_lib,
                     const std::experimental::filesystem::path &ref,
-                    double threshold, size_t threads, const size_t min_read_size) {
+                    double threshold, size_t threads, const size_t min_read_size, bool dump) {
     size_t k = sdbg.hasher().k;
     logger.info() << "Collecting info from reads" << std::endl;
     size_t extension_size = std::max(std::min(min_read_size * 3 / 4, sdbg.hasher().k * 11 / 2), sdbg.hasher().k * 3 / 2);
@@ -714,7 +728,7 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
         logger.info() << "Corrected " << correctedAT << " dinucleotide sequences" << std::endl;
     }
     {
-        size_t corrected_low = correctLowCoveredRegions(logger, reads_storage, ref_storage, out_file, threshold, k, threads);
+        size_t corrected_low = correctLowCoveredRegions(logger, reads_storage, ref_storage, out_file, threshold, k, threads, dump);
         logger.info() << "Corrected low covered regions in " << corrected_low << " reads" << std::endl;
     }
     size_t corrected_bulges = collapseBulges(logger, reads_storage, ref_storage, out_file, threshold, k, threads);
