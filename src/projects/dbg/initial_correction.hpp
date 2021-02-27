@@ -128,6 +128,8 @@ GraphAlignment processBulge(logging::Logger &logger, std::ostream &out, const Gr
                 << bulge.start().outDeg() << " " << bulge.start().inDeg() << std::endl
                 << "To " << bulge.finish().hash() << bulge.finish().isCanonical() << " "
                 << bulge.finish().outDeg() << " " << bulge.finish().inDeg() << std::endl;
+        logger << "Record " << bulge.start().hash() << bulge.start().isCanonical() << std::endl;
+        logger << reads_storage.getRecord(bulge.start()).str() << std::endl;
     }
     std::vector<GraphAlignment> read_alternatives = reads_storage.getRecord(bulge.start()).getBulgeAlternatives(bulge.finish(), threshold);
     if(dump) {
@@ -366,6 +368,8 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;
         AlignedRead &alignedRead = reads_storage[read_ind];
+        if(dump)
+            logger << "Processing read " << alignedRead.id << std::endl;
         CompactPath &initial_cpath = alignedRead.path;
         GraphAlignment path = initial_cpath.getAlignment();
         GraphAlignment corrected_path(path.start());
