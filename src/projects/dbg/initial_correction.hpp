@@ -696,10 +696,10 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &bad_reads,
                     const io::Library &reads_lib,
                     const std::experimental::filesystem::path &ref,
-                    double threshold, size_t threads, const size_t min_read_size, bool dump) {
+                    double threshold, size_t threads, const size_t min_read_size, size_t extension_size, bool dump) {
     size_t k = sdbg.hasher().k;
     logger.info() << "Collecting info from reads" << std::endl;
-    size_t extension_size = std::max(std::min(min_read_size * 3 / 4, sdbg.hasher().k * 11 / 2), sdbg.hasher().k * 3 / 2);
+//    size_t extension_size = std::max(std::min(min_read_size * 3 / 4, sdbg.hasher().k * 11 / 2), sdbg.hasher().k * 3 / 2);
     size_t min_extension = sdbg.hasher().k * 2 / 3;
     RecordStorage reads_storage(sdbg, min_extension, extension_size, true);
     io::SeqReader readReader(reads_lib);

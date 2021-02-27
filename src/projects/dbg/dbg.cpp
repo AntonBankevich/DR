@@ -154,7 +154,7 @@ int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "coverages=none", "segments=none", "dbg=none", "output-dir=",
                      "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
                      "correct", "simplify", "coverage", "cov-threshold=2", "tip-correct", "crude-correct", "initial-correct",
-                     "compress", "help", "genome-path", "dump"},
+                     "compress", "help", "genome-path", "dump", "extension-size=none"},
                     {"reads", "align", "paths", "print-segment"},
                     {"h=help", "o=output-dir", "t=threads", "k=k-mer-size","w=window"},
                     constructMessage());
@@ -228,9 +228,12 @@ int main(int argc, char **argv) {
 
     if(parser.getCheck("initial-correct")) {
         size_t threshold = std::stoull(parser.getValue("cov-threshold"));
+        size_t extension_size = k * 5 / 2;
+        if(parser.getValue("extension-size") != "none")
+            extension_size = std::stoull(parser.getValue("extension-size"));
         initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta",
                        dir / "bad.fasta", reads_lib, {parser.getValue("reference")}, threshold,threads,
-                       w + k - 1, parser.getCheck("dump"));
+                       w + k - 1, extension_size, parser.getCheck("dump"));
     }
 
     if(!paths_lib.empty()) {
