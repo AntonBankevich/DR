@@ -228,8 +228,9 @@ int main(int argc, char **argv) {
 
     if(parser.getCheck("initial-correct")) {
         size_t threshold = std::stoull(parser.getValue("cov-threshold"));
-        initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta", reads_lib, {parser.getValue("reference")}, threshold,
-                       threads, w + k - 1);
+        initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta",
+                       dir / "bad.fasta", reads_lib, {parser.getValue("reference")}, threshold,threads,
+                       w + k - 1);
     }
 
     if(!paths_lib.empty()) {

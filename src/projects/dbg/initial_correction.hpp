@@ -675,6 +675,7 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
 void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &out_file,
                     const std::experimental::filesystem::path &out_reads,
+                    const std::experimental::filesystem::path &bad_reads,
                     const io::Library &reads_lib,
                     const std::experimental::filesystem::path &ref,
                     double threshold, size_t threads, const size_t min_read_size) {
@@ -712,7 +713,7 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
         size_t correctedAT = correctAT(logger, reads_storage, k, threads);
         logger.info() << "Corrected " << correctedAT << " dinucleotide sequences" << std::endl;
     }
-    for(size_t i = 0; i < 5; i++) {
+    {
         size_t corrected_low = correctLowCoveredRegions(logger, reads_storage, ref_storage, out_file, threshold, k, threads);
         logger.info() << "Corrected low covered regions in " << corrected_low << " reads" << std::endl;
     }
@@ -724,10 +725,17 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
     }
     logger.info() << "Printing reads to disk" << std::endl;
     std::ofstream ors;
+    std::ofstream brs;
     ors.open(out_reads);
+    brs.open(bad_reads);
     for(auto it = reads_storage.begin(); it != reads_storage.end(); ++it) {
         AlignedRead &alignedRead = *it;
         ors << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
+        for(auto edge_it : alignedRead.path.getAlignment().path()) {
+            if(edge_it->getCoverage() < threshold)
+                brs << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
+        }
     }
     ors.close();
+    brs.close();
 }
