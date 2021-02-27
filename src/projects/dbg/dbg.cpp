@@ -274,9 +274,9 @@ int main(int argc, char **argv) {
             storage.fill(contig);
             for(auto & seg_rec : seg_recs) {
                 if(std::get<0>(seg_rec) == contig.id) {
-                    segs.emplace_back(contig.seq.Subseq(std::get<1>(seg_rec), std::get<2>(seg_rec)), std::get<3>(seg_rec));
+                    segs.emplace_back(contig.seq.Subseq(std::get<1>(seg_rec), std::min(contig.size(), std::get<2>(seg_rec))), std::get<3>(seg_rec));
                 } else if (std::get<0>(seg_rec) == "-" + contig.id) {
-                    segs.emplace_back((!contig.seq).Subseq(std::get<1>(seg_rec), std::get<2>(seg_rec)), std::get<3>(seg_rec));
+                    segs.emplace_back((!contig.seq).Subseq(std::get<1>(seg_rec), std::min(contig.size(), std::get<2>(seg_rec))), std::get<3>(seg_rec));
                 }
             }
         }
