@@ -402,19 +402,23 @@ public:
         return Component(graph, v.begin(), v.end());
     }
 
-    void printEdge(std::ostream &os, Vertex & start, Edge &edge, const std::string &extra_label = "") {
+    std::string vertexLabel(const Vertex &vert) const {
+        std::stringstream res;
+        if (!vert.isCanonical())
+            res << "-";
+        res << vert.hash() % 10000;
+        return res.str();
+    }
+
+    void printEdge(std::ostream &os, Vertex & start, Edge &edge, const std::string &color = "black",
+                   const std::string &extra_label = "") {
         Vertex &end = *edge.end();
-        os << "\"";
-        if (!start.isCanonical())
-            os << "-";
-        os << start.hash() % 10000 << "\" -> \"";
-        if (!end.isCanonical())
-            os << "-";
-        os << end.hash() % 10000  << "\" [label=\"" << edge.size() << "(" << edge.getCoverage() << ")";
+        os << "\"" << vertexLabel(start) << "\" -> \"" << vertexLabel(end) <<
+                "\" [label=\"" << edge.size() << "(" << edge.getCoverage() << ")";
         if(!extra_label.empty()) {
             os << "\\n"<<extra_label;
         }
-        os << "\"]\n";
+        os << "\", color=\"" + color + "\"]\n";
     }
 
     void printEdge(std::ostream &os, Path & path) {
@@ -426,13 +430,8 @@ public:
         }
         Vertex &start = path.start();
         Vertex &end = *path.back().end();
-        os << "\"";
-        if (!start.isCanonical())
-            os << "-";
-        os << start.hash() % 10000 << "\" -> \"";
-        if (!end.isCanonical())
-            os << "-";
-        os << end.hash() % 10000  << "\" [label=\"" << len << "(" << double(cov) / len << ")\"]\n";
+        os << "\"" << vertexLabel(start) << "\" -> \"" << vertexLabel(end)
+           << "\" [label=\"" << len << "(" << double(cov) / len << ")\"]\n";
     }
 
     size_t size() const {
@@ -441,24 +440,35 @@ public:
 
     void printDot(std::ostream &os, const std::function<std::string(Edge &)> &labeler, size_t min_cov = 0) {
         os << "digraph {\nnodesep = 0.5;\n";
-        for(htype vid : v) {
-            Vertex &start = graph.getVertex(vid);
-            for(Edge &edge : start.getOutgoing()) {
-                if(edge.getCoverage() < min_cov)
-                    continue;
-                Vertex &end = *edge.end();
-                printEdge(os, start, edge, labeler(edge));
-                if(v.find(end.hash()) == v.end()) {
-                    printEdge(os, end.rc(), edge.rc(), labeler(edge.rc()));
+        std::unordered_set<htype> extended;
+        for(htype vid : v)
+            for(Vertex * vit : graph.getVertices(vid)) {
+                Vertex &start = *vit;
+                for (Edge &edge : start.getOutgoing()) {
+                    extended.emplace(edge.end()->hash());
                 }
             }
-            for(Edge &edge : start.rc().getOutgoing()) {
-                if(edge.getCoverage() < min_cov)
-                    continue;
-                Vertex &end = *edge.end();
-                printEdge(os, start.rc(), edge, labeler(edge));
-                if(v.find(end.hash()) == v.end()) {
-                    printEdge(os, end.rc(), edge.rc(), labeler(edge.rc()));
+        for(htype vid : extended) {
+            std::string color = v.find(vid) == v.end() ? "yellow" : "white";
+            for(Vertex * vit : graph.getVertices(vid)) {
+                Vertex &vert = *vit;
+                os << vertexLabel(vert) << " [fillcolor=\"" + color + "\"]\n";
+            }
+        }
+        for(htype vid : v) {
+            for(Vertex * vit : graph.getVertices(vid)) {
+                Vertex &start = *vit;
+                for (Edge &edge : start.getOutgoing()) {
+                    if (edge.getCoverage() < min_cov)
+                        continue;
+                    Vertex &end = *edge.end();
+                    printEdge(os, start, edge, labeler(edge));
+                    if (v.find(end.hash()) == v.end()) {
+                        printEdge(os, start, edge, "red", labeler(edge));
+                        printEdge(os, end.rc(), edge.rc(), "red", labeler(edge.rc()));
+                    } else {
+                        printEdge(os, start, edge, "black", labeler(edge));
+                    }
                 }
             }
         }

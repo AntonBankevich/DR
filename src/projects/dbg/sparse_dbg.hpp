@@ -988,6 +988,11 @@ public:
         return v.find(hash)->second;
     }
 
+    std::vector<Vertex*> getVertices(htype hash) {
+        Vertex &res = v.find(hash)->second;
+        return {&res, &res.rc()};
+    }
+
     const Vertex &getVertex(const KWH &kwh) const {
         VERIFY(v.find(kwh.hash()) != v.end());
         if(kwh.isCanonical()) {

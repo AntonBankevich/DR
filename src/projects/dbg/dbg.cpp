@@ -154,7 +154,7 @@ int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "coverages=none", "segments=none", "dbg=none", "output-dir=",
                      "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
                      "correct", "simplify", "coverage", "cov-threshold=2", "tip-correct", "crude-correct", "initial-correct",
-                     "compress", "help", "genome-path", "dump", "extension-size=none"},
+                     "compress", "help", "genome-path", "dump", "extension-size=none", "print-all"},
                     {"reads", "align", "paths", "print-segment"},
                     {"h=help", "o=output-dir", "t=threads", "k=k-mer-size","w=window"},
                     constructMessage());
@@ -257,6 +257,36 @@ int main(int argc, char **argv) {
             coordinates.open(dir / "paths.txt");
             storage.print(coordinates);
             coordinates.close();
+        }
+    }
+
+    if(parser.getCheck("print-all")) {
+        logger.info() << "Printing segments of paths" << std::endl;
+        logger.info() << "Aligning paths" << std::endl;
+        GraphAlignmentStorage storage(dbg);
+        io::SeqReader reader(paths_lib);
+        for(StringContig scontig : reader) {
+            Contig contig = scontig.makeContig();
+            storage.fill(contig);
+        }
+        reader.reset();
+        size_t cnt = 0;
+        for(StringContig scontig : reader) {
+            cnt += 1;
+            if(cnt > 200)
+                break;
+            Contig contig = scontig.makeContig();
+            std::string fname = "contig_" + std::to_string(cnt) + "_" + mask(contig.id) + ".dot";
+            const std::experimental::filesystem::path seg_file = dir / fname;
+            logger.info() << "Printing contig " << contig.id << " to dot file " << (seg_file) << std::endl;
+            std::ofstream coordinates_dot;
+            Component comp = Component::neighbourhood(dbg, contig, dbg.hasher().k + 100);
+            coordinates_dot.open(seg_file);
+            std::function<std::string(Edge &)> labeler = [&storage](Edge &edge) {
+                return storage(edge);
+            };
+            comp.printDot(coordinates_dot, labeler);
+            coordinates_dot.close();
         }
     }
 
