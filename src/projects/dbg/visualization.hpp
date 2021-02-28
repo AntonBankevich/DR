@@ -160,14 +160,7 @@ private:
             os << "-";
         os << end.hash() % 100000  << "\" [label=\"" << edge.size() << "(" << edge.getCoverage() << ")";
         std::vector<PerfectAlignment<Contig, Edge>> &als = alignments[&edge];
-        size_t num = std::min<size_t>(10, als.size());
-        for(size_t i = 0; i < num; i++) {
-            PerfectAlignment<Contig, Edge> &al = als[i];
-            os << "\\n" << al.seg_from << "->" << al.seg_to;
-        }
-        if(num < als.size())
-            os << "\\n" << "... (" << als.size() - num << ")";
-
+        os << "\\n" << this->operator()(edge);
         os << "\"]\n";
     }
 
@@ -234,10 +227,11 @@ public:
             return "";
         }
         std::stringstream ss;
+        size_t num = std::min<size_t>(10, als.size());
         ss << als[0].seg_from << "->" << als[0].seg_to;
-        for(size_t i = 1; i < als.size(); i++) {
+        for(size_t i = 1; i < num; i++) {
             const PerfectAlignment<Contig, Edge> &al = als[i];
-            ss << "\n" << al.seg_from << "->" << al.seg_to;
+            ss << "\\n" << al.seg_from << "->" << al.seg_to;
         }
         return ss.str();
     }
