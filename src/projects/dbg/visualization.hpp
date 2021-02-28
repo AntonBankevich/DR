@@ -410,8 +410,8 @@ public:
         return res.str();
     }
 
-    void printEdge(std::ostream &os, Vertex & start, Edge &edge, const std::string &color = "black",
-                   const std::string &extra_label = "") {
+    void printEdge(std::ostream &os, Vertex & start, Edge &edge, const std::string &extra_label = "",
+                   const std::string &color = "black") {
         Vertex &end = *edge.end();
         os << "\"" << vertexLabel(start) << "\" -> \"" << vertexLabel(end) <<
                 "\" [label=\"" << edge.size() << "(" << edge.getCoverage() << ")";
