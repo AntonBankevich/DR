@@ -440,7 +440,7 @@ public:
 
     void printDot(std::ostream &os, const std::function<std::string(Edge &)> &labeler, size_t min_cov = 0) {
         os << "digraph {\nnodesep = 0.5;\n";
-        std::unordered_set<htype> extended;
+        std::unordered_set<htype, alt_hasher<htype>> extended;
         for(htype vid : v)
             for(Vertex * vit : graph.getVertices(vid)) {
                 Vertex &start = *vit;
