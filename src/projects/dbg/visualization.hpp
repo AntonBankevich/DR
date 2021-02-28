@@ -462,12 +462,11 @@ public:
                     if (edge.getCoverage() < min_cov)
                         continue;
                     Vertex &end = *edge.end();
-                    printEdge(os, start, edge, labeler(edge));
                     if (v.find(end.hash()) == v.end()) {
-                        printEdge(os, start, edge, "red", labeler(edge));
-                        printEdge(os, end.rc(), edge.rc(), "red", labeler(edge.rc()));
+                        printEdge(os, start, edge, labeler(edge), "red");
+                        printEdge(os, end.rc(), edge.rc(), labeler(edge.rc()), "red");
                     } else {
-                        printEdge(os, start, edge, "black", labeler(edge));
+                        printEdge(os, start, edge, labeler(edge));
                     }
                 }
             }
