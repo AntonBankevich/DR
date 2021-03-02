@@ -92,6 +92,59 @@ std::vector<Path> FindBulgeAlternatives(const Path &path, size_t max_diff) {
     return res;
 }
 
+std::unordered_map<Vertex *, size_t> findReachable(Vertex &start, size_t max_dist) {
+    std::priority_queue<std::pair<size_t, Vertex *>> queue;
+    std::unordered_map<Vertex *, size_t> res;
+    queue.emplace(0, &start);
+    while(!queue.empty()) {
+        std::pair<size_t, Vertex *> next = queue.top();
+        queue.pop();
+        if(res.find(next.second) == res.end()) {
+            res[next.second] = next.first;
+            for(Edge &edge : next.second->getOutgoing()) {
+                size_t new_len = next.first + edge.size();
+                if(new_len <= max_dist) {
+                    queue.emplace(new_len, edge.end());
+                }
+            }
+        }
+    }
+    return std::move(res);
+}
+
+std::vector<GraphAlignment> FindPlausibleBulgeAlternatives(const GraphAlignment &path, size_t max_diff, double min_cov) {
+    size_t k = path.start().seq.size();
+    size_t max_len = path.len() + max_diff;
+    std::unordered_map<Vertex *, size_t> reachable = findReachable(path.finish().rc(), max_len);
+    std::vector<GraphAlignment> res;
+    GraphAlignment alternative(path.start());
+    size_t len = 0;
+    while(len <= max_len) {
+        if(alternative.finish() == path.finish() && len + max_diff > path.len()) {
+            res.emplace_back(alternative);
+        }
+        Edge * next = nullptr;
+        for(Edge &edge : path.finish().getOutgoing()) {
+            if(edge.getCoverage() >= min_cov && reachable.find(&edge.end()->rc()) != reachable.end() &&
+                reachable[&edge.end()->rc()] + edge.size() + len <= max_len) {
+                if(next == nullptr)
+                    next = &edge;
+                else {
+                    return {};
+                }
+            }
+        }
+        if(next == nullptr)
+            break;
+        else {
+            alternative.push_back(Segment<Edge>(*next, 0, next->size()));
+            len += next->size();
+        }
+    }
+    return std::move(res);
+}
+
+
 std::vector<GraphAlignment> FilterAlternatives(logging::Logger &logger1, const GraphAlignment &initial, std::vector<GraphAlignment> &als,
                                             size_t max_diff, double threshold) {
     size_t len = initial.len();
@@ -118,9 +171,9 @@ std::vector<GraphAlignment> FilterAlternatives(logging::Logger &logger1, const G
     return res;
 }
 
-GraphAlignment processBulge(logging::Logger &logger, std::ostream &out, const GraphAlignment &bulge,
-                         const RecordStorage &reads_storage, const RecordStorage &ref_storage,
-                         double threshold, bool dump = false) {
+GraphAlignment chooseBulgeCandidate(logging::Logger &logger, std::ostream &out, const GraphAlignment &bulge,
+                                    const RecordStorage &reads_storage, const RecordStorage &ref_storage, double threshold,
+                                    std::vector<GraphAlignment> &read_alternatives, bool dump) {
     size_t size = bulge.len();
     out << size << " bulge " << bulge.size() << " " << bulge.minCoverage();
     if(dump) {
@@ -131,10 +184,9 @@ GraphAlignment processBulge(logging::Logger &logger, std::ostream &out, const Gr
         logger << "Record " << bulge.start().hash() << bulge.start().isCanonical() << std::endl;
         logger << reads_storage.getRecord(bulge.start()).str() << std::endl;
     }
-    std::vector<GraphAlignment> read_alternatives = reads_storage.getRecord(bulge.start()).getBulgeAlternatives(bulge.finish(), threshold);
     if(dump) {
         logger << "Alternatives" << std::endl;
-        for(auto it : read_alternatives) {
+        for(const auto& it : read_alternatives) {
             logger << CompactPath(it).cpath() << std::endl;
         }
     }
@@ -142,7 +194,7 @@ GraphAlignment processBulge(logging::Logger &logger, std::ostream &out, const Gr
                                                                                        std::max<size_t>(100, bulge.len() / 100), threshold);
     if(dump) {
         logger << "Filtered alternatives" << std::endl;
-        for(auto it : read_alternatives) {
+        for(const auto& it : read_alternatives) {
             logger << CompactPath(it).cpath() << std::endl;
         }
     }
@@ -199,7 +251,7 @@ GraphAlignment processBulge(logging::Logger &logger, std::ostream &out, const Gr
     if(read_alternatives_filtered.size() == 1) {
         return std::move(read_alternatives_filtered[0]);
     } else {
-        return std::move(bulge);
+        return bulge;
     }
 }
 
@@ -232,7 +284,7 @@ public:
             storage(_storage), threshold(cov_threshold) {
     }
 
-    std::vector<GraphAlignment> generate(const GraphAlignment &path) {
+    std::vector<GraphAlignment> generate(const GraphAlignment &path) override {
         return storage.getRecord(path.start()).getTipAlternatives(path.len(), threshold);
     }
 };
@@ -364,7 +416,8 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
     logger.info() << "Correcting low covered regions in reads" << std::endl;
     if(dump)
         omp_set_num_threads(1);
-#pragma omp parallel for default(none) shared(reads_storage, ref_storage, results, threshold, k, logger, simple_bulge_cnt, bulge_cnt, dump)
+    size_t max_size = 5 * k;
+#pragma omp parallel for default(none) shared(reads_storage, ref_storage, results, threshold, k, max_size, logger, simple_bulge_cnt, bulge_cnt, dump)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;
         AlignedRead &alignedRead = reads_storage[read_ind];
@@ -377,10 +430,7 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
         for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
             VERIFY_OMP(corrected_path.finish() == path.getVertex(path_pos));
             Edge &edge = path[path_pos].contig();
-            if (edge.getCoverage() >= threshold || edge.size() > 5 * k) {
-//                if(edge.size() > 5 * k) {
-//                    logger << "Very long read path segment with low coverage. Skipping." << std::endl;
-//                }
+            if (edge.getCoverage() >= threshold) {
                 corrected_path.push_back(path[path_pos]);
                 continue;
             }
@@ -444,21 +494,38 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
                     corrected_path.push_back(seg);
                 }
             } else if(step_back == corrected_path.size()) {
-                if(dump)
-                    logger << "Processing incoming tip" << std::endl;
-                GraphAlignment rcBadPath = badPath.RC();
-                GraphAlignment substitution = processTip(logger, ss, rcBadPath, reads_storage, ref_storage, threshold, dump);
-                GraphAlignment rcSubstitution = substitution.RC();
-                corrected_path = std::move(rcSubstitution);
+                if (size < max_size) {
+                    if (dump)
+                        logger << "Processing incoming tip" << std::endl;
+                    GraphAlignment rcBadPath = badPath.RC();
+                    GraphAlignment substitution = processTip(logger, ss, rcBadPath, reads_storage, ref_storage,
+                                                             threshold, dump);
+                    GraphAlignment rcSubstitution = substitution.RC();
+                    corrected_path = std::move(rcSubstitution);
+                } else {
+                    if (dump)
+                        logger << "Very long incoming tip" << std::endl;
+                }
             } else if(step_front == path.size() - path_pos - 1) {
-                if(dump)
-                    logger << "Processing outgoing tip" << std::endl;
-                GraphAlignment substitution = processTip(logger, ss, badPath, reads_storage, ref_storage, threshold, dump);
-                for(const Segment<Edge> &seg : substitution) {
-                    corrected_path.push_back(seg);
+                if (size < max_size) {
+                    if (dump)
+                        logger << "Processing outgoing tip" << std::endl;
+                    GraphAlignment substitution = processTip(logger, ss, badPath, reads_storage, ref_storage, threshold,
+                                                             dump);
+                    for (const Segment<Edge> &seg : substitution) {
+                        corrected_path.push_back(seg);
+                    }
+                } else {
+                    if (dump)
+                        logger << "Processing outgoing tip" << std::endl;
                 }
             } else {
-                GraphAlignment substitution = processBulge(logger, ss, badPath, reads_storage, ref_storage, threshold, dump);
+                std::vector<GraphAlignment> read_alternatives;
+                if(size < max_size)
+                    read_alternatives = reads_storage.getRecord(badPath.start()).getBulgeAlternatives(badPath.finish(), threshold);
+                else
+                    read_alternatives = FindPlausibleBulgeAlternatives(badPath, std::max<size_t>(size / 10, 100), threshold);
+                GraphAlignment substitution = chooseBulgeCandidate(logger, ss, badPath, reads_storage, ref_storage, threshold, read_alternatives, dump);
                 for (const Segment<Edge> &seg : substitution) {
                     corrected_path.push_back(seg);
                 }
@@ -516,7 +583,7 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage,
     ParallelRecordCollector<Edge*> genome_cnt(threads);
     ParallelRecordCollector<Edge*> corruption_cnt(threads);
     ParallelRecordCollector<Edge*> heavy_cnt(threads);
-    logger.info() << "Correcting low covered regions in reads" << std::endl;
+    logger.info() << "Collapsing bulges" << std::endl;
 #pragma omp parallel for default(none) shared(reads_storage, ref_storage, results, threshold, k, logger, bulge_cnt, genome_cnt, corruption_cnt, collapsable_cnt)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;
