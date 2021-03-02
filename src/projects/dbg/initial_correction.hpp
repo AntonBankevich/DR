@@ -487,12 +487,6 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
                 for(const Segment<Edge> &seg : badPath) {
                     corrected_path.push_back(seg);
                 }
-            } else if(size > 5 * k) {
-                if(dump)
-                    logger << "Very long read path segment with low coverage. Skipping." << std::endl;
-                for(const Segment<Edge> &seg : badPath) {
-                    corrected_path.push_back(seg);
-                }
             } else if(step_back == corrected_path.size()) {
                 if (size < max_size) {
                     if (dump)
@@ -505,6 +499,9 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
                 } else {
                     if (dump)
                         logger << "Very long incoming tip" << std::endl;
+                    for(const Segment<Edge> &seg : badPath) {
+                        corrected_path.push_back(seg);
+                    }
                 }
             } else if(step_front == path.size() - path_pos - 1) {
                 if (size < max_size) {
@@ -518,6 +515,9 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
                 } else {
                     if (dump)
                         logger << "Processing outgoing tip" << std::endl;
+                    for(const Segment<Edge> &seg : badPath) {
+                        corrected_path.push_back(seg);
+                    }
                 }
             } else {
                 std::vector<GraphAlignment> read_alternatives;
