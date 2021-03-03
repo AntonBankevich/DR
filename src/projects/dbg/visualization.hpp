@@ -306,13 +306,14 @@ public:
     template<class I>
     static Component neighbourhood(SparseDBG &graph, I begin, I end, size_t radius, size_t min_coverage = 0) {
         std::unordered_set<htype, alt_hasher<htype>> v;
-        std::priority_queue<std::pair<size_t, htype>> queue;
+        typedef std::pair<size_t, htype> StoredValue;
+        std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<StoredValue>> queue;
         while(begin != end) {
             queue.emplace(0, *begin);
             ++begin;
         }
         while(!queue.empty()) {
-            std::pair<size_t, htype> val = queue.top();
+            StoredValue val = queue.top();
             queue.pop();
             if(v.find(val.second) != v.end())
                 continue;
@@ -333,7 +334,8 @@ public:
     }
 
     static Path findPath(Vertex &from, Vertex &to, size_t max_len = size_t(-1)) {
-        std::priority_queue<std::tuple<size_t, Edge *, Vertex *>> queue;
+        typedef std::tuple<size_t, Edge *, Vertex *> StoredValue;
+        std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<StoredValue>> queue;
         queue.emplace(0, nullptr, &from);
         std::unordered_map<Vertex *, Edge *> prev;
         while(!queue.empty()) {
@@ -364,7 +366,8 @@ public:
 
     static Component neighbourhood(SparseDBG &graph, Contig &contig, size_t radius, size_t min_coverage = 0) {
         std::unordered_set<htype, alt_hasher<htype>> v;
-        std::priority_queue<std::pair<size_t, htype>> queue;
+        typedef std::pair<size_t, htype> StoredValue;
+        std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<StoredValue>> queue;
         std::vector<PerfectAlignment<Contig, Edge>> als1 = align(graph, contig);
         Contig rc_contig = contig.RC();
         std::vector<PerfectAlignment<Contig, Edge>> als2 = align(graph, rc_contig);

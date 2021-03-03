@@ -93,11 +93,12 @@ std::vector<Path> FindBulgeAlternatives(const Path &path, size_t max_diff) {
 }
 
 std::unordered_map<Vertex *, size_t> findReachable(Vertex &start, size_t max_dist) {
-    std::priority_queue<std::pair<size_t, Vertex *>> queue;
+    typedef std::pair<size_t, Vertex*> StoredValue;
+    std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<>> queue;
     std::unordered_map<Vertex *, size_t> res;
     queue.emplace(0, &start);
     while(!queue.empty()) {
-        std::pair<size_t, Vertex *> next = queue.top();
+        StoredValue next = queue.top();
         queue.pop();
         if(res.find(next.second) == res.end()) {
             res[next.second] = next.first;
@@ -120,11 +121,11 @@ std::vector<GraphAlignment> FindPlausibleBulgeAlternatives(const GraphAlignment 
     GraphAlignment alternative(path.start());
     size_t len = 0;
     while(len <= max_len) {
-        if(alternative.finish() == path.finish() && len + max_diff > path.len()) {
+        if(alternative.finish() == path.finish() && len + max_diff >= path.len()) {
             res.emplace_back(alternative);
         }
         Edge * next = nullptr;
-        for(Edge &edge : path.finish().getOutgoing()) {
+        for(Edge &edge : alternative.finish().getOutgoing()) {
             if(edge.getCoverage() >= min_cov && reachable.find(&edge.end()->rc()) != reachable.end() &&
                 reachable[&edge.end()->rc()] + edge.size() + len <= max_len) {
                 if(next == nullptr)
