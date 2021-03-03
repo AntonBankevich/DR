@@ -429,7 +429,7 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
     logger.info() << "Correcting low covered regions in reads" << std::endl;
     if(dump)
         omp_set_num_threads(1);
-    size_t max_size = 5 * k;
+    size_t max_size = 1800;
 #pragma omp parallel for default(none) shared(reads_storage, ref_storage, results, threshold, k, max_size, logger, simple_bulge_cnt, bulge_cnt, dump)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;
@@ -534,11 +534,15 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
                 }
             } else {
                 std::vector<GraphAlignment> read_alternatives;
-                if(size < max_size)
+                GraphAlignment substitution;
+                if(size < max_size) {
                     read_alternatives = reads_storage.getRecord(badPath.start()).getBulgeAlternatives(badPath.finish(), threshold);
-                else
+                    substitution = chooseBulgeCandidate(logger, ss, badPath, reads_storage, ref_storage, threshold, read_alternatives, dump);
+                }
+                if(substitution == badPath || size >= max_size) {
                     read_alternatives = FindPlausibleBulgeAlternatives(logger, badPath, std::max<size_t>(size / 10, 100), threshold);
-                GraphAlignment substitution = chooseBulgeCandidate(logger, ss, badPath, reads_storage, ref_storage, threshold, read_alternatives, dump);
+                    substitution = chooseBulgeCandidate(logger, ss, badPath, reads_storage, ref_storage, threshold, read_alternatives, dump);
+                }
                 for (const Segment<Edge> &seg : substitution) {
                     corrected_path.push_back(seg);
                 }
