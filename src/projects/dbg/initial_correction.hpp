@@ -92,7 +92,7 @@ std::vector<Path> FindBulgeAlternatives(const Path &path, size_t max_diff) {
     return res;
 }
 
-std::unordered_map<Vertex *, size_t> findReachable(Vertex &start, size_t max_dist) {
+std::unordered_map<Vertex *, size_t> findReachable(Vertex &start, double min_cov, size_t max_dist) {
     typedef std::pair<size_t, Vertex*> StoredValue;
     std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<>> queue;
     std::unordered_map<Vertex *, size_t> res;
@@ -104,7 +104,7 @@ std::unordered_map<Vertex *, size_t> findReachable(Vertex &start, size_t max_dis
             res[next.second] = next.first;
             for(Edge &edge : next.second->getOutgoing()) {
                 size_t new_len = next.first + edge.size();
-                if(new_len <= max_dist) {
+                if(edge.getCoverage() >= min_cov && new_len <= max_dist) {
                     queue.emplace(new_len, edge.end());
                 }
             }
@@ -118,7 +118,7 @@ std::vector<GraphAlignment> FindPlausibleBulgeAlternatives(logging::Logger &logg
     logger << "Looking for plausible alternative paths" << std::endl;
     size_t k = path.start().seq.size();
     size_t max_len = path.len() + max_diff;
-    std::unordered_map<Vertex *, size_t> reachable = findReachable(path.finish().rc(), max_len);
+    std::unordered_map<Vertex *, size_t> reachable = findReachable(path.finish().rc(), min_cov, max_len);
     logger << "Calculated reachable vertices " << path.len() << std::endl;
     if(reachable.find(&path.start().rc()) != reachable.end()) {
         logger << "Calculated reachable vertices. Start is reachable using " << reachable[&path.start().rc()] << std::endl;
@@ -127,32 +127,75 @@ std::vector<GraphAlignment> FindPlausibleBulgeAlternatives(logging::Logger &logg
     }
     std::vector<GraphAlignment> res;
     GraphAlignment alternative(path.start());
+    size_t iter_cnt = 0;
     size_t len = 0;
-    while(len <= max_len) {
-        if(alternative.finish() == path.finish() && len + max_diff >= path.len()) {
-            res.emplace_back(alternative);
-            logger << "Found plausible alternative path " << alternative.len() << std::endl;
-        }
-        Edge * next = nullptr;
-        for(Edge &edge : alternative.finish().getOutgoing()) {
-            if(edge.getCoverage() >= min_cov && reachable.find(&edge.end()->rc()) != reachable.end() &&
-                reachable[&edge.end()->rc()] + edge.size() + len <= max_len) {
-                if(next == nullptr) {
-                    next = &edge;
-                    logger << "Chose next edge " << edge.size() << "(" << edge.getCoverage() << ")" << std::endl;
-                } else {
-                    logger << "Ambiguous next edge " << edge.size() << "(" << edge.getCoverage() << ")" << std::endl;
-                    return {};
+    bool forward = true;
+    while(true) {
+        iter_cnt += 1;
+        if(iter_cnt > 10000)
+            return {path};
+        if(forward) {
+            if(alternative.finish() == path.finish() && len + max_diff >= path.len()) {
+                res.emplace_back(alternative);
+                logger << "Found plausible alternative path " << alternative.len() << std::endl;
+                if(res.size() > 30) {
+                    logger << "Too many plausible alternatives. Aborting." << std::endl;
+                    return {path};
+                }
+            }
+            forward = false;
+            for(Edge &edge : alternative.finish().getOutgoing()) {
+                if(edge.getCoverage() >= min_cov && reachable.find(&edge.end()->rc()) != reachable.end() &&
+                   reachable[&edge.end()->rc()] + edge.size() + len <= max_len) {
+                    len += edge.size();
+                    alternative.push_back(Segment<Edge>(edge, 0, edge.size()));
+                    forward = true;
+                    break;
+                }
+            }
+        } else {
+            if (alternative.size() == 0)
+                break;
+            Edge &old_edge = alternative.back().contig();
+            alternative.pop_back();
+            len -= old_edge.size();
+            for(Edge &edge : alternative.finish().getOutgoing()) {
+                if(edge.getCoverage() >= min_cov && &edge != &old_edge &&
+                        reachable.find(&edge.end()->rc()) != reachable.end() &&
+                        reachable[&edge.end()->rc()] + edge.size() + len <= max_len) {
+                    len += edge.size();
+                    alternative.push_back(Segment<Edge>(edge, 0, edge.size()));
+                    forward = true;
+                    break;
                 }
             }
         }
-        if(next == nullptr)
-            break;
-        else {
-            alternative.push_back(Segment<Edge>(*next, 0, next->size()));
-            len += next->size();
-        }
     }
+//    while(len <= max_len) {
+//        if(alternative.finish() == path.finish() && len + max_diff >= path.len()) {
+//            res.emplace_back(alternative);
+//            logger << "Found plausible alternative path " << alternative.len() << std::endl;
+//        }
+//        Edge * next = nullptr;
+//        for(Edge &edge : alternative.finish().getOutgoing()) {
+//            if(edge.getCoverage() >= min_cov && reachable.find(&edge.end()->rc()) != reachable.end() &&
+//                reachable[&edge.end()->rc()] + edge.size() + len <= max_len) {
+//                if(next == nullptr) {
+//                    next = &edge;
+//                    logger << "Chose next edge " << edge.size() << "(" << edge.getCoverage() << ")" << std::endl;
+//                } else {
+//                    logger << "Ambiguous next edge " << edge.size() << "(" << edge.getCoverage() << ")" << std::endl;
+//                    return {};
+//                }
+//            }
+//        }
+//        if(next == nullptr)
+//            break;
+//        else {
+//            alternative.push_back(Segment<Edge>(*next, 0, next->size()));
+//            len += next->size();
+//        }
+//    }
     logger << "Found " << res.size() << " plausible alternative paths" << std::endl;
     return std::move(res);
 }
@@ -534,15 +577,11 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
                 }
             } else {
                 std::vector<GraphAlignment> read_alternatives;
-                GraphAlignment substitution;
-                if(size < max_size) {
+                if(size < max_size)
                     read_alternatives = reads_storage.getRecord(badPath.start()).getBulgeAlternatives(badPath.finish(), threshold);
-                    substitution = chooseBulgeCandidate(logger, ss, badPath, reads_storage, ref_storage, threshold, read_alternatives, dump);
-                }
-                if(substitution == badPath || size >= max_size) {
-                    read_alternatives = FindPlausibleBulgeAlternatives(logger, badPath, std::max<size_t>(size / 10, 100), threshold);
-                    substitution = chooseBulgeCandidate(logger, ss, badPath, reads_storage, ref_storage, threshold, read_alternatives, dump);
-                }
+                if(read_alternatives.empty())
+                    read_alternatives = FindPlausibleBulgeAlternatives(logger, badPath, std::max<size_t>(size / 10, 100), 3);
+                GraphAlignment substitution = chooseBulgeCandidate(logger, ss, badPath, reads_storage, ref_storage, threshold, read_alternatives, dump);
                 for (const Segment<Edge> &seg : substitution) {
                     corrected_path.push_back(seg);
                 }
