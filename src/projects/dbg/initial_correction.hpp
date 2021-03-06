@@ -159,14 +159,19 @@ std::vector<GraphAlignment> FindPlausibleBulgeAlternatives(logging::Logger &logg
             Edge &old_edge = alternative.back().contig();
             alternative.pop_back();
             len -= old_edge.size();
+            bool found = false;
             for(Edge &edge : alternative.finish().getOutgoing()) {
-                if(edge.getCoverage() >= min_cov && &edge != &old_edge &&
+                if(edge.getCoverage() >= min_cov &&
                         reachable.find(&edge.end()->rc()) != reachable.end() &&
                         reachable[&edge.end()->rc()] + edge.size() + len <= max_len) {
-                    len += edge.size();
-                    alternative.push_back(Segment<Edge>(edge, 0, edge.size()));
-                    forward = true;
-                    break;
+                    if(found) {
+                        len += edge.size();
+                        alternative.push_back(Segment<Edge>(edge, 0, edge.size()));
+                        forward = true;
+                        break;
+                    } else if (&edge == &old_edge) {
+                        found - true;
+                    }
                 }
             }
         }
