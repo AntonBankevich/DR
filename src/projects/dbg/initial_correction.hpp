@@ -41,7 +41,7 @@ size_t bestPrefix(const Sequence &s1, const Sequence &s2) {
     return res;
 }
 
-size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates) {
+size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates, bool dump = false) {
     size_t winner = 0;
     std::vector<size_t> dists;
     for(size_t i = 0; i < candidates.size(); i++) {
@@ -115,7 +115,7 @@ std::unordered_map<Vertex *, size_t> findReachable(Vertex &start, double min_cov
 
 std::vector<GraphAlignment> FindPlausibleBulgeAlternatives(logging::Logger &logger, const GraphAlignment &path,
                                                            size_t max_diff, double min_cov) {
-    logger << "Looking for plausible alternative paths" << std::endl;
+    logger << "Looking for plausible alternative bulge paths" << std::endl;
     size_t k = path.start().seq.size();
     size_t max_len = path.len() + max_diff;
     std::unordered_map<Vertex *, size_t> reachable = findReachable(path.finish().rc(), min_cov, max_len);
@@ -176,42 +176,75 @@ std::vector<GraphAlignment> FindPlausibleBulgeAlternatives(logging::Logger &logg
             }
         }
     }
-//    while(len <= max_len) {
-//        if(alternative.finish() == path.finish() && len + max_diff >= path.len()) {
-//            res.emplace_back(alternative);
-//            logger << "Found plausible alternative path " << alternative.len() << std::endl;
-//        }
-//        Edge * next = nullptr;
-//        for(Edge &edge : alternative.finish().getOutgoing()) {
-//            if(edge.getCoverage() >= min_cov && reachable.find(&edge.end()->rc()) != reachable.end() &&
-//                reachable[&edge.end()->rc()] + edge.size() + len <= max_len) {
-//                if(next == nullptr) {
-//                    next = &edge;
-//                    logger << "Chose next edge " << edge.size() << "(" << edge.getCoverage() << ")" << std::endl;
-//                } else {
-//                    logger << "Ambiguous next edge " << edge.size() << "(" << edge.getCoverage() << ")" << std::endl;
-//                    return {};
-//                }
-//            }
-//        }
-//        if(next == nullptr)
-//            break;
-//        else {
-//            alternative.push_back(Segment<Edge>(*next, 0, next->size()));
-//            len += next->size();
-//        }
-//    }
     logger << "Found " << res.size() << " plausible alternative paths" << std::endl;
     return std::move(res);
 }
 
+std::vector<GraphAlignment> FindPlausibleTipAlternatives(logging::Logger &logger, const GraphAlignment &path,
+                                                           size_t max_diff, double min_cov) {
+    logger << "Looking for plausible alternative tip paths" << std::endl;
+    size_t k = path.start().seq.size();
+    size_t max_len = path.len() + max_diff;
+    std::vector<GraphAlignment> res;
+    GraphAlignment alternative(path.start());
+    size_t iter_cnt = 0;
+    size_t len = 0;
+    size_t tip_len = path.len();
+    bool forward = true;
+    while(true) {
+        iter_cnt += 1;
+        if(iter_cnt > 10000)
+            return {path};
+        if(forward) {
+            forward = false;
+            if(len >= tip_len + max_diff) {
+                res.emplace_back(alternative);
+                logger << "Found plausible alternative path " << alternative.len() << std::endl;
+                if(res.size() > 10) {
+                    logger << "Too many plausible alternatives. Aborting." << std::endl;
+                    return {path};
+                }
+            } else {
+                for (Edge &edge : alternative.finish().getOutgoing()) {
+                    if (edge.getCoverage() >= min_cov) {
+                        len += edge.size();
+                        alternative.push_back(Segment<Edge>(edge, 0, edge.size()));
+                        forward = true;
+                        break;
+                    }
+                }
+            }
+        } else {
+            if (alternative.size() == 0)
+                break;
+            Edge &old_edge = alternative.back().contig();
+            alternative.pop_back();
+            len -= old_edge.size();
+            bool found = false;
+            for(Edge &edge : alternative.finish().getOutgoing()) {
+                if(edge.getCoverage() >= min_cov) {
+                    if(found) {
+                        len += edge.size();
+                        alternative.push_back(Segment<Edge>(edge, 0, edge.size()));
+                        forward = true;
+                        break;
+                    } else if (&edge == &old_edge) {
+                        found - true;
+                    }
+                }
+            }
+        }
+    }
+    logger << "Found " << res.size() << " plausible alternative paths" << std::endl;
+    return std::move(res);
+}
 
-std::vector<GraphAlignment> FilterAlternatives(logging::Logger &logger1, const GraphAlignment &initial, std::vector<GraphAlignment> &als,
+std::vector<GraphAlignment> FilterAlternatives(logging::Logger &logger1, const GraphAlignment &initial, const std::vector<GraphAlignment> &als,
                                             size_t max_diff, double threshold) {
     size_t len = initial.len();
     std::vector<GraphAlignment> res;
     size_t k = initial.getVertex(0).seq.size();
-    for(GraphAlignment &al : als) {
+    for(const GraphAlignment &al : als) {
         CompactPath cpath(al);
         bool ok = true;
         for(size_t i = 0; i < al.size(); i++) {
@@ -252,7 +285,7 @@ GraphAlignment chooseBulgeCandidate(logging::Logger &logger, std::ostream &out, 
         }
     }
     std::vector<GraphAlignment> read_alternatives_filtered = FilterAlternatives(logger, bulge, read_alternatives,
-                                                                                       std::max<size_t>(100, bulge.len() / 100), threshold);
+                                                                                       std::max<size_t>(100, bulge.len() * 3 / 100), threshold);
     if(dump) {
         logger << "Filtered alternatives" << std::endl;
         for(const auto& it : read_alternatives) {
@@ -294,11 +327,12 @@ GraphAlignment chooseBulgeCandidate(logging::Logger &logger, std::ostream &out, 
             candidates.push_back(cand.truncSeq());
         }
         size_t winner = tournament(old, candidates);
-        if(dump)
-            logger << "Winner found " << winner << std::endl;
         if(winner != size_t(-1)) {
             read_alternatives_filtered = {read_alternatives_filtered[winner]};
-        }
+            if(dump)
+                logger << "Winner found " << winner << std::endl;
+        } else if(dump)
+            logger << "Winner not found" << std::endl;
     }
     filtered_genome_support = 0;
     for(const GraphAlignment & al : read_alternatives_filtered) {
@@ -389,9 +423,16 @@ public:
     }
 };
 
+GraphAlignment BestAlignmentPrefix(const GraphAlignment &al, const Sequence & seq) {
+    Sequence candSeq = al.truncSeq();
+    Sequence prefix = candSeq.Subseq(0, bestPrefix(seq, candSeq));
+    return GraphAlignment(al.start()).extend(prefix);
+}
 
-GraphAlignment processTip(logging::Logger &logger, std::ostream &out, const GraphAlignment &tip,
-                         const RecordStorage &reads_storage, const RecordStorage &ref_storage,
+GraphAlignment
+processTip(logging::Logger &logger, std::ostream &out, const GraphAlignment &tip,
+                         const std::vector<GraphAlignment> & alternatives,
+                         const RecordStorage &ref_storage,
                          double threshold, bool dump = false) {
     size_t size = tip.len();
     out << size << " tip " << tip.size() << " " << tip.minCoverage();
@@ -401,12 +442,11 @@ GraphAlignment processTip(logging::Logger &logger, std::ostream &out, const Grap
                << "To " << tip.finish().hash() << tip.finish().isCanonical() << " "
                << tip.finish().outDeg() << " " << tip.finish().inDeg() << std::endl;
     }
-    std::vector<GraphAlignment> read_alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
     std::vector<GraphAlignment> read_alternatives_filtered =
-            FilterAlternatives(logger, tip, read_alternatives, size_t(-1) / 2, threshold);
+            FilterAlternatives(logger, tip, alternatives, size_t(-1) / 2, threshold);
     const VertexRecord &rec = ref_storage.getRecord(tip.start());
     size_t genome_support = 0;
-    for(const GraphAlignment & al : read_alternatives) {
+    for(const GraphAlignment & al : alternatives) {
         if(rec.countStartsWith(CompactPath(al).seq()) > 0) {
             genome_support += 1;
         }
@@ -418,29 +458,28 @@ GraphAlignment processTip(logging::Logger &logger, std::ostream &out, const Grap
         }
     }
     if(dump) {
-        logger << read_alternatives.size() << " " << read_alternatives_filtered.size() << std::endl;
-        logger << reads_storage.getRecord(tip.start());
+        logger << alternatives.size() << " " << read_alternatives_filtered.size() << std::endl;
         logger << "Read alternatives" << std::endl;
-        for (GraphAlignment &candidate : read_alternatives) {
+        for (const GraphAlignment &candidate : alternatives) {
             logger << CompactPath(candidate) << std::endl;
         }
     }
-    out << " " << read_alternatives.size() << " " << genome_support << " "
+    out << " " << alternatives.size() << " " << genome_support << " "
         << read_alternatives_filtered.size() << " " << filtered_genome_support;
+    std::vector<GraphAlignment> trunc_alignments;
+    Sequence old = tip.truncSeq();
+    for(const GraphAlignment &al : read_alternatives_filtered) {
+        trunc_alignments.emplace_back(BestAlignmentPrefix(al, old));
+    }
     if(read_alternatives_filtered.size() > 1) {
         if(dump)
             logger << "Multiple choice for tip " << read_alternatives_filtered.size() << std::endl << tip.truncSeq() << std::endl;
-        Sequence old = tip.truncSeq();
         std::vector<Sequence> candidates;
-        for(GraphAlignment &cand : read_alternatives_filtered) {
+        for(GraphAlignment &cand : trunc_alignments) {
             if(dump)
                 logger << cand.truncSeq() << std::endl;
             Sequence candSeq = cand.truncSeq();
-            Sequence prefix = candSeq.Subseq(0, bestPrefix(old, candSeq));
-            if(dump)
-                logger << prefix << std::endl;
-            candidates.push_back(prefix);
-            cand.cutBack(cand.len() - prefix.size());
+            candidates.push_back(candSeq);
         }
         size_t winner = tournament(old, candidates);
         if(dump)
@@ -461,6 +500,7 @@ GraphAlignment processTip(logging::Logger &logger, std::ostream &out, const Grap
     out << " " << (read_alternatives_filtered.size() == 1 ? "+" : "-");
     out << std::endl;
     if(read_alternatives_filtered.size() == 1) {
+        GraphAlignment res(read_alternatives_filtered[0].start());
         return std::move(read_alternatives_filtered[0]);
     } else {
         return std::move(tip);
@@ -549,43 +589,38 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
                     corrected_path.push_back(seg);
                 }
             } else if(step_back == corrected_path.size()) {
-                if (size < max_size) {
-                    if (dump)
-                        logger << "Processing incoming tip" << std::endl;
-                    GraphAlignment rcBadPath = badPath.RC();
-                    GraphAlignment substitution = processTip(logger, ss, rcBadPath, reads_storage, ref_storage,
-                                                             threshold, dump);
-                    GraphAlignment rcSubstitution = substitution.RC();
-                    corrected_path = std::move(rcSubstitution);
-                } else {
-                    if (dump)
-                        logger << "Very long incoming tip" << std::endl;
-                    for(const Segment<Edge> &seg : badPath) {
-                        corrected_path.push_back(seg);
-                    }
-                }
+                if (dump)
+                    logger << "Processing incoming tip" << std::endl;
+                GraphAlignment tip = badPath.RC();
+                std::vector<GraphAlignment> alternatives;
+                if(tip.len() < max_size)
+                    alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
+                if (alternatives.empty())
+                    alternatives = FindPlausibleTipAlternatives(logger, tip, std::max<size_t>(size * 3 / 100, 100), 3);
+                GraphAlignment substitution = processTip(logger, ss, tip, alternatives, ref_storage,
+                                                         threshold, dump);
+                GraphAlignment rcSubstitution = substitution.RC();
+                corrected_path = std::move(rcSubstitution);
             } else if(step_front == path.size() - path_pos - 1) {
-                if (size < max_size) {
-                    if (dump)
-                        logger << "Processing outgoing tip" << std::endl;
-                    GraphAlignment substitution = processTip(logger, ss, badPath, reads_storage, ref_storage, threshold,
-                                                             dump);
-                    for (const Segment<Edge> &seg : substitution) {
-                        corrected_path.push_back(seg);
-                    }
-                } else {
-                    if (dump)
-                        logger << "Processing outgoing tip" << std::endl;
-                    for(const Segment<Edge> &seg : badPath) {
-                        corrected_path.push_back(seg);
-                    }
+                if (dump)
+                    logger << "Processing outgoing tip" << std::endl;
+                GraphAlignment tip = badPath;
+                std::vector<GraphAlignment> alternatives;
+                if(tip.len() < max_size)
+                    alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
+                if (alternatives.empty())
+                    alternatives = FindPlausibleTipAlternatives(logger, tip, std::max<size_t>(size * 3 / 100, 100), 3);
+                GraphAlignment substitution = processTip(logger, ss, tip, alternatives, ref_storage,
+                                                         threshold, dump);
+                for (const Segment<Edge> &seg : substitution) {
+                    corrected_path.push_back(seg);
                 }
             } else {
                 std::vector<GraphAlignment> read_alternatives;
                 if(size < max_size)
                     read_alternatives = reads_storage.getRecord(badPath.start()).getBulgeAlternatives(badPath.finish(), threshold);
                 if(read_alternatives.empty())
-                    read_alternatives = FindPlausibleBulgeAlternatives(logger, badPath, std::max<size_t>(size / 10, 100), 3);
+                    read_alternatives = FindPlausibleBulgeAlternatives(logger, badPath, std::max<size_t>(size * 3 / 100, 100), 3);
                 GraphAlignment substitution = chooseBulgeCandidate(logger, ss, badPath, reads_storage, ref_storage, threshold, read_alternatives, dump);
                 for (const Segment<Edge> &seg : substitution) {
                     corrected_path.push_back(seg);
