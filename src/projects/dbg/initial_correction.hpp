@@ -872,7 +872,7 @@ Edge * checkBorder(Vertex &v) {
         if(edge.is_reliable)
             out_rel += 1;
     }
-    if(out_rel == 1)
+    if(out_rel == 0)
         return res;
     else
         return nullptr;
@@ -909,7 +909,7 @@ void RefillReliable(logging::Logger &logger, SparseDBG &sdbg, double threshold) 
             Edge *last = checkBorder(v);
             if(last == nullptr)
                 continue;
-            logger << "Checking edge " << last->size() << "(" << last->getCoverage() << ") " << last->end()->outDeg() << std::endl;
+//            logger << "Checking edge " << last->size() << "(" << last->getCoverage() << ") " << last->end()->outDeg() << std::endl;
             typedef std::pair<double, Edge *> StoredValue;
             std::unordered_map<Vertex *, std::pair<double, Edge *>> res;
             std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<>> queue;
