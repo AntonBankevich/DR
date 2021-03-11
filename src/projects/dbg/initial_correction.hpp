@@ -875,6 +875,20 @@ Edge * checkBorder(Vertex &v) {
     return res;
 }
 
+bool checkInner(Vertex &v) {
+    size_t inc_rel = 0;
+    size_t out_rel = 0;
+    for(Edge &edge : v.rc().getOutgoing()) {
+        if(edge.is_reliable)
+            inc_rel += 1;
+    }
+    for(Edge &edge : v.getOutgoing()) {
+        if(edge.is_reliable)
+            out_rel += 1;
+    }
+    return out_rel >= 1 && inc_rel >= 1;
+}
+
 void RefillReliable(logging::Logger &logger, SparseDBG &sdbg, double threshold) {
     logger << "Remarking reliable edges" << std::endl;
     for(auto &vit : sdbg) {
@@ -905,8 +919,8 @@ void RefillReliable(logging::Logger &logger, SparseDBG &sdbg, double threshold) 
                 }
                 Edge *next = queue.top().second;
                 double dist = queue.top().first;
-                if(res.find(next->end()) == res.end())
-                    break;
+                if(res.find(next->end()) == res.end() || checkInner(*next->end()))
+                    continue;
                 res.emplace(next->end(), std::make_pair(dist, next));
                 if (checkBorder(next->end()->rc()) != nullptr) {
                     while(next != last) {
