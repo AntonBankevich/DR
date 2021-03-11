@@ -907,9 +907,9 @@ void RefillReliable(logging::Logger &logger, SparseDBG &sdbg, double threshold) 
         for(Vertex * vp : {&vit.second, &vit.second.rc()}) {
             Vertex &v = *vp;
             Edge *last = checkBorder(v);
-            logger << "Checking edge " << last->size() << "(" << last->getCoverage() << ") " << last->end()->outDeg() << std::endl;
             if(last == nullptr)
                 continue;
+            logger << "Checking edge " << last->size() << "(" << last->getCoverage() << ") " << last->end()->outDeg() << std::endl;
             typedef std::pair<double, Edge *> StoredValue;
             std::unordered_map<Vertex *, std::pair<double, Edge *>> res;
             std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<>> queue;
