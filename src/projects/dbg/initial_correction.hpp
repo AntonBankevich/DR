@@ -919,6 +919,7 @@ void RefillReliable(logging::Logger &logger, SparseDBG &sdbg, double threshold) 
                 }
                 Edge *next = queue.top().second;
                 double dist = queue.top().first;
+                queue.pop();
                 if(res.find(next->end()) == res.end() || checkInner(*next->end()))
                     continue;
                 res.emplace(next->end(), std::make_pair(dist, next));
