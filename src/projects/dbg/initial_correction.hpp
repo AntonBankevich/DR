@@ -104,7 +104,7 @@ std::unordered_map<Vertex *, size_t> findReachable(Vertex &start, double min_cov
             res[next.second] = next.first;
             for(Edge &edge : next.second->getOutgoing()) {
                 size_t new_len = next.first + edge.size();
-                if(edge.getCoverage() >= min_cov && new_len <= max_dist) {
+                if((edge.getCoverage() >= min_cov || edge.is_reliable) && new_len <= max_dist) {
                     queue.emplace(new_len, edge.end());
                 }
             }
@@ -145,7 +145,7 @@ std::vector<GraphAlignment> FindPlausibleBulgeAlternatives(logging::Logger &logg
             }
             forward = false;
             for(Edge &edge : alternative.finish().getOutgoing()) {
-                if(edge.getCoverage() >= min_cov && reachable.find(&edge.end()->rc()) != reachable.end() &&
+                if((edge.getCoverage() >= min_cov || edge.is_reliable) && reachable.find(&edge.end()->rc()) != reachable.end() &&
                    reachable[&edge.end()->rc()] + edge.size() + len <= max_len) {
                     len += edge.size();
                     alternative.push_back(Segment<Edge>(edge, 0, edge.size()));
@@ -161,7 +161,7 @@ std::vector<GraphAlignment> FindPlausibleBulgeAlternatives(logging::Logger &logg
             len -= old_edge.size();
             bool found = false;
             for(Edge &edge : alternative.finish().getOutgoing()) {
-                if(edge.getCoverage() >= min_cov &&
+                if((edge.getCoverage() >= min_cov || edge.is_reliable) &&
                         reachable.find(&edge.end()->rc()) != reachable.end() &&
                         reachable[&edge.end()->rc()] + edge.size() + len <= max_len) {
                     if(found) {
@@ -206,7 +206,7 @@ std::vector<GraphAlignment> FindPlausibleTipAlternatives(logging::Logger &logger
                 }
             } else {
                 for (Edge &edge : alternative.finish().getOutgoing()) {
-                    if (edge.getCoverage() >= min_cov) {
+                    if (edge.getCoverage() >= min_cov || edge.is_reliable) {
                         len += edge.size();
                         alternative.push_back(Segment<Edge>(edge, 0, edge.size()));
                         forward = true;
@@ -222,7 +222,7 @@ std::vector<GraphAlignment> FindPlausibleTipAlternatives(logging::Logger &logger
             len -= old_edge.size();
             bool found = false;
             for(Edge &edge : alternative.finish().getOutgoing()) {
-                if(edge.getCoverage() >= min_cov) {
+                if(edge.getCoverage() >= min_cov || edge.is_reliable) {
                     if(found) {
                         len += edge.size();
                         alternative.push_back(Segment<Edge>(edge, 0, edge.size()));
@@ -248,7 +248,7 @@ std::vector<GraphAlignment> FilterAlternatives(logging::Logger &logger1, const G
         CompactPath cpath(al);
         bool ok = true;
         for(size_t i = 0; i < al.size(); i++) {
-            if(al[i].contig().getCoverage() < threshold) {
+            if(al[i].contig().getCoverage() < threshold || al[i].contig().is_reliable) {
                 ok = false;
                 break;
             }
@@ -285,7 +285,7 @@ GraphAlignment chooseBulgeCandidate(logging::Logger &logger, std::ostream &out, 
         }
     }
     std::vector<GraphAlignment> read_alternatives_filtered = FilterAlternatives(logger, bulge, read_alternatives,
-                                                                                       std::max<size_t>(100, bulge.len() * 3 / 100), threshold);
+                                                                std::max<size_t>(100, bulge.len() * 3 / 100), threshold);
     if(dump) {
         logger << "Filtered alternatives" << std::endl;
         for(const auto& it : read_alternatives) {
@@ -510,7 +510,7 @@ processTip(logging::Logger &logger, std::ostream &out, const GraphAlignment &tip
 size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_storage,
                                 RecordStorage &ref_storage,
                                 const std::experimental::filesystem::path &out_file,
-                                double threshold, size_t k, size_t threads, bool dump) {
+                                double threshold, double reliable_threshold, size_t k, size_t threads, bool dump) {
     ParallelRecordCollector<std::string> results(threads);
     ParallelCounter simple_bulge_cnt(threads);
     ParallelCounter bulge_cnt(threads);
@@ -518,7 +518,7 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
     if(dump)
         omp_set_num_threads(1);
     size_t max_size = 1800;
-#pragma omp parallel for default(none) shared(reads_storage, ref_storage, results, threshold, k, max_size, logger, simple_bulge_cnt, bulge_cnt, dump)
+#pragma omp parallel for default(none) shared(reads_storage, ref_storage, results, threshold, k, max_size, logger, simple_bulge_cnt, bulge_cnt, dump, reliable_threshold)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;
         AlignedRead &alignedRead = reads_storage[read_ind];
@@ -531,18 +531,22 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
         for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
             VERIFY_OMP(corrected_path.finish() == path.getVertex(path_pos));
             Edge &edge = path[path_pos].contig();
-            if (edge.getCoverage() >= threshold) {
+            if (edge.getCoverage() >= threshold || edge.is_reliable) {
                 corrected_path.push_back(path[path_pos]);
                 continue;
             }
             size_t step_back = 0;
             size_t step_front = 0;
             size_t size = edge.size();
-            while(step_back < corrected_path.size() && corrected_path[corrected_path.size() - step_back - 1].contig().getCoverage() < 10) {
+            while(step_back < corrected_path.size() &&
+                    (corrected_path[corrected_path.size() - step_back - 1].contig().getCoverage() < reliable_threshold ||
+                    corrected_path[corrected_path.size() - step_back - 1].contig().is_reliable)) {
                 size += corrected_path[corrected_path.size() - step_back - 1].size();
                 step_back += 1;
             }
-            while(step_front + path_pos + 1 < path.size() && path[step_front + path_pos + 1].contig().getCoverage() < 10) {
+            while(step_front + path_pos + 1 < path.size() &&
+                    (path[step_front + path_pos + 1].contig().getCoverage() < reliable_threshold ||
+                    path[step_front + path_pos + 1].contig().is_reliable)) {
                 size += path[step_front + path_pos + 1].size();
                 step_front += 1;
             }
@@ -853,6 +857,79 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
     return cnt.get();
 }
 
+Edge * checkBorder(Vertex &v) {
+    Edge * res = nullptr;
+    size_t out_rel = 0;
+    for(Edge &edge : v.rc().getOutgoing()) {
+        if(edge.is_reliable) {
+            if (res == nullptr)
+                res = &edge;
+            else
+                return nullptr;
+        }
+    }
+    for(Edge &edge : v.getOutgoing()) {
+        if(edge.is_reliable)
+            out_rel += 1;
+    }
+    return res;
+}
+
+void RefillReliable(logging::Logger &logger, SparseDBG &sdbg, double threshold) {
+    logger << "Remarking reliable edges" << std::endl;
+    for(auto &vit : sdbg) {
+        for(Vertex * vp : {&vit.second, &vit.second.rc()}) {
+            Vertex &v = *vp;
+            for(Edge &edge : v.getOutgoing()) {
+                edge.is_reliable = edge.getCoverage() >= threshold;
+            }
+        }
+    }
+    std::vector<Edge *> new_reliable;
+    for(auto &vit : sdbg) {
+        for(Vertex * vp : {&vit.second, &vit.second.rc()}) {
+            Vertex &v = *vp;
+            Edge *last = checkBorder(v);
+            if(last == nullptr)
+                continue;
+            typedef std::pair<double, Edge *> StoredValue;
+            std::unordered_map<Vertex *, std::pair<double, Edge *>> res;
+            std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<>> queue;
+            queue.emplace(0, last);
+            size_t cnt = 0;
+            while(!queue.empty()) {
+                cnt += 1;
+                if(cnt > 10000) {
+                    logger << "Dijkstra too long" << std::endl;
+                    break;
+                }
+                Edge *next = queue.top().second;
+                double dist = queue.top().first;
+                if(res.find(next->end()) == res.end())
+                    break;
+                res.emplace(next->end(), std::make_pair(dist, next));
+                if (checkBorder(next->end()->rc()) != nullptr) {
+                    while(next != last) {
+                        new_reliable.emplace_back(next);
+                        logger << "New edge marked as reliable " << next->size() << "(" << next->getCoverage() << ")" << std::endl;
+                        next = res[next->start()].second;
+                    }
+                    break;
+                } else {
+                    for(Edge &edge : next->end()->getOutgoing()) {
+                        queue.emplace(dist + next->size() / std::min(next->getCoverage(), threshold), &edge);
+                    }
+                }
+            }
+        }
+    }
+    logger << "Marked " << new_reliable.size() << " edges as reliable" << std::endl;
+    for(Edge *edge : new_reliable) {
+        edge->is_reliable = true;
+        edge->rc().is_reliable = true;
+    }
+}
+
 void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &out_file,
                     const std::experimental::filesystem::path &out_reads,
@@ -895,7 +972,8 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
         logger.info() << "Corrected " << correctedAT << " dinucleotide sequences" << std::endl;
     }
     {
-        size_t corrected_low = correctLowCoveredRegions(logger, reads_storage, ref_storage, out_file, threshold, k, threads, dump);
+        RefillReliable(logger, sdbg, 15);
+        size_t corrected_low = correctLowCoveredRegions(logger, reads_storage, ref_storage, out_file, threshold, 10, k, threads, dump);
         logger.info() << "Corrected low covered regions in " << corrected_low << " reads" << std::endl;
     }
     size_t corrected_bulges = collapseBulges(logger, reads_storage, ref_storage, out_file, threshold, k, threads);

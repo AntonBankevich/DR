@@ -30,6 +30,7 @@ public:
     Sequence seq;
     std::string id = "";
     friend class Vertex;
+    bool is_reliable = false;
 
     Edge(Vertex *_start, Vertex *_end, const Sequence &_seq) :
             start_(_start), end_(_end), cov(0), extraInfo(-1), seq(_seq) {
@@ -662,7 +663,7 @@ public:
     }
 
     Vertex &finish() const {
-        return als.size() == 0 ? *start_ : *als.back().contig().end();
+        return als.empty() ? *start_ : *als.back().contig().end();
     }
 
     Segment<Edge> &back() {
@@ -824,7 +825,7 @@ struct EdgePosition {
         return std::move(res);
     }
 
-    std::vector<EdgePosition> step() {
+    std::vector<EdgePosition> step() const {
         if(pos == edge->size()) {
             std::vector<EdgePosition> res;
             Vertex &v = *edge->end();
@@ -852,9 +853,9 @@ public:
         size_t pos;
 
         EdgePosition(Edge &edge, Vertex &start, size_t pos) : edge(&edge), start(&start), pos(pos) {}
-        EdgePosition(const EdgePosition &other) : edge(other.edge), start(other.start), pos(other.pos) {}
+        EdgePosition(const EdgePosition &other) = default;
 
-        EdgePosition RC() {
+        EdgePosition RC() const {
             Vertex &s = *start;
             Edge &rc_edge = edge->rc();
             return EdgePosition(rc_edge, edge->end()->rc(), edge->size() - pos);
@@ -899,7 +900,7 @@ public:
         }
     }
 
-    SparseDBG(RollingHash _hasher) : hasher_(_hasher) {
+    explicit SparseDBG(RollingHash _hasher) : hasher_(_hasher) {
     }
 
     SparseDBG(SparseDBG &&other) noexcept : hasher_(other.hasher_) {
