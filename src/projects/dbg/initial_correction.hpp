@@ -872,7 +872,10 @@ Edge * checkBorder(Vertex &v) {
         if(edge.is_reliable)
             out_rel += 1;
     }
-    return res;
+    if(out_rel == 1)
+        return res;
+    else
+        return nullptr;
 }
 
 bool checkInner(Vertex &v) {
@@ -904,6 +907,7 @@ void RefillReliable(logging::Logger &logger, SparseDBG &sdbg, double threshold) 
         for(Vertex * vp : {&vit.second, &vit.second.rc()}) {
             Vertex &v = *vp;
             Edge *last = checkBorder(v);
+            logger << "Checking edge " << last->size() << "(" << last->getCoverage() << ") " << last->end()->outDeg() << std::endl;
             if(last == nullptr)
                 continue;
             typedef std::pair<double, Edge *> StoredValue;
@@ -932,7 +936,8 @@ void RefillReliable(logging::Logger &logger, SparseDBG &sdbg, double threshold) 
                     break;
                 } else {
                     for(Edge &edge : next->end()->getOutgoing()) {
-                        queue.emplace(dist + next->size() / std::min(next->getCoverage(), threshold), &edge);
+                        double score = next->size() / std::max<double>(std::min(next->getCoverage(), threshold), 1);
+                        queue.emplace(dist + score, &edge);
                     }
                 }
             }
