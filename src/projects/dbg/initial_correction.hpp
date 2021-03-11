@@ -539,14 +539,14 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
             size_t step_front = 0;
             size_t size = edge.size();
             while(step_back < corrected_path.size() &&
-                    (corrected_path[corrected_path.size() - step_back - 1].contig().getCoverage() < reliable_threshold ||
-                    corrected_path[corrected_path.size() - step_back - 1].contig().is_reliable)) {
+                    (corrected_path[corrected_path.size() - step_back - 1].contig().getCoverage() < reliable_threshold &&
+                    !corrected_path[corrected_path.size() - step_back - 1].contig().is_reliable)) {
                 size += corrected_path[corrected_path.size() - step_back - 1].size();
                 step_back += 1;
             }
             while(step_front + path_pos + 1 < path.size() &&
-                    (path[step_front + path_pos + 1].contig().getCoverage() < reliable_threshold ||
-                    path[step_front + path_pos + 1].contig().is_reliable)) {
+                    (path[step_front + path_pos + 1].contig().getCoverage() < reliable_threshold &&
+                    !path[step_front + path_pos + 1].contig().is_reliable)) {
                 size += path[step_front + path_pos + 1].size();
                 step_front += 1;
             }
