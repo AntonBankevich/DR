@@ -358,16 +358,14 @@ private:
                 j++;
                 right_vertex = edge.end();
             }
-            if (clen < min_len)
-                break;
-            if(j > left)
-                task(*left_vertex, cpath.cpath().Subseq(i, j));
             Edge &edge = left_vertex->getOutgoing(cpath[i]);
             if(i >= left) {
                 size_t seg_left = i == 0 ? cpath.leftSkip() : 0;
                 size_t seg_right = i == cpath.size() - 1 ? edge.size() - cpath.rightSkip() : edge.size();
                 edge_task(Segment<Edge>(edge, seg_left, seg_right));
             }
+            if (clen >= min_len && j > left)
+                task(*left_vertex, cpath.cpath().Subseq(i, j));
             clen -= edge.size();
             left_vertex = edge.end();
         }
@@ -394,6 +392,7 @@ public:
         if(track_cov)
             edge_task = [](Segment<Edge> seg){
                 seg.contig().incCov(seg.size());
+                Edge &edge = seg.contig();
             };
         processPath(cpath, vertex_task, edge_task, left, right);
     }
