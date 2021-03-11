@@ -248,7 +248,7 @@ std::vector<GraphAlignment> FilterAlternatives(logging::Logger &logger1, const G
         CompactPath cpath(al);
         bool ok = true;
         for(size_t i = 0; i < al.size(); i++) {
-            if(al[i].contig().getCoverage() < threshold || al[i].contig().is_reliable) {
+            if(al[i].contig().getCoverage() < threshold && !al[i].contig().is_reliable) {
                 ok = false;
                 break;
             }
@@ -288,7 +288,7 @@ GraphAlignment chooseBulgeCandidate(logging::Logger &logger, std::ostream &out, 
                                                                 std::max<size_t>(100, bulge.len() * 3 / 100), threshold);
     if(dump) {
         logger << "Filtered alternatives" << std::endl;
-        for(const auto& it : read_alternatives) {
+        for(const auto& it : read_alternatives_filtered) {
             logger << CompactPath(it).cpath() << std::endl;
         }
     }
