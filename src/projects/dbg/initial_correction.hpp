@@ -863,7 +863,7 @@ Edge * checkBorder(Vertex &v) {
     for(Edge &edge : v.rc().getOutgoing()) {
         if(edge.is_reliable) {
             if (res == nullptr)
-                res = &edge;
+                res = &edge.rc();
             else
                 return nullptr;
         }
