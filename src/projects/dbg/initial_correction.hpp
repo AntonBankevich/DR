@@ -944,7 +944,7 @@ void RefillReliable(logging::Logger &logger, SparseDBG &sdbg, double threshold,
                     break;
                 } else {
                     for(Edge &edge : next->end()->getOutgoing()) {
-                        double score = next->size() / std::max<double>(std::min(next->getCoverage(), threshold), 1);
+                        double score = edge.size() / std::max<double>(std::min(edge.getCoverage(), threshold), 1);
                         queue.emplace(dist + score, &edge);
                     }
                 }
