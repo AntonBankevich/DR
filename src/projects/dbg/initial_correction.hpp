@@ -892,7 +892,8 @@ bool checkInner(Vertex &v) {
     return out_rel >= 1 && inc_rel >= 1;
 }
 
-void RefillReliable(logging::Logger &logger, SparseDBG &sdbg, double threshold) {
+void RefillReliable(logging::Logger &logger, SparseDBG &sdbg, double threshold,
+                    const std::experimental::filesystem::path &dump_file) {
     logger << "Remarking reliable edges" << std::endl;
     for(auto &vit : sdbg) {
         for(Vertex * vp : {&vit.second, &vit.second.rc()}) {
@@ -902,6 +903,9 @@ void RefillReliable(logging::Logger &logger, SparseDBG &sdbg, double threshold) 
             }
         }
     }
+    size_t cnt_paths = 0;
+    std::ofstream os;
+    os.open(dump_file);
     std::vector<Edge *> new_reliable;
     for(auto &vit : sdbg) {
         for(Vertex * vp : {&vit.second, &vit.second.rc()}) {
@@ -927,11 +931,16 @@ void RefillReliable(logging::Logger &logger, SparseDBG &sdbg, double threshold) 
                     continue;
                 res.emplace(next->end(), std::make_pair(dist, next));
                 if (checkBorder(next->end()->rc()) != nullptr) {
+                    GraphAlignment al(next->end()->rc());
                     while(next != last) {
+                        al.push_back(Segment<Edge>(next->rc(), 0, next->size()));
                         new_reliable.emplace_back(next);
                         logger << "New edge marked as reliable " << next->size() << "(" << next->getCoverage() << ")" << std::endl;
                         next = res[next->start()].second;
                     }
+                    logger << "Path of size " << al.size() << " and length " << al.len() << " marked as reliable." << std::endl;
+                    os << ">" << cnt_paths << "\n" << al.Seq() << "\n";
+                    cnt_paths += 1;
                     break;
                 } else {
                     for(Edge &edge : next->end()->getOutgoing()) {
@@ -942,7 +951,8 @@ void RefillReliable(logging::Logger &logger, SparseDBG &sdbg, double threshold) 
             }
         }
     }
-    logger << "Marked " << new_reliable.size() << " edges as reliable" << std::endl;
+    os.close();
+    logger << "Marked " << new_reliable.size() << " edges in " << cnt_paths << " paths as reliable" << std::endl;
     for(Edge *edge : new_reliable) {
         edge->is_reliable = true;
         edge->rc().is_reliable = true;
@@ -953,6 +963,7 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &out_file,
                     const std::experimental::filesystem::path &out_reads,
                     const std::experimental::filesystem::path &bad_reads,
+                    const std::experimental::filesystem::path &new_reliable,
                     const io::Library &reads_lib,
                     const std::experimental::filesystem::path &ref,
                     double threshold, size_t threads, const size_t min_read_size, size_t extension_size, bool dump) {
@@ -991,7 +1002,7 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
         logger.info() << "Corrected " << correctedAT << " dinucleotide sequences" << std::endl;
     }
     {
-        RefillReliable(logger, sdbg, 15);
+        RefillReliable(logger, sdbg, 15, new_reliable);
         size_t corrected_low = correctLowCoveredRegions(logger, reads_storage, ref_storage, out_file, threshold, 10, k, threads, dump);
         logger.info() << "Corrected low covered regions in " << corrected_low << " reads" << std::endl;
     }

@@ -232,7 +232,7 @@ int main(int argc, char **argv) {
         if(parser.getValue("extension-size") != "none")
             extension_size = std::stoull(parser.getValue("extension-size"));
         initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta",
-                       dir / "bad.fasta", reads_lib, {parser.getValue("reference")}, threshold,threads,
+                       dir / "bad.fasta", dir / "new_reliable.fasta", reads_lib, {parser.getValue("reference")}, threshold,threads,
                        w + k - 1, extension_size, parser.getCheck("dump"));
     }
 
