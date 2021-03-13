@@ -754,6 +754,7 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
     ParallelRecordCollector<std::string> results(threads);
     logger.info() << "Correcting dinucleotide errors in reads" << std::endl;
     ParallelCounter cnt(threads);
+    omp_set_num_threads(threads);
 #pragma omp parallel for default(none) shared (reads_storage, results, k, logger, cnt, std::cout)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         AlignedRead &alignedRead = reads_storage[read_ind];
@@ -778,7 +779,7 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
                 at_cnt2 += 1;
             if(at_cnt2 >= k)
                 continue;
-            size_t max_variation = std::max<size_t>(3, (at_cnt1 + at_cnt2) / 50);
+            size_t max_variation = std::max<size_t>(3, (at_cnt1 + at_cnt2) / 6);
             if (extension.size() < k + max_variation * 2 || at_cnt2 > max_variation * 2) {
                 continue;
             }
