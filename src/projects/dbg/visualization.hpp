@@ -403,7 +403,7 @@ public:
         std::stringstream res;
         if (!vert.isCanonical())
             res << "-";
-        res << vert.hash() % 10000;
+        res << vert.hash() % 1000000;
         return res.str();
     }
 
