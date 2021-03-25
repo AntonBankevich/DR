@@ -404,17 +404,17 @@ public:
         return Component(graph, v.begin(), v.end());
     }
 
-    std::vector<Component> split(size_t len = 200000) const {
+    std::vector<Component> split(size_t len = 100000) const {
         std::vector<Component> res;
         std::unordered_set<htype, alt_hasher<htype>> visited;
-        std::vector<htype> component;
         for(const htype &vid : v) {
             std::vector<htype> queue;
             if(visited.find(vid) != visited.end())
                 continue;
             queue.push_back(vid);
+            std::vector<htype> component;
             while (!queue.empty()) {
-                const htype &val = queue.back();
+                htype val = queue.back();
                 queue.pop_back();
                 if (visited.find(val) != visited.end())
                     continue;
@@ -550,19 +550,19 @@ public:
 };
 
 void DrawSplit(const Component &component, const std::experimental::filesystem::path &dir,
-               const std::function<std::string(Edge &)> &labeler, size_t len = 200000) {
+               const std::function<std::string(Edge &)> &labeler, size_t len = 100000) {
     ensure_dir_existance(dir);
     std::vector<Component> split = component.split(len);
     for(size_t i = 0; i < split.size(); i++) {
         std::experimental::filesystem::path f = dir / (std::to_string(i) + ".dot");
         std::ofstream os;
         os.open(f);
-        component.printDot(os, labeler);
+        split[i].printDot(os, labeler);
         os.close();
     }
 }
 
-void DrawSplit(const Component &component, const std::experimental::filesystem::path &dir, size_t len = 200000) {
+void DrawSplit(const Component &component, const std::experimental::filesystem::path &dir, size_t len = 100000) {
     std::function<std::string(Edge &)> labeler = [](Edge &){return "black";};
     DrawSplit(component, dir, labeler, len);
 }
