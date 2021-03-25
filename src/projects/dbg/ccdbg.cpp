@@ -3,6 +3,7 @@
 #include "crude_correct.hpp"
 #include "rolling_hash.hpp"
 #include "common/hash_utils.hpp"
+#include "visualization.hpp"
 #include <sequences/seqio.hpp>
 #include <common/cl_parser.hpp>
 #include <common/dir_utils.hpp>
@@ -57,6 +58,8 @@ int main(int argc, char **argv) {
             std::ofstream dot;
             dot.open(initial_dir / "graph.dot");
             dbg.printDot(dot, true);
+            Component comp(dbg);
+            DrawSplit(comp, initial_dir/ "split");
             dot.close();
         }
         CrudeCorrect(logger, dbg, dir, w, lib, threads, threshold);

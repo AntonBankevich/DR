@@ -278,7 +278,7 @@ private:
         return v.find(vert.hash()) != v.end() && outDeg(vert, min_cov) == 1 && outDeg(vert.rc(), min_cov) == 1;
     }
 
-    Edge &getOut(Vertex &vert, size_t min_cov) {
+    Edge &getOut(Vertex &vert, size_t min_cov) const {
         for(Edge &edge : vert.getOutgoing()) {
             if(edge.getCoverage() >= min_cov) {
                 return edge;
@@ -287,7 +287,7 @@ private:
         VERIFY(false);
     }
 
-    Path unbranching(Vertex &vert, Edge &edge, size_t minCov) {
+    Path unbranching(Vertex &vert, Edge &edge, size_t minCov) const {
         std::vector<Edge*> res;
         res.push_back(&edge);
         Vertex *cur = edge.end();
@@ -301,6 +301,11 @@ private:
 public:
     template<class I>
     Component(SparseDBG &_graph, I begin, I end) : graph(_graph), v(begin, end) {
+    }
+
+    Component(SparseDBG &_graph) : graph(_graph) {
+        for(auto & vert : graph)
+            v.emplace(vert.second.hash());
     }
 
     template<class I>
@@ -399,6 +404,41 @@ public:
         return Component(graph, v.begin(), v.end());
     }
 
+    std::vector<Component> split(size_t len = 200000) const {
+        std::vector<Component> res;
+        std::unordered_set<htype, alt_hasher<htype>> visited;
+        std::vector<htype> component;
+        for(const htype &vid : v) {
+            std::vector<htype> queue;
+            if(visited.find(vid) != visited.end())
+                continue;
+            queue.push_back(vid);
+            while (!queue.empty()) {
+                const htype &val = queue.back();
+                queue.pop_back();
+                if (visited.find(val) != visited.end())
+                    continue;
+                visited.insert(val);
+                component.emplace_back(val);
+                Vertex &vert = graph.getVertex(val);
+                for (Edge &edge : vert.getOutgoing()) {
+                    if (edge.size() < len) {
+                        queue.emplace_back(edge.end()->hash());
+                        component.emplace_back(edge.end()->hash());
+                    }
+                }
+                for (Edge &edge : vert.rc().getOutgoing()) {
+                    if (edge.size() < len) {
+                        queue.emplace_back(edge.end()->hash());
+                        component.emplace_back(edge.end()->hash());
+                    }
+                }
+            }
+            res.emplace_back(graph, component.begin(), component.end());
+        }
+        return std::move(res);
+    }
+
     std::string vertexLabel(const Vertex &vert) const {
         std::stringstream res;
         if (!vert.isCanonical())
@@ -408,7 +448,7 @@ public:
     }
 
     void printEdge(std::ostream &os, Vertex & start, Edge &edge, const std::string &extra_label = "",
-                   const std::string &color = "black") {
+                   const std::string &color = "black") const {
         Vertex &end = *edge.end();
         os << "\"" << vertexLabel(start) << "\" -> \"" << vertexLabel(end) <<
                 "\" [label=\"" << edge.size() << "(" << edge.getCoverage() << ")";
@@ -418,7 +458,7 @@ public:
         os << "\", color=\"" + color + "\"]\n";
     }
 
-    void printEdge(std::ostream &os, Path & path) {
+    void printEdge(std::ostream &os, Path & path) const {
         size_t len = 0;
         size_t cov = 0;
         for(size_t i = 0; i < path.size(); i++) {
@@ -435,7 +475,7 @@ public:
         return v.size();
     }
 
-    void printDot(std::ostream &os, const std::function<std::string(Edge &)> &labeler, size_t min_cov = 0) {
+    void printDot(std::ostream &os, const std::function<std::string(Edge &)> &labeler, size_t min_cov = 0) const {
         os << "digraph {\nnodesep = 0.5;\n";
         std::unordered_set<htype, alt_hasher<htype>> extended;
         for(htype vid : v)
@@ -471,12 +511,12 @@ public:
         os << "}\n";
     }
 
-    void printDot(std::ostream &os, size_t min_cov = 0) {
+    void printDot(std::ostream &os, size_t min_cov = 0) const {
         const std::function<std::string(Edge &)> labeler = [](Edge &) {return "";};
         printDot(os, labeler, min_cov);
     }
 
-    void printCompressedDot(std::ostream &os, size_t min_cov = 0) {
+    void printCompressedDot(std::ostream &os, size_t min_cov = 0) const {
         os << "digraph {\nnodesep = 0.5;\n";
         for(htype vid : v) {
             Vertex &start = graph.getVertex(vid);
@@ -508,3 +548,21 @@ public:
         os << "}\n";
     }
 };
+
+void DrawSplit(const Component &component, const std::experimental::filesystem::path &dir,
+               const std::function<std::string(Edge &)> &labeler, size_t len = 200000) {
+    ensure_dir_existance(dir);
+    std::vector<Component> split = component.split(len);
+    for(size_t i = 0; i < split.size(); i++) {
+        std::experimental::filesystem::path f = dir / (std::to_string(i) + ".dot");
+        std::ofstream os;
+        os.open(f);
+        component.printDot(os, labeler);
+        os.close();
+    }
+}
+
+void DrawSplit(const Component &component, const std::experimental::filesystem::path &dir, size_t len = 200000) {
+    std::function<std::string(Edge &)> labeler = [](Edge &){return "black";};
+    DrawSplit(component, dir, labeler, len);
+}
