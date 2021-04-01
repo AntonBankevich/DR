@@ -34,7 +34,7 @@ public:
                 for(Vertex *v_it : {&dbg.getVertex(hash), &dbg.getVertex(hash).rc()}) {
                     Vertex &v = *v_it;
                     vertex_mapping[&v] = net.addVertex();
-                    std::cout << net.vertices.size() - 1 << " " << v.hash() << std::endl;
+                    std::cout << net.vertices.size() - 1 << " " << v.hash() << " " << v.isCanonical() << std::endl;
                 }
             }
             for(htype hash : component.v) {
@@ -43,9 +43,12 @@ public:
                     for(Edge &edge : v.getOutgoing()) {
                         if(edge.size() < unique_len) {
                             edge_mapping[net.addEdge(vertex_mapping[&v], vertex_mapping[edge.end()], 10000)] = &edge;
+                            std::cout << "Edge " << vertex_mapping[&v] << " " << vertex_mapping[edge.end()] << std::endl;
                         } else {
                             net.addSink(vertex_mapping[&v], 1);
                             net.addSource(vertex_mapping[&v.rc()], 1);
+                            std::cout << "Sink " << vertex_mapping[&v] << std::endl;
+                            std::cout << "Source " << vertex_mapping[&v.rc()] << std::endl;
                         }
                     }
                 }
@@ -70,7 +73,7 @@ public:
             };
             const std::function<std::string(Edge &)> labeler = [](Edge &) {return "";};
             std::ofstream os;
-            os.open(dir / std::to_string(cnt));
+            os.open(dir / (std::to_string(cnt) + ".dot"));
             component.printDot(os, labeler, colorer);
             os.close();
         }
