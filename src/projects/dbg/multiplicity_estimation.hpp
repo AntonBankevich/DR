@@ -34,6 +34,7 @@ public:
                 for(Vertex *v_it : {&dbg.getVertex(hash), &dbg.getVertex(hash).rc()}) {
                     Vertex &v = *v_it;
                     vertex_mapping[&v] = net.addVertex();
+                    std::cout << net.vertices.size() - 1 << " " << v.hash() << std::endl;
                 }
             }
             for(htype hash : component.v) {
@@ -50,19 +51,19 @@ public:
                 }
             }
             bool res = net.fillNetwork();
-            if(res)
+            if(res) {
                 logger << "Found unique edges in component " << cnt << std::endl;
-            else {
-                logger << "Could not find unique edges in component " << cnt << std::endl;
-                continue;
-            }
-            std::unordered_map<int, size_t> multiplicities = net.findFixedMultiplicities();
-            for (auto & rec : multiplicities) {
-                logger  << "Edge " << edge_mapping[rec.first]->start()->hash() << "ACGT"[edge_mapping[rec.first]->seq[0]]
-                        << " has fixed multiplicity " << rec.second << std::endl;
-                if (rec.second == 1) {
-                    unique_set.emplace(edge_mapping[rec.first]);
+                std::unordered_map<int, size_t> multiplicities = net.findFixedMultiplicities();
+                for (auto &rec : multiplicities) {
+                    logger << "Edge " << edge_mapping[rec.first]->start()->hash()
+                           << "ACGT"[edge_mapping[rec.first]->seq[0]]
+                           << " has fixed multiplicity " << rec.second << std::endl;
+                    if (rec.second == 1) {
+                        unique_set.emplace(edge_mapping[rec.first]);
+                    }
                 }
+            } else {
+                logger << "Could not find unique edges in component " << cnt << std::endl;
             }
             std::function<std::string(Edge &)> colorer = [this](Edge &edge) {
                 return unique_set.find(&edge) == unique_set.end() ? "black" : "green";
