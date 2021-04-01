@@ -162,7 +162,7 @@ public:
     std::unordered_map<int, size_t> findFixedMultiplicities() {
         std::unordered_map<int, size_t> res;
         for(Edge &e : edges) {
-            if(!isInLoop(e.id) && !isInLoop(-e.id)) {
+            if(e.start != source && e.end != sink && !isInLoop(e.id) && !isInLoop(-e.id)) {
                 res[e.id] = getEdge(-e.id).capacity;
             }
         }
