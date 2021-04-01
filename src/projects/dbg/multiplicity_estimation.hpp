@@ -42,8 +42,9 @@ public:
                     Vertex &v = *v_it;
                     for(Edge &edge : v.getOutgoing()) {
                         if(edge.size() < unique_len) {
-                            edge_mapping[net.addEdge(vertex_mapping[&v], vertex_mapping[edge.end()], 10000)] = &edge;
-                            std::cout << "Edge " << vertex_mapping[&v] << " " << vertex_mapping[edge.end()] << std::endl;
+                            int eid = net.addEdge(vertex_mapping[&v], vertex_mapping[edge.end()], 1, 10000);
+                            edge_mapping[eid] = &edge;
+                            std::cout << "New edge " << eid << " " << vertex_mapping[&v] << " " << vertex_mapping[edge.end()] << std::endl;
                         } else {
                             net.addSink(vertex_mapping[&v], 1);
                             net.addSource(vertex_mapping[&v.rc()], 1);
@@ -61,7 +62,7 @@ public:
                     logger << "Edge " << edge_mapping[rec.first]->start()->hash()
                            << "ACGT"[edge_mapping[rec.first]->seq[0]]
                            << " has fixed multiplicity " << rec.second << std::endl;
-                    if (rec.second == 1) {
+                    if (rec.second == 0) {
                         unique_set.emplace(edge_mapping[rec.first]);
                     }
                 }
