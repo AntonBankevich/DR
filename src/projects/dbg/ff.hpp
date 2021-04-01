@@ -151,6 +151,9 @@ public:
     }
 
     bool isInLoop(int edgeId) {
+        Edge edge = getEdge(edgeId);
+        if(edge.capacity == 0)
+            return false;
         Edge &redge = getEdge(-edgeId);
         size_t rcap = redge.capacity;
         redge.capacity = 0;
