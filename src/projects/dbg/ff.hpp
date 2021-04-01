@@ -82,12 +82,11 @@ public:
     std::vector<int> bfs(int startId, int endId) {
         std::queue<size_t> queue;
         std::unordered_map<size_t, int> prev;
+        prev[startId] = 0;
         queue.push(startId);
         while(!queue.empty()) {
             size_t next = queue.front();
             queue.pop();
-            if(prev.find(next) != prev.end())
-                continue;
             if (next == endId) {
                 std::vector<int> res;
                 while(next != startId) {
