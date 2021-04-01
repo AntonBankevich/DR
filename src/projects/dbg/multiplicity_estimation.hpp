@@ -70,7 +70,7 @@ public:
                 logger << "Could not find unique edges in component " << cnt << std::endl;
             }
             std::function<std::string(Edge &)> colorer = [this](Edge &edge) {
-                return unique_set.find(&edge) == unique_set.end() ? "black" : "green";
+                return unique_set.find(&edge) == unique_set.end() ? "black" : "red";
             };
             const std::function<std::string(Edge &)> labeler = [](Edge &) {return "";};
             std::ofstream os;
