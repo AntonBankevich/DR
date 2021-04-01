@@ -2,9 +2,10 @@
 // Created by anton on 17.07.2020.
 //
 #define _GLIBCXX_PARALLEL
-#include "graph_algorithms.hpp"
+#include "mult_correction.hpp"
 #include "visualization.hpp"
 #include "error_correction.hpp"
+#include "graph_algorithms.hpp"
 #include "dbg_construction.hpp"
 #include "dbg_disjointigs.hpp"
 #include "minimizer_selection.hpp"
@@ -154,7 +155,7 @@ int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "coverages=none", "segments=none", "dbg=none", "output-dir=",
                      "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
                      "correct", "simplify", "coverage", "cov-threshold=2", "tip-correct", "crude-correct", "initial-correct",
-                     "compress", "help", "genome-path", "dump", "extension-size=none", "print-all"},
+                     "mult-correct", "compress", "help", "genome-path", "dump", "extension-size=none", "print-all"},
                     {"reads", "align", "paths", "print-segment"},
                     {"h=help", "o=output-dir", "t=threads", "k=k-mer-size","w=window"},
                     constructMessage());
@@ -212,7 +213,7 @@ int main(int argc, char **argv) {
             parser.getCheck("correct") || parser.getValue("segments") != "none" ||
             parser.getValue("reference") != "none" || parser.getCheck("tip-correct") ||
             parser.getCheck("crude-correct") || parser.getCheck("initial-correct") ||
-            !paths_lib.empty();
+            parser.getCheck("mult-correct") || !paths_lib.empty();
 
     if (!parser.getListValue("align").empty() || calculate_coverage) {
         dbg.fillAnchors(w, logger, threads);
@@ -234,6 +235,8 @@ int main(int argc, char **argv) {
         initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta",
                        dir / "bad.fasta", dir / "new_reliable.fasta", reads_lib, {parser.getValue("reference")}, threshold,threads,
                        w + k - 1, extension_size, parser.getCheck("dump"));
+        Component comp(dbg);
+        DrawSplit(comp, dir / "split");
     }
 
     if(!paths_lib.empty()) {

@@ -254,7 +254,7 @@ public:
 };
 
 class Component {
-private:
+public:
     SparseDBG & graph;
     std::unordered_set<htype, alt_hasher<htype>> v;
     struct EdgeRec {
@@ -298,7 +298,6 @@ private:
         return Path(vert, res);
     }
 
-public:
     template<class I>
     Component(SparseDBG &_graph, I begin, I end) : graph(_graph), v(begin, end) {
     }
@@ -511,6 +510,44 @@ public:
         os << "}\n";
     }
 
+    void printDot(std::ostream &os, const std::function<std::string(Edge &)> &labeler,
+                  const std::function<std::string(Edge &)> &edge_colorer, size_t min_cov = 0) const {
+        os << "digraph {\nnodesep = 0.5;\n";
+        std::unordered_set<htype, alt_hasher<htype>> extended;
+        for(htype vid : v)
+            for(Vertex * vit : graph.getVertices(vid)) {
+                Vertex &start = *vit;
+                for (Edge &edge : start.getOutgoing()) {
+                    extended.emplace(edge.end()->hash());
+                }
+            }
+        for(htype vid : extended) {
+            std::string color = v.find(vid) == v.end() ? "yellow" : "white";
+            for(Vertex * vit : graph.getVertices(vid)) {
+                Vertex &vert = *vit;
+                os << vertexLabel(vert) << " [fillcolor=\"" + color + "\"]\n";
+            }
+        }
+        for(htype vid : v) {
+            for(Vertex * vit : graph.getVertices(vid)) {
+                Vertex &start = *vit;
+                for (Edge &edge : start.getOutgoing()) {
+                    if (edge.getCoverage() < min_cov)
+                        continue;
+                    Vertex &end = *edge.end();
+                    if (v.find(end.hash()) == v.end()) {
+                        printEdge(os, start, edge, labeler(edge), edge_colorer(edge));
+                        printEdge(os, end.rc(), edge.rc(), labeler(edge.rc()), edge_colorer(edge));
+                    } else {
+                        printEdge(os, start, edge, labeler(edge), edge_colorer(edge));
+                    }
+                }
+            }
+        }
+        os << "}\n";
+    }
+
+
     void printDot(std::ostream &os, size_t min_cov = 0) const {
         const std::function<std::string(Edge &)> labeler = [](Edge &) {return "";};
         printDot(os, labeler, min_cov);
@@ -563,6 +600,6 @@ void DrawSplit(const Component &component, const std::experimental::filesystem::
 }
 
 void DrawSplit(const Component &component, const std::experimental::filesystem::path &dir, size_t len = 100000) {
-    std::function<std::string(Edge &)> labeler = [](Edge &){return "black";};
+    std::function<std::string(Edge &)> labeler = [](Edge &){return "";};
     DrawSplit(component, dir, labeler, len);
 }

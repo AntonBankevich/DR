@@ -1,3 +1,4 @@
+#include "ff.hpp"
 #include "graph_algorithms.hpp"
 #include "dbg_construction.hpp"
 #include "crude_correct.hpp"
@@ -58,9 +59,9 @@ int main(int argc, char **argv) {
             std::ofstream dot;
             dot.open(initial_dir / "graph.dot");
             dbg.printDot(dot, true);
+            dot.close();
             Component comp(dbg);
             DrawSplit(comp, initial_dir/ "split");
-            dot.close();
         }
         CrudeCorrect(logger, dbg, dir, w, lib, threads, threshold);
     };

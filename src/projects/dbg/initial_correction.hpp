@@ -1,5 +1,6 @@
 #pragma once
 #include "compact_path.hpp"
+#include "multiplicity_estimation.hpp"
 
 size_t edit_distance(Sequence s1, Sequence s2) {
     size_t left_skip = 0;
