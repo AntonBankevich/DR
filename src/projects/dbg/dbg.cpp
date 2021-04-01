@@ -227,6 +227,12 @@ int main(int argc, char **argv) {
         }
     }
 
+    if(parser.getCheck("mult-correct")) {
+        MultCorrect(dbg, logger, dir / "corrected.fasta",
+                    dir / "figs", reads_lib, 50000,threads,
+                    w + k - 1, parser.getCheck("dump"));
+    }
+
     if(parser.getCheck("initial-correct")) {
         size_t threshold = std::stoull(parser.getValue("cov-threshold"));
         size_t extension_size = k * 5 / 2;

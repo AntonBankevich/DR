@@ -5,8 +5,7 @@
 #include "compact_path.hpp"
 #include <experimental/filesystem>
 
-void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
-                    const std::experimental::filesystem::path &out_file,
+void MultCorrect(SparseDBG &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &out_reads,
 //                    const std::experimental::filesystem::path &bad_reads,
                     const std::experimental::filesystem::path &multiplicity_figures,
