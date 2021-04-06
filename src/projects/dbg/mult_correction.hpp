@@ -51,7 +51,7 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
                 if(unique_extensions.find(&al[i].contig()) == unique_extensions.end())
                     continue;
                 CompactPath &compactPath = unique_extensions.find(&al[i].contig())->second;
-                if(compactPath.seq().nonContradicts(alignedRead.path.seq()))
+                if(compactPath.seq().nonContradicts(alignedRead.path.seq().Subseq(i + 1, al.size())))
                     continue;
                 corrected = true;
                 dbg::GraphAlignment new_al = al.subPath(0, i + 1);

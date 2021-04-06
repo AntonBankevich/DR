@@ -58,7 +58,8 @@ public:
         }
         for(Component &component : split) {
             cnt += 1;
-            MappedNetwork net(component, unique_len, 1);
+            size_t min_flow = 1;
+            MappedNetwork net(component, unique_len, min_flow);
             bool res = net.fillNetwork();
             if(res) {
                 logger << "Found unique edges in component " << cnt << std::endl;
@@ -66,8 +67,8 @@ public:
                 for (auto &rec : multiplicities) {
                     logger << "Edge " << net.edge_mapping[rec.first]->start()->hash()
                            << "ACGT"[net.edge_mapping[rec.first]->seq[0]]
-                           << " has fixed multiplicity " << rec.second << std::endl;
-                    if (rec.second == 0) {
+                           << " has fixed multiplicity " << rec.second + min_flow << std::endl;
+                    if (rec.second + min_flow == 1) {
                         unique_set.emplace(net.edge_mapping[rec.first]);
                     }
                 }
