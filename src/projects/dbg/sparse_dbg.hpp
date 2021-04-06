@@ -459,7 +459,7 @@ public:
 
     GraphAlignment() : start_(nullptr) {}
 
-    GraphAlignment RC() {
+    GraphAlignment RC() const {
         std::vector<Segment<Edge>> path;
         for(size_t i = 0; i < als.size(); i++) {
             Edge &rc_edge = als[i].contig().rc();
@@ -747,20 +747,46 @@ public:
         return subPath(0, left) + rerouting + subPath(right, size());
     }
 
-    GraphAlignment operator+(const GraphAlignment &other) const {
+    void operator+=(const Path &other) {
         VERIFY(finish() == other.getVertex(0));
-        std::vector<Segment<Edge>> new_als(als.begin(), als.end());
-        new_als.insert(new_als.end(), other.begin(), other.end());
-        return {&start(), std::move(new_als)};
+        for(Edge *edge : other) {
+            operator+=(Segment<Edge>(*edge, 0, edge->size()));
+        }
+    }
+
+    void operator+=(const GraphAlignment &other) {
+        VERIFY(finish() == other.getVertex(0));
+        for(const Segment<Edge> &al : other) {
+            operator+=(al);
+        }
+    }
+
+    void operator+=(const Segment<Edge> &other) {
+        if(als.back().right < als.back().contig().size()) {
+            als.back() = als.back() + other;
+        } else {
+            VERIFY(other.left == 0);
+            VERIFY(finish() == *other.contig().start());
+            als.push_back(other);
+        }
+    }
+
+    GraphAlignment operator+(const GraphAlignment &other) const {
+        GraphAlignment res = *this;
+        res += other;
+        return std::move(res);
     }
 
     GraphAlignment operator+(const Path &other) const {
-        VERIFY(finish() == other.getVertex(0));
-        std::vector<Segment<Edge>> new_als(als.begin(), als.end());
-        for(Edge *edge : other) {
-            new_als.emplace_back(*edge, 0, edge->size());
-        }
-        return {&start(), std::move(new_als)};
+        GraphAlignment res = *this;
+        res += other;
+        return std::move(res);
+    }
+
+    GraphAlignment operator+(const Segment<Edge> &other) const {
+        GraphAlignment res = *this;
+        res += other;
+        return std::move(res);
     }
 
     double minCoverage() const {

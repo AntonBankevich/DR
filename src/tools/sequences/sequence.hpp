@@ -284,6 +284,11 @@ public:
         return (other.size() <= size()) && (Subseq(size() - other.size(), size()) == other);
     }
 
+    bool nonContradicts(const Sequence & other) const {
+        size_t ms = std::min(size(), other.size());
+        return Subseq(0, ms) == other.Subseq(0, ms);
+    }
+
     template<class Seq>
     bool contains(const Seq &s, size_t offset = 0) const {
         VERIFY_DEV(offset + s.size() <= size());

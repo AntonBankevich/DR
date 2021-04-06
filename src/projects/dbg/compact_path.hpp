@@ -432,7 +432,7 @@ public:
         logger.info() << "Alignment collection finished. Total length of alignments is " << cnt.get() << std::endl;
     }
 
-    void reroute(AlignedRead &alignedRead, GraphAlignment &initial, GraphAlignment &corrected) {
+    void reroute(AlignedRead &alignedRead, const GraphAlignment &initial, const GraphAlignment &corrected) {
         GraphAlignment rcInitial = initial.RC();
         GraphAlignment rcCorrected = corrected.RC();
         CompactPath cInitial(initial);

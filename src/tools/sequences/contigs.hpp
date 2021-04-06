@@ -77,12 +77,26 @@ public:
                             (left < other.left || left == other.left && right < other.right));
     }
 
+    Segment<T> operator+(const Segment<T> &other) const {
+        VERIFY(contig_ptr == other.contig_ptr);
+        VERIFY(right == other.left);
+        return {*contig_ptr, left, other.right};
+    }
+
     bool operator==(const Segment<T> &other) const {
         return contig().id == other.contig().id && left == other.left && right == other.right;
     }
 
     bool operator!=(const Segment<T> &other) const {
         return contig().id != other.contig().id || left != other.left || right != other.right;
+    }
+
+    Segment<T> shrinkRight(size_t len) const {
+        return {*contig_ptr, left, right - len};
+    }
+
+    Segment<T> shrinkLeft(size_t len) const {
+        return {*contig_ptr, left + len, right};
     }
 };
 

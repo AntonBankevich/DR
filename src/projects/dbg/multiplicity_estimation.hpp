@@ -7,8 +7,8 @@
 class UniqueClassificator {
 private:
     SparseDBG &dbg;
-    std::unordered_set<Edge *> unique_set;
 public:
+    std::unordered_set<Edge *> unique_set;
     UniqueClassificator(SparseDBG &dbg) : dbg(dbg) {
     }
 
