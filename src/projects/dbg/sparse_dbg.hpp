@@ -308,6 +308,20 @@ public:
     }
 };
 
+template<class U, class V>
+class PerfectAlignment {
+public:
+    Segment<U> seg_from;
+    Segment<V> seg_to;
+    PerfectAlignment(const Segment<U> & seg_from_, const Segment<V> &seg_to_) : seg_from(seg_from_), seg_to(seg_to_) {
+        VERIFY(seg_from_.size() == seg_to_.size());
+    }
+
+    size_t size() {
+        return seg_from.size();
+    }
+};
+
 class Path {
 private:
     Vertex *start_;
@@ -1122,36 +1136,59 @@ public:
         return {prestart, std::move(res)};
     }
 
-    std::vector<std::pair<const Edge *, size_t>> carefulAlign(const Sequence & seq) const {
-        std::vector<KWH> kmers = extractVertexPositions(seq);
-        std::vector<std::pair<const Edge*, size_t>> res;
-        if(kmers.size() == 0) {
-            return res;
-        }
-        std::vector<const Vertex *> vertices;
-        for(size_t i = 0; i < kmers.size(); i++) {
-            vertices.push_back(&getVertex(kmers[i]));
-        }
-        for(size_t i = 0; i + 1 < kmers.size(); i++) {
-            Sequence relevant= seq.Subseq(kmers[i].pos, kmers[i + 1].pos + hasher_.k);
-            const Edge * best = nullptr;
-            size_t best_score = 0;
-            for(const Edge &edge : vertices[i]->getOutgoing()) {
-                if (edge.end() == vertices[i + 1]) {
-                    size_t score = std::min(
-                        std::max(   hasher_.k,
-                                    edge.common(relevant.Subseq(hasher_.k)) +
-                                        edge.rc().common((!relevant).Subseq(hasher_.k))),
-                        edge.size());
-                    if(score > best_score) {
-                        best_score = score;
-                        best = &edge;
+    std::vector<PerfectAlignment<Contig, Edge>> carefulAlign(Contig& contig) {
+        Sequence seq = contig.seq;
+        std::vector<PerfectAlignment<Contig, Edge>> res;
+        KWH kwh(hasher_, seq, 0);
+        size_t k = hasher_.k;
+        while(true) {
+            if (res.empty() || kwh.pos >= res.back().seg_from.right) {
+                if(containsVertex(kwh.hash())) {
+                    Vertex &vertex = getVertex(kwh);
+                    Vertex &rcVertex = vertex.rc();
+                    if((res.empty() || kwh.pos > res.back().seg_from.right)
+                       && kwh.pos > 0 && rcVertex.hasOutgoing(seq[kwh.pos - 1] ^ 3)) {
+                        Edge &edge = rcVertex.getOutgoing(seq[kwh.pos - 1] ^ 3);
+                        size_t len = 1;
+                        while(len < edge.size() && len < kwh.pos && edge.seq[len] == (seq[kwh.pos - len - 1] ^ 3))
+                            len += 1;
+                        res.emplace_back(Segment<Contig>(contig, kwh.pos - len, kwh.pos),
+                                         Segment<Edge>(edge.rc(), edge.size() - len, edge.size()));
+                    }
+                    if(kwh.pos + k < seq.size() && vertex.hasOutgoing(seq[kwh.pos + k])) {
+                        Edge &edge = vertex.getOutgoing(seq[kwh.pos + k]);
+                        size_t len = 1;
+                        while(len < edge.size() && kwh.pos + k + len < seq.size() && edge.seq[len] == seq[kwh.pos + k + len])
+                            len += 1;
+                        res.emplace_back(Segment<Contig>(contig, kwh.pos, kwh.pos + len), Segment<Edge>(edge, 0, len));
+                    }
+                } else if((res.empty() || kwh.pos > res.back().seg_from.right) && isAnchor(kwh.hash())) {
+                    typename  SparseDBG::EdgePosition pos = getAnchor(kwh);
+//                TODO replace this code with a call to expand method of PerfectAlignment class after each edge is marked by its full sequence
+                    Edge &edge = *pos.edge;
+                    Vertex &start = *pos.start;
+                    CompositeSequence edge_seq({start.seq, edge.seq});
+                    size_t left_from = kwh.pos;
+                    size_t right_from = kwh.pos + k;
+                    size_t left_to = pos.pos;
+                    size_t right_to = pos.pos + k;
+                    while(left_from > 0 && left_to > 0 && edge_seq[left_to - 1] == seq[left_from - 1]) {
+                        left_from -= 1;
+                        left_to -= 1;
+                    }
+                    while(right_from < seq.size() && right_to < edge_seq.size() && seq[right_from] == edge_seq[right_to]) {
+                        right_from += 1;
+                        right_to += 1;
+                    }
+                    if(left_to - left_from > k) {
+                        res.emplace_back(Segment<Contig>(contig, left_from, right_from - k),
+                                         Segment<Edge>(edge, left_to, right_to - k));
                     }
                 }
             }
-            if(best != nullptr) {
-                res.emplace_back(best, best_score);
-            }
+            if (!kwh.hasNext())
+                break;
+            kwh = kwh.next();
         }
         return std::move(res);
     }

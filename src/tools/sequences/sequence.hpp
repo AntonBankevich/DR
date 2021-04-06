@@ -1,9 +1,11 @@
 #pragma once
 
+#include "common/oneline_utils.hpp"
 #include "common/output_utils.hpp"
 #include "nucl.hpp"
 #include "IntrusiveRefCntPtr.h"
 #include "verify.hpp"
+#include <functional>
 #include <vector>
 #include <string>
 #include <memory>
@@ -428,5 +430,63 @@ public:
             s[i] = nucl(buf_[i]);
         }
         return s;
+    }
+};
+
+class CompositeSequence {
+private:
+    std::vector<Sequence> sequences_;
+    size_t left_;
+    size_t right_;
+    size_t size_;
+public:
+    CompositeSequence(std::vector<Sequence> sequences, size_t from, size_t to) :
+            sequences_(std::move(sequences)), left_(from), right_(0) {
+        size_ = 0;
+        for(Sequence & sequence : sequences_) {
+            size_ += sequence.size();
+        }
+        VERIFY(left_ + right_ <= size_);
+        size_ -= left_ + right_;
+        right_ = size_ - to;
+    }
+
+    explicit CompositeSequence(std::vector<Sequence> sequences) :
+            sequences_(std::move(sequences)), left_(0), right_(0) {
+        size_ = 0;
+        for(Sequence & sequence : sequences_) {
+            size_ += sequence.size();
+        }
+        VERIFY(left_ + right_ <= size_);
+        size_ -= left_ + right_;
+    }
+
+    size_t size() const {
+        return size_;
+    }
+
+    unsigned char operator[](size_t index) const {
+        VERIFY(index < size_);
+        index += left_;
+        size_t cur = 0;
+        while(cur < sequences_.size() && index >= sequences_[cur].size()) {
+            index -= sequences_[cur].size();
+            cur += 1;
+        }
+        return sequences_[cur][index];
+    }
+
+    CompositeSequence operator!() const {
+        std::function<Sequence(const Sequence &)> rc = [this](const Sequence &seq) {
+            return !seq;
+        };
+        return {oneline::map(sequences_.rbegin(), sequences_.rend(), rc), right_, left_};
+    }
+
+//    TODO reduce sequence vector size
+    CompositeSequence Subseq(size_t from, size_t to) const {
+        size_t left = from + left_;
+        size_t right = size_ - to + right_;
+        return {sequences_, left, right};
     }
 };

@@ -152,10 +152,11 @@ std::string constructMessage() {
     return ss.str();
 }
 int main(int argc, char **argv) {
-    CLParser parser({"vertices=none", "unique=none", "coverages=none", "segments=none", "dbg=none", "output-dir=",
+    CLParser parser({"vertices=none", "unique=none", "coverages=none", "dbg=none", "output-dir=",
                      "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
                      "correct", "simplify", "coverage", "cov-threshold=2", "tip-correct", "crude-correct", "initial-correct",
-                     "mult-correct", "compress", "help", "genome-path", "dump", "extension-size=none", "print-all"},
+                     "mult-correct", "compress", "help", "genome-path", "dump", "extension-size=none", "print-all",
+                     "extract-subdatasets"},
                     {"reads", "align", "paths", "print-segment"},
                     {"h=help", "o=output-dir", "t=threads", "k=k-mer-size","w=window"},
                     constructMessage());
@@ -299,6 +300,42 @@ int main(int argc, char **argv) {
         }
     }
 
+    if(parser.getCheck("extract-subdatasets")) {
+        std::experimental::filesystem::path subdatasets_dir = dir / "subdatasets";
+        ensure_dir_existance(subdatasets_dir);
+        logger.info() << "Extracting subdatasets" << std::endl;
+        logger.info() << "Aligning paths" << std::endl;
+        std::vector<Component> comps;
+        std::vector<std::ofstream *> os;
+        GraphAlignmentStorage storage(dbg);
+        io::SeqReader reader(paths_lib);
+        size_t cnt = 0;
+        for(StringContig scontig : reader) {
+            Contig contig = scontig.makeContig();
+            comps.emplace_back(Component::neighbourhood(dbg, contig, dbg.hasher().k + 10000));
+            os.emplace_back(new std::ofstream());
+            os.back()->open(subdatasets_dir / (std::to_string(cnt) + ".fasta"));
+            cnt += 1;
+        }
+        io::SeqReader read_reader(reads_lib);
+        for(StringContig scontig : read_reader) {
+            string initial_seq = scontig.seq;
+            Contig contig = scontig.makeContig();
+            GraphAlignment al = dbg.align(contig.seq);
+            for(size_t i = 0; i <= al.size(); i++) {
+                for(size_t j = 0; j < comps.size(); j++) {
+                    if(comps[j].v.find(al.getVertex(i).hash()) != comps[j].v.end()) {
+                        *os[j] << ">" << contig.id << "\n" <<initial_seq << "\n";
+                    }
+                }
+            }
+        }
+        for(size_t j = 0; j < comps.size(); j++) {
+            os[j]->close();
+            delete os[j];
+        }
+    }
+
     std::vector<std::string> path_segments = parser.getListValue("print-segment");
     if(!path_segments.empty()) {
         logger.info() << "Printing segments of paths" << std::endl;
@@ -426,28 +463,6 @@ int main(int argc, char **argv) {
         io::SeqReader reader(reads_lib);
         error_correction::correctSequences(dbg, logger, reader.begin(), reader.end(),
                                            dir / "corrected.fasta", dir / "bad.fasta", threads, w + hasher.k - 1);
-    }
-    if (parser.getValue("segments") != "none") {
-        logger.info() << "Drawing components" << std::endl;
-        io::SeqReader segs(parser.getValue("segments"));
-        ensure_dir_existance(dir / "pictures");
-        size_t cnt = 0;
-        for(StringContig scontig : segs) {
-            Contig s = scontig.makeContig();
-            std::vector<std::pair<const Edge *, size_t>> path = dbg.carefulAlign(s.seq);
-            std::vector<htype> hashs;
-            hashs.reserve(path.size());
-            for(auto & tmp : path) {
-                hashs.push_back(tmp.first->end()->hash());
-            }
-            Component comp = Component::neighbourhood(dbg, hashs.begin(), hashs.end(), 600, 2);
-            std::ofstream os;
-            os.open(dir/ "pictures" / (logging::itos(cnt) + ".dot"));
-            comp.printCompressedDot(os, 2);
-            os.close();
-            logger.info() << cnt << " " << comp.size() << std::endl;
-            cnt += 1;
-        }
     }
     if (parser.getValue("reference") != "none") {
         analyseGenome(dbg, parser.getValue("reference"), k + w - 1, dir / "ref.info", dir / "mult.info", logger);
