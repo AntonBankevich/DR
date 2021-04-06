@@ -5,7 +5,7 @@
 #include "compact_path.hpp"
 #include <experimental/filesystem>
 
-void MultCorrect(SparseDBG &sdbg, logging::Logger &logger,
+void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &out_reads,
 //                    const std::experimental::filesystem::path &bad_reads,
                     const std::experimental::filesystem::path &multiplicity_figures,
@@ -22,8 +22,8 @@ void MultCorrect(SparseDBG &sdbg, logging::Logger &logger,
     {
         UniqueClassificator classificator(sdbg);
         classificator.classify(logger, unique_threshold, multiplicity_figures);
-        std::unordered_map<Edge *, CompactPath> unique_extensions;
-        for(Edge *edge : classificator.unique_set) {
+        std::unordered_map<dbg::Edge *, CompactPath> unique_extensions;
+        for(dbg::Edge *edge : classificator.unique_set) {
             const VertexRecord &rec = reads_storage.getRecord(*edge->start());
             Sequence seq= edge->seq.Subseq(0, 1);
             while(true) {
@@ -44,7 +44,7 @@ void MultCorrect(SparseDBG &sdbg, logging::Logger &logger,
             unique_extensions.emplace(edge, CompactPath(*edge->end(), seq.Subseq(1), 0, 0));
         }
         for(AlignedRead &alignedRead : reads_storage) {
-            GraphAlignment al = alignedRead.path.getAlignment();
+            dbg::GraphAlignment al = alignedRead.path.getAlignment();
             bool corrected = false;
             bool bad = false;
             for(size_t i = 0; i < al.size(); i++) {
@@ -54,9 +54,9 @@ void MultCorrect(SparseDBG &sdbg, logging::Logger &logger,
                 if(compactPath.seq().nonContradicts(alignedRead.path.seq()))
                     continue;
                 corrected = true;
-                GraphAlignment new_al = al.subPath(0, i + 1);
+                dbg::GraphAlignment new_al = al.subPath(0, i + 1);
                 size_t corrected_len = al.subPath(i + 1, al.size()).len();
-                GraphAlignment replacement = compactPath.getAlignment();
+                dbg::GraphAlignment replacement = compactPath.getAlignment();
                 if(replacement.len() < corrected_len) {
                     logger.info() << "Need to correct more than known " << alignedRead.id << "\n"
                             << CompactPath(al.subPath(i + 1, al.size())) << "\n" << compactPath << std::endl;

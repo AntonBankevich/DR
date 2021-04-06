@@ -2,7 +2,7 @@
 #include "sparse_dbg.hpp"
 #include <parallel/algorithm>
 #include <utility>
-
+using namespace dbg;
 
 class CompactPath {
 private:

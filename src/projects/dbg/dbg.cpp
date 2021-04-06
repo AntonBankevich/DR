@@ -25,6 +25,7 @@
 #include <omp.h>
 #include <unordered_set>
 #include <wait.h>
+using namespace dbg;
 
 using logging::Logger;
 
@@ -211,10 +212,9 @@ int main(int argc, char **argv) {
           SparseDBG::loadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
 
     bool calculate_coverage = parser.getCheck("coverage") || parser.getCheck("simplify") ||
-            parser.getCheck("correct") || parser.getValue("segments") != "none" ||
-            parser.getValue("reference") != "none" || parser.getCheck("tip-correct") ||
-            parser.getCheck("crude-correct") || parser.getCheck("initial-correct") ||
-            parser.getCheck("mult-correct") || !paths_lib.empty();
+            parser.getCheck("correct") || parser.getValue("reference") != "none" ||
+            parser.getCheck("tip-correct") || parser.getCheck("crude-correct") ||
+            parser.getCheck("initial-correct") || parser.getCheck("mult-correct") || !paths_lib.empty();
 
     if (!parser.getListValue("align").empty() || calculate_coverage) {
         dbg.fillAnchors(w, logger, threads);

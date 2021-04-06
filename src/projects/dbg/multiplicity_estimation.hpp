@@ -4,12 +4,48 @@
 #include "sparse_dbg.hpp"
 #include "visualization.hpp"
 
+class MappedNetwork : Network {
+private:
+    std::unordered_map<int, dbg::Edge *> edge_mapping;
+    std::unordered_map<dbg::Vertex *, int> vertex_mapping;
+public:
+    MappedNetwork(const Component &component, size_t unique_len, size_t min_flow = 0) {
+        dbg::SparseDBG &graph = component.graph;
+        for(htype hash : component.v) {
+            for(dbg::Vertex *v_it : {&graph.getVertex(hash), &graph.getVertex(hash).rc()}) {
+                dbg::Vertex &v = *v_it;
+                vertex_mapping[&v] = addVertex();
+                std::cout << vertices.size() - 1 << " " << v.hash() << " " << v.isCanonical() << std::endl;
+            }
+        }
+        for(htype hash : component.v) {
+            for(dbg::Vertex *v_it : {&graph.getVertex(hash), &graph.getVertex(hash).rc()}) {
+                dbg::Vertex &v = *v_it;
+                for(dbg::Edge &edge : v.getOutgoing()) {
+                    if(edge.size() < unique_len) {
+                        int eid = addEdge(vertex_mapping[&v], vertex_mapping[edge.end()], 1, 10000);
+                        edge_mapping[eid] = &edge;
+                    } else {
+                        addSink(vertex_mapping[&v], 1);
+                        addSource(vertex_mapping[&v.rc()], 1);
+                    }
+                }
+            }
+        }
+    }
+
+};
+
 class UniqueClassificator {
 private:
     SparseDBG &dbg;
 public:
     std::unordered_set<Edge *> unique_set;
     UniqueClassificator(SparseDBG &dbg) : dbg(dbg) {
+    }
+
+    Network constructNetwork(size_t min_flow) {
+
     }
 
     void classify(logging::Logger &logger, size_t unique_len, const std::experimental::filesystem::path &dir) {
