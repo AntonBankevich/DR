@@ -58,8 +58,15 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
                 size_t corrected_len = al.subPath(i + 1, al.size()).len();
                 dbg::GraphAlignment replacement = compactPath.getAlignment();
                 if(replacement.len() < corrected_len) {
+                    size_t deficite = corrected_len - replacement.len();
                     logger.info() << "Need to correct more than known " << alignedRead.id << "\n"
                             << CompactPath(al.subPath(i + 1, al.size())) << "\n" << compactPath << std::endl;
+                    new_al += replacement;
+                    while(new_al.finish().outDeg() == 1 && deficite > 0) {
+                        size_t len = std::min(deficite, new_al.finish().getOutgoing()[0].size());
+                        new_al += Segment<Edge>(new_al.finish().getOutgoing()[0], 0, len);
+                        deficite -= len;
+                    }
                     bad = true;
                     break;
                 }
