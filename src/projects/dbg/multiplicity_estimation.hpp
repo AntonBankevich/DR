@@ -44,10 +44,6 @@ public:
     UniqueClassificator(SparseDBG &dbg) : dbg(dbg) {
     }
 
-    Network constructNetwork(size_t min_flow) {
-
-    }
-
     void classify(logging::Logger &logger, size_t unique_len, const std::experimental::filesystem::path &dir) {
         Component graph(dbg);
         std::vector<Component> split = graph.split(unique_len);

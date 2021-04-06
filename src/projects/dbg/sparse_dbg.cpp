@@ -1,5 +1,5 @@
 #include "sparse_dbg.hpp"
-
+using namespace dbg;
 
 size_t Edge::updateTipSize() const {
     size_t new_val = 0;

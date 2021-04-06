@@ -1,5 +1,6 @@
 #pragma once
 #include "sparse_dbg.hpp"
+using namespace dbg;
 
 template<class Iterator>
 void fillCoverage(SparseDBG &sdbg, logging::Logger &logger, Iterator begin, Iterator end, size_t threads,

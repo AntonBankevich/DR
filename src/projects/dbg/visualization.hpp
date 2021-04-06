@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <utility>
 
+using namespace dbg;
 
 class GraphAlignmentStorage {
 private:
