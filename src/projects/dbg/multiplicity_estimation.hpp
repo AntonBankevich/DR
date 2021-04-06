@@ -4,11 +4,10 @@
 #include "sparse_dbg.hpp"
 #include "visualization.hpp"
 
-class MappedNetwork : Network {
-private:
+class MappedNetwork : public Network {
+public:
     std::unordered_map<int, dbg::Edge *> edge_mapping;
     std::unordered_map<dbg::Vertex *, int> vertex_mapping;
-public:
     MappedNetwork(const Component &component, size_t unique_len, size_t min_flow = 0) {
         dbg::SparseDBG &graph = component.graph;
         for(htype hash : component.v) {
@@ -23,7 +22,7 @@ public:
                 dbg::Vertex &v = *v_it;
                 for(dbg::Edge &edge : v.getOutgoing()) {
                     if(edge.size() < unique_len) {
-                        int eid = addEdge(vertex_mapping[&v], vertex_mapping[edge.end()], 1, 10000);
+                        int eid = addEdge(vertex_mapping[&v], vertex_mapping[edge.end()], min_flow, 10000);
                         edge_mapping[eid] = &edge;
                     } else {
                         addSink(vertex_mapping[&v], 1);
@@ -59,43 +58,17 @@ public:
         }
         for(Component &component : split) {
             cnt += 1;
-            std::unordered_map<int, Edge *> edge_mapping;
-            std::unordered_map<Vertex *, int> vertex_mapping;
-            Network net;
-            for(htype hash : component.v) {
-                for(Vertex *v_it : {&dbg.getVertex(hash), &dbg.getVertex(hash).rc()}) {
-                    Vertex &v = *v_it;
-                    vertex_mapping[&v] = net.addVertex();
-                    std::cout << net.vertices.size() - 1 << " " << v.hash() << " " << v.isCanonical() << std::endl;
-                }
-            }
-            for(htype hash : component.v) {
-                for(Vertex *v_it : {&dbg.getVertex(hash), &dbg.getVertex(hash).rc()}) {
-                    Vertex &v = *v_it;
-                    for(Edge &edge : v.getOutgoing()) {
-                        if(edge.size() < unique_len) {
-                            int eid = net.addEdge(vertex_mapping[&v], vertex_mapping[edge.end()], 1, 10000);
-                            edge_mapping[eid] = &edge;
-                            std::cout << "New edge " << eid << " " << vertex_mapping[&v] << " " << vertex_mapping[edge.end()] << std::endl;
-                        } else {
-                            net.addSink(vertex_mapping[&v], 1);
-                            net.addSource(vertex_mapping[&v.rc()], 1);
-                            std::cout << "Sink " << vertex_mapping[&v] << std::endl;
-                            std::cout << "Source " << vertex_mapping[&v.rc()] << std::endl;
-                        }
-                    }
-                }
-            }
+            MappedNetwork net(component, unique_len, 1);
             bool res = net.fillNetwork();
             if(res) {
                 logger << "Found unique edges in component " << cnt << std::endl;
                 std::unordered_map<int, size_t> multiplicities = net.findFixedMultiplicities();
                 for (auto &rec : multiplicities) {
-                    logger << "Edge " << edge_mapping[rec.first]->start()->hash()
-                           << "ACGT"[edge_mapping[rec.first]->seq[0]]
+                    logger << "Edge " << net.edge_mapping[rec.first]->start()->hash()
+                           << "ACGT"[net.edge_mapping[rec.first]->seq[0]]
                            << " has fixed multiplicity " << rec.second << std::endl;
                     if (rec.second == 0) {
-                        unique_set.emplace(edge_mapping[rec.first]);
+                        unique_set.emplace(net.edge_mapping[rec.first]);
                     }
                 }
             } else {

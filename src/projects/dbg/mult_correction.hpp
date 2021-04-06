@@ -25,7 +25,7 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
         std::unordered_map<dbg::Edge *, CompactPath> unique_extensions;
         for(dbg::Edge *edge : classificator.unique_set) {
             const VertexRecord &rec = reads_storage.getRecord(*edge->start());
-            Sequence seq= edge->seq.Subseq(0, 1);
+            Sequence seq = edge->seq.Subseq(0, 1);
             while(true) {
                 Sequence best;
                 size_t best_val = 0;
@@ -63,14 +63,14 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
                     bad = true;
                     break;
                 }
-                size_t pos = 0;
-                while(corrected_len > 0) {
-                    if(corrected_len < replacement[pos].size()) {
-                        new_al += replacement[pos].shrinkRight(replacement[pos].size() - corrected_len);
+                for(Segment<Edge> &rep_seg : replacement) {
+                    if(corrected_len <= rep_seg.size()) {
+                        new_al += rep_seg.shrinkRight(rep_seg.size() - corrected_len);
                         corrected_len = 0;
+                        break;
                     } else {
-                        new_al += replacement[pos];
-                        corrected_len -= replacement[pos].size();
+                        new_al += rep_seg;
+                        corrected_len -= rep_seg.size();
                     }
                 }
                 al = new_al;
