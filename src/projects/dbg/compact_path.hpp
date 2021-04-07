@@ -476,6 +476,18 @@ public:
     size_t size() const {
         return reads.size();
     }
+
+    void printAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const {
+        logger.info() << "Printing read to graph alignenments to file " << path << std::endl;
+        std::string acgt = "ACGT";
+        std::ofstream os;
+        os.open(path);
+        for(const AlignedRead &read : reads) {
+            os  << read.id << read.path.start().hash() << int(read.path.start().isCanonical())
+                << " " << read.path.cpath().str() << "\n";
+        }
+        os.close();
+    }
 };
 
 class CompactPath;
@@ -497,6 +509,7 @@ struct GraphError {
     bool operator==(const GraphError &other) const {
         return read == other.read && from == other.from && to == other.to;
     }
+
 };
 
 class ErrorStorage {

@@ -7,7 +7,7 @@
 
 void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &out_reads,
-//                    const std::experimental::filesystem::path &bad_reads,
+                    const std::experimental::filesystem::path &out_alignments,
                     const std::experimental::filesystem::path &multiplicity_figures,
                     const io::Library &reads_lib, size_t unique_threshold,
                     size_t threads, const size_t min_read_size, bool dump) {
@@ -96,5 +96,6 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
         AlignedRead &alignedRead = *it;
         ors << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
     }
+    reads_storage.printAlignments(logger, out_alignments);
     ors.close();
 }

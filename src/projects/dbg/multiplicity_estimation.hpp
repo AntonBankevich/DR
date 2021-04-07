@@ -5,10 +5,12 @@
 #include "visualization.hpp"
 
 class MappedNetwork : public Network {
+private:
+    size_t min_flow;
 public:
     std::unordered_map<int, dbg::Edge *> edge_mapping;
     std::unordered_map<dbg::Vertex *, int> vertex_mapping;
-    MappedNetwork(const Component &component, size_t unique_len, size_t min_flow = 0) {
+    MappedNetwork(const Component &component, size_t unique_len, size_t min_flow = 0) : min_flow(min_flow) {
         dbg::SparseDBG &graph = component.graph;
         for(htype hash : component.v) {
             for(dbg::Vertex *v_it : {&graph.getVertex(hash), &graph.getVertex(hash).rc()}) {
@@ -33,6 +35,19 @@ public:
         }
     }
 
+    std::vector<dbg::Edge*> getUnique(logging::Logger &logger) {
+        std::vector<dbg::Edge*> res;
+        std::unordered_map<int, size_t> multiplicities = findFixedMultiplicities();
+        for (auto &rec : multiplicities) {
+            logger << "Edge " << edge_mapping[rec.first]->start()->hash()
+                   << "ACGT"[edge_mapping[rec.first]->seq[0]]
+                   << " has fixed multiplicity " << rec.second + min_flow << std::endl;
+            if (rec.second + min_flow == 1) {
+                res.push_back(edge_mapping[rec.first]);
+            }
+        }
+        return std::move(res);
+    }
 };
 
 class UniqueClassificator {
@@ -63,17 +78,22 @@ public:
             bool res = net.fillNetwork();
             if(res) {
                 logger << "Found unique edges in component " << cnt << std::endl;
-                std::unordered_map<int, size_t> multiplicities = net.findFixedMultiplicities();
-                for (auto &rec : multiplicities) {
-                    logger << "Edge " << net.edge_mapping[rec.first]->start()->hash()
-                           << "ACGT"[net.edge_mapping[rec.first]->seq[0]]
-                           << " has fixed multiplicity " << rec.second + min_flow << std::endl;
-                    if (rec.second + min_flow == 1) {
-                        unique_set.emplace(net.edge_mapping[rec.first]);
-                    }
+                for(dbg::Edge * edge : net.getUnique(logger)) {
+                    unique_set.emplace(edge);
                 }
             } else {
                 logger << "Could not find unique edges in component " << cnt << std::endl;
+                logger << "Relaxing flow conditions" << std::endl;
+                MappedNetwork net1(component, unique_len, min_flow);
+                bool res1 = net1.fillNetwork();
+                if(res1) {
+                    logger << "Found unique edges in component " << cnt << std::endl;
+                    for(dbg::Edge * edge : net1.getUnique(logger)) {
+                        unique_set.emplace(edge);
+                    }
+                } else {
+                    logger << "Could not find unique edges wth relaxed conditions in component " << cnt << std::endl;
+                }
             }
             std::function<std::string(Edge &)> colorer = [this](Edge &edge) {
                 return unique_set.find(&edge) == unique_set.end() ? "black" : "red";
