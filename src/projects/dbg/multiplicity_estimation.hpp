@@ -55,7 +55,7 @@ private:
     SparseDBG &dbg;
 public:
     std::unordered_set<Edge *> unique_set;
-    UniqueClassificator(SparseDBG &dbg) : dbg(dbg) {
+    explicit UniqueClassificator(SparseDBG &dbg) : dbg(dbg) {
     }
 
     void classify(logging::Logger &logger, size_t unique_len, const std::experimental::filesystem::path &dir) {
@@ -84,6 +84,7 @@ public:
             } else {
                 logger << "Could not find unique edges in component " << cnt << std::endl;
                 logger << "Relaxing flow conditions" << std::endl;
+                min_flow = 0;
                 MappedNetwork net1(component, unique_len, min_flow);
                 bool res1 = net1.fillNetwork();
                 if(res1) {
