@@ -354,30 +354,26 @@ private:
     }
 
     void processPath(CompactPath &cpath, const std::function<void(Vertex &, const Sequence &)> &task,
-                     const std::function<void(Segment<Edge>)> &edge_task = [](Segment<Edge>){},
-                     size_t left = 0, size_t right = size_t(-1)) {
+                     const std::function<void(Segment<Edge>)> &edge_task = [](Segment<Edge>){}) {
         Vertex *left_vertex = &cpath.start();
         Vertex *right_vertex = &cpath.start();
-        size_t j = 0;
+        GraphAlignment al = cpath.getAlignment();
+        for(size_t i = 0; i < al.size(); i++) {
+            Edge &edge = al[i].contig();
+            size_t seg_left = i == 0 ? cpath.leftSkip() : 0;
+            size_t seg_right = i == cpath.size() - 1 ? edge.size() - cpath.rightSkip() : edge.size();
+            edge_task(Segment<Edge>(edge, seg_left, seg_right));
+        }
+        size_t j = 1;
         size_t clen = 0;
-        right = std::min(right, cpath.size());
-        for (size_t i = 0; i < right; i++) {
-            while (j < cpath.size() && clen < max_len) {
-                Edge &edge = right_vertex->getOutgoing(cpath[j]);
-                clen += edge.size();
+        for (size_t i = 1; i < al.size(); i++) {
+            while (j < al.size() && clen < max_len) {
+                clen += al[j].contig().size();
                 j++;
-                right_vertex = edge.end();
             }
-            Edge &edge = left_vertex->getOutgoing(cpath[i]);
-            if(i >= left) {
-                size_t seg_left = i == 0 ? cpath.leftSkip() : 0;
-                size_t seg_right = i == cpath.size() - 1 ? edge.size() - cpath.rightSkip() : edge.size();
-                edge_task(Segment<Edge>(edge, seg_left, seg_right));
-            }
-            if (clen >= min_len && j > left)
-                task(*left_vertex, cpath.cpath().Subseq(i, j));
-            clen -= edge.size();
-            left_vertex = edge.end();
+            if (clen >= min_len)
+                task(al.getVertex(i - 1), cpath.cpath().Subseq(i - 1, j));
+            clen -= al[i].size();
         }
     }
 
@@ -394,7 +390,7 @@ public:
         return data.find(&v)->second;
     }
 
-    void addSubpath(CompactPath &cpath, size_t left = 0, size_t right = size_t(-1)) {
+    void addSubpath(CompactPath &cpath) {
         std::function<void(Vertex &, const Sequence &)> vertex_task = [this](Vertex &v, const Sequence &s) {
             data.find(&v)->second.addPath(s);
         };
@@ -404,7 +400,7 @@ public:
                 seg.contig().incCov(seg.size());
                 Edge &edge = seg.contig();
             };
-        processPath(cpath, vertex_task, edge_task, left, right);
+        processPath(cpath, vertex_task, edge_task);
     }
 
     void removeSubpath(CompactPath &cpath, size_t left = 0, size_t right = size_t(-1)) {
@@ -416,7 +412,7 @@ public:
             edge_task = [](Segment<Edge> seg) {
                 seg.contig().incCov(size_t(-seg.size()));
             };
-        processPath(cpath, vertex_task, edge_task, left, right);
+        processPath(cpath, vertex_task, edge_task);
     }
 
     template<class I>
