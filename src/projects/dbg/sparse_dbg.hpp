@@ -32,43 +32,26 @@ namespace dbg {
         mutable size_t extraInfo;
         Sequence seq;
         std::string id = "";
-
         friend class Vertex;
-
         bool is_reliable = false;
-
         Edge(Vertex *_start, Vertex *_end, const Sequence &_seq) :
                 start_(_start), end_(_end), cov(0), extraInfo(-1), seq(_seq) {
         }
-
         Vertex *end() const;
-
         Vertex *start() const;
-
         size_t getTipSize() const;
-
         size_t updateTipSize() const;
-
         void bindTip(Vertex &start, Vertex &end);
-
         size_t common(const Sequence &other) const;
-
         size_t size() const;
-
         double getCoverage() const;
-
         size_t intCov() const;
-
         Edge &rc() const;
-
         Edge &sparseRcEdge() const;
-
         Path walkForward();
-
         void incCov(size_t val) const;
-
+        std::string str() const;
         bool operator==(const Edge &other) const;
-
         bool operator<(const Edge &other) const;
     };
 

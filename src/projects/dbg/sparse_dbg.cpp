@@ -115,6 +115,12 @@ bool Edge::operator<(const Edge &other) const {
     return this->seq < other.seq;
 }
 
+std::string Edge::str() const {
+    std::stringstream ss;
+    const dbg::Vertex &v = *start();
+    ss << v.hash() << v.isCanonical() << "ACGT"[seq[0]];
+    return ss.str();
+}
 
 Vertex::Vertex(htype hash, Vertex *_rc) : hash_(hash), rc_(_rc), canonical(false) {
     omp_init_lock(&writelock);

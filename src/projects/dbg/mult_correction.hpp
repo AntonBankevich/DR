@@ -5,7 +5,8 @@
 #include "compact_path.hpp"
 #include <experimental/filesystem>
 
-std::unordered_map<Edge *, CompactPath> constructUniqueExtensions(const RecordStorage &reads_storage, const UniqueClassificator &classificator) {
+std::unordered_map<Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger,
+                                          const RecordStorage &reads_storage, const UniqueClassificator &classificator) {
     std::unordered_map<Edge *, CompactPath> unique_extensions;
     for(Edge *edge : classificator.unique_set) {
         const VertexRecord &rec = reads_storage.getRecord(*edge->start());
@@ -26,6 +27,7 @@ std::unordered_map<Edge *, CompactPath> constructUniqueExtensions(const RecordSt
             seq = best;
         }
         unique_extensions.emplace(edge, CompactPath(*edge->end(), seq.Subseq(1), 0, 0));
+        logger << "Unique extension for edge " << edge->str() << " " << seq.Subseq(1) << std::endl;
     }
     return std::move(unique_extensions);
 }
@@ -98,7 +100,8 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
     {
         UniqueClassificator classificator(sdbg);
         classificator.classify(logger, unique_threshold, multiplicity_figures);
-        std::unordered_map<Edge *, CompactPath> unique_extensions = constructUniqueExtensions(reads_storage, classificator);
+        std::unordered_map<Edge *, CompactPath> unique_extensions =
+                constructUniqueExtensions(logger, reads_storage, classificator);
         Component all(sdbg);
         std::function<std::string(Edge &)> labeler = [&reads_storage](Edge &edge){
             const VertexRecord &rec = reads_storage.getRecord(*edge.start());
@@ -107,7 +110,13 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
                 if(ext.first[0] == edge.seq[0])
                     ss << "\n" << ext.first << "(" << ext.second << ")";
             }
-            return ss.str();
+            return ss.str().substr(1);
+        };
+        std::function<std::string(Edge &)> colorer = [&classificator](Edge &edge){
+            if(classificator.isUnique(edge))
+                return "red";
+            else
+                return "black";
         };
         {
             std::ofstream os;

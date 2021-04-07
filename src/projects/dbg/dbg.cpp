@@ -185,6 +185,9 @@ int main(int argc, char **argv) {
         logger << argv[i] << " ";
     }
     logger << std::endl;
+    if(parser.getCheck("extract-subdatasets")) {
+        logger.info() << "Enabled subdataset extraction" << std::endl;
+    }
     size_t k = std::stoi(parser.getValue("k-mer-size"));
     if (k % 2 == 0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
