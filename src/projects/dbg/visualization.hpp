@@ -321,7 +321,7 @@ public:
                    const std::string &color = "black") const {
         Vertex &end = *edge.end();
         os << "\"" << vertexLabel(start) << "\" -> \"" << vertexLabel(end) <<
-                "\" [label=\"" << edge.size() << "(" << edge.getCoverage() << ")";
+                "\" [label=\"" << "ACGT"[edge.seq[0]] << " " << edge.size() << "(" << edge.getCoverage() << ")";
         if(!extra_label.empty()) {
             os << "\\n"<<extra_label;
         }

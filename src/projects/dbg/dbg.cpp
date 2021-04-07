@@ -229,8 +229,7 @@ int main(int argc, char **argv) {
     }
 
     if(parser.getCheck("mult-correct")) {
-        MultCorrect(dbg, logger, dir / "corrected.fasta", dir / "alignments.txt",
-                    dir / "figs", reads_lib, 50000,threads,
+        MultCorrect(dbg, logger, dir, reads_lib, 50000,threads,
                     w + k - 1, parser.getCheck("dump"));
     }
 

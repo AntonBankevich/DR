@@ -127,8 +127,10 @@ public:
 
 struct VertexRecord {
 private:
+    typedef std::vector<std::pair<Sequence, size_t>> Storage;
+    typedef Storage::const_iterator const_iterator;
     Vertex &v;
-    std::vector<std::pair<Sequence, size_t>> paths;
+    Storage paths;
     size_t zero_cnt = 0;
     size_t cov = 0;
 public:
@@ -138,6 +140,14 @@ public:
     VertexRecord(const VertexRecord &) = delete;
 
     VertexRecord(VertexRecord &&other)  noexcept : v(other.v), paths(std::move(other.paths)), zero_cnt(other.zero_cnt), cov(other.cov) {
+    }
+
+    const_iterator begin() const {
+        return paths.begin();
+    }
+
+    const_iterator end() const {
+        return paths.end();
     }
 
     VertexRecord & operator=(const VertexRecord &) = delete;
