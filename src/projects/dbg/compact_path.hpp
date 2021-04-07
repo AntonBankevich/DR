@@ -483,7 +483,7 @@ public:
         std::ofstream os;
         os.open(path);
         for(const AlignedRead &read : reads) {
-            os  << read.id << read.path.start().hash() << int(read.path.start().isCanonical())
+            os  << read.id << " " << read.path.start().hash() << int(read.path.start().isCanonical())
                 << " " << read.path.cpath().str() << "\n";
         }
         os.close();
