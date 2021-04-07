@@ -108,9 +108,9 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
             std::stringstream ss;
             for(const auto &ext : rec) {
                 if(ext.first[0] == edge.seq[0])
-                    ss << "\n" << ext.first << "(" << ext.second << ")";
+                    ss << ext.first << "(" << ext.second << ")\n";
             }
-            return ss.str().substr(1);
+            return ss.str();
         };
         std::function<std::string(Edge &)> colorer = [&classificator](Edge &edge){
             if(classificator.isUnique(edge))
