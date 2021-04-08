@@ -96,13 +96,16 @@ void correctReads(logging::Logger &logger, RecordStorage &reads_storage,
         GraphAlignment al = alignedRead.path.getAlignment();
         if(al.size() > 1) {
             printAl(logger, unique_extensions, alignedRead, al);
-            printAl(logger, unique_extensions, alignedRead, al.RC());
-        }
-        GraphAlignment corrected1 = correctRead(logger, alignedRead.id, unique_extensions, al);
-        GraphAlignment corrected2 = correctRead(logger, alignedRead.id, unique_extensions, corrected1.RC()).RC();
-        if(al != corrected2) {
-            reads_storage.reroute(alignedRead, al, corrected2);
-            logger << "Corrected read " << alignedRead.id << " " << alignedRead.path << std::endl;
+            GraphAlignment corrected1 = correctRead(logger, alignedRead.id, unique_extensions, al);
+            printAl(logger, unique_extensions, alignedRead, corrected1);
+            printAl(logger, unique_extensions, alignedRead, corrected1.RC());
+            GraphAlignment corrected2 = correctRead(logger, alignedRead.id, unique_extensions, corrected1.RC()).RC();
+            printAl(logger, unique_extensions, alignedRead, corrected2.RC());
+            printAl(logger, unique_extensions, alignedRead, corrected2);
+            if(al != corrected2) {
+                reads_storage.reroute(alignedRead, al, corrected2);
+                logger << "Corrected read " << alignedRead.id << " " << alignedRead.path << std::endl;
+            }
         }
     }
 }
