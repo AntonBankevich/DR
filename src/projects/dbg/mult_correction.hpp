@@ -5,8 +5,11 @@
 #include "compact_path.hpp"
 #include <experimental/filesystem>
 
+void correctRead(logging::Logger &logger, std::unordered_map<Edge *, CompactPath> &unique_extensions,
+                 const AlignedRead &alignedRead, GraphAlignment &al, bool &corrected);
+
 std::unordered_map<Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger,
-                                          const RecordStorage &reads_storage, const UniqueClassificator &classificator) {
+                                                                  const RecordStorage &reads_storage, const UniqueClassificator &classificator) {
     std::unordered_map<Edge *, CompactPath> unique_extensions;
     for(Edge *edge : classificator.unique_set) {
         const VertexRecord &rec = reads_storage.getRecord(*edge->start());
@@ -32,48 +35,61 @@ std::unordered_map<Edge *, CompactPath> constructUniqueExtensions(logging::Logge
     return std::move(unique_extensions);
 }
 
+GraphAlignment correctRead(logging::Logger &logger, std::string &read_id,
+                           std::unordered_map<Edge *, CompactPath> &unique_extensions,
+                           const GraphAlignment &initial_al) {
+    CompactPath initialCompactPath(initial_al);
+    GraphAlignment al = initial_al;
+    bool bad;
+    bool corrected = false;
+    for(size_t i = 0; i < al.size(); i++) {
+        if(unique_extensions.find(&al[i].contig()) == unique_extensions.end())
+            continue;
+        CompactPath &compactPath = unique_extensions.find(&al[i].contig())->second;
+        if(compactPath.seq().nonContradicts(initialCompactPath.seq().Subseq(i + 1, al.size())))
+            continue;
+        corrected = true;
+        GraphAlignment new_al = al.subPath(0, i + 1);
+        size_t corrected_len = al.subPath(i + 1, al.size()).len();
+        GraphAlignment replacement = compactPath.getAlignment();
+        if(replacement.len() < corrected_len) {
+            size_t deficite = corrected_len - replacement.len();
+            logger.info() << "Need to correct more than known " << read_id << "\n"
+                          << CompactPath(al.subPath(i + 1, al.size())) << "\n" << compactPath << std::endl;
+            new_al += replacement;
+            while(new_al.finish().outDeg() == 1 && deficite > 0) {
+                size_t len = std::min(deficite, new_al.finish().getOutgoing()[0].size());
+                new_al += Segment<Edge>(new_al.finish().getOutgoing()[0], 0, len);
+                deficite -= len;
+            }
+            bad = true;
+            break;
+        }
+        for(Segment<Edge> &rep_seg : replacement) {
+            if(corrected_len <= rep_seg.size()) {
+                new_al += rep_seg.shrinkRight(rep_seg.size() - corrected_len);
+                corrected_len = 0;
+                break;
+            } else {
+                new_al += rep_seg;
+                corrected_len -= rep_seg.size();
+            }
+        }
+        al = new_al;
+    }
+    if(corrected)
+        return std::move(al);
+    else
+        return initial_al;
+}
+
 void correctReads(logging::Logger &logger, RecordStorage &reads_storage,
                   std::unordered_map<Edge *, CompactPath> &unique_extensions) {
     for(AlignedRead &alignedRead : reads_storage) {
         GraphAlignment al = alignedRead.path.getAlignment();
-        bool corrected = false;
-        bool bad = false;
-        for(size_t i = 0; i < al.size(); i++) {
-            if(unique_extensions.find(&al[i].contig()) == unique_extensions.end())
-                continue;
-            CompactPath &compactPath = unique_extensions.find(&al[i].contig())->second;
-            if(compactPath.seq().nonContradicts(alignedRead.path.seq().Subseq(i + 1, al.size())))
-                continue;
-            corrected = true;
-            GraphAlignment new_al = al.subPath(0, i + 1);
-            size_t corrected_len = al.subPath(i + 1, al.size()).len();
-            GraphAlignment replacement = compactPath.getAlignment();
-            if(replacement.len() < corrected_len) {
-                size_t deficite = corrected_len - replacement.len();
-                logger.info() << "Need to correct more than known " << alignedRead.id << "\n"
-                        << CompactPath(al.subPath(i + 1, al.size())) << "\n" << compactPath << std::endl;
-                new_al += replacement;
-                while(new_al.finish().outDeg() == 1 && deficite > 0) {
-                    size_t len = std::min(deficite, new_al.finish().getOutgoing()[0].size());
-                    new_al += Segment<Edge>(new_al.finish().getOutgoing()[0], 0, len);
-                    deficite -= len;
-                }
-                bad = true;
-                break;
-            }
-            for(Segment<Edge> &rep_seg : replacement) {
-                if(corrected_len <= rep_seg.size()) {
-                    new_al += rep_seg.shrinkRight(rep_seg.size() - corrected_len);
-                    corrected_len = 0;
-                    break;
-                } else {
-                    new_al += rep_seg;
-                    corrected_len -= rep_seg.size();
-                }
-            }
-            al = new_al;
-        }
-        if(corrected) {
+        GraphAlignment corrected1 = correctRead(logger, alignedRead.id, unique_extensions, al);
+        GraphAlignment corrected2 = correctRead(logger, alignedRead.id, unique_extensions, corrected1.RC()).RC();
+        if(al != corrected2) {
             reads_storage.reroute(alignedRead, alignedRead.path.getAlignment(), al);
             logger << "Corrected read " << alignedRead.id << " " << alignedRead.path << std::endl;
         }
