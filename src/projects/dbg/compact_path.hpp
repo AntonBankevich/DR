@@ -63,6 +63,10 @@ public:
         return {*_start, std::move(path)};
     }
 
+    CompactPath RC() {
+        return CompactPath(getAlignment().RC());
+    }
+
     Vertex &start() {
         return *_start;
     }
@@ -417,6 +421,11 @@ public:
 
     template<class I>
     void fill(I begin, I end, size_t min_read_size, logging::Logger &logger, size_t threads) {
+        for(auto & it: dbg) {
+            for(Edge &edge : it.second.getOutgoing()) {
+                edge.incCov(-edge.intCov());
+            }
+        }
         logger.info() << "Collecting alignments of sequences to the graph" << std::endl;
         ParallelRecordCollector<AlignedRead> tmpReads(threads);
         ParallelCounter cnt(threads);
@@ -489,8 +498,12 @@ public:
         std::ofstream os;
         os.open(path);
         for(const AlignedRead &read : reads) {
-            os  << read.id << " " << read.path.start().hash() << int(read.path.start().isCanonical())
-                << " " << read.path.cpath().str() << "\n";
+            CompactPath al = read.path;
+            os  << read.id << " " << al.start().hash() << int(al.start().isCanonical())
+                << " " << al.cpath().str() << "\n";
+            al = al.RC();
+            os  << "-" << read.id << " " << al.start().hash() << int(al.start().isCanonical())
+                << " " << al.cpath().str() << "\n";
         }
         os.close();
     }
