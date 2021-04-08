@@ -47,15 +47,18 @@ size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates
     std::vector<size_t> dists;
     for(size_t i = 0; i < candidates.size(); i++) {
         dists.push_back(edit_distance(bulge, candidates[i]));
+        std::cout << i << " " << dists.back() << std::endl;
         if (dists.back() < dists[winner])
             winner = i;
     }
     size_t max_dist = std::max<size_t>(20, bulge.size() / 100);
+    std::cout << "Max dist " << max_dist << std::endl;
     if(dists[winner] > max_dist)
         return -1;
     for(size_t i = 0; i < candidates.size(); i++) {
         if(i != winner) {
             size_t diff = edit_distance(candidates[winner], candidates[i]);
+            std::cout << "Diff " << i << " " << winner << " " << diff << std::endl;
             VERIFY(dists[winner] <= dists[i] + diff);
             VERIFY(dists[i] <= dists[winner] + diff);
             if(dists[i] < max_dist && dists[i] != dists[winner] + diff)
@@ -1003,16 +1006,22 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
         size_t correctedAT = correctAT(logger, reads_storage, k, threads);
         logger.info() << "Corrected " << correctedAT << " dinucleotide sequences" << std::endl;
     }
-    {
+    for(size_t i = 0; i < 1; i++){
         RefillReliable(logger, sdbg, 15, new_reliable);
         size_t corrected_low = correctLowCoveredRegions(logger, reads_storage, ref_storage, out_file, threshold, 10, k, threads, dump);
         logger.info() << "Corrected low covered regions in " << corrected_low << " reads" << std::endl;
     }
-    size_t corrected_bulges = collapseBulges(logger, reads_storage, ref_storage, out_file, threshold, k, threads);
-    logger.info() << "Collapsed bulges in " << corrected_bulges << " reads" << std::endl;
     {
+        size_t corrected_bulges = collapseBulges(logger, reads_storage, ref_storage, out_file, threshold, k, threads);
+        logger.info() << "Collapsed bulges in " << corrected_bulges << " reads" << std::endl;
+    }
+    for(size_t i = 0; i < 3; i++){
         size_t correctedAT = correctAT(logger, reads_storage, k, threads);
         logger.info() << "Corrected " << correctedAT << " dinucleotide sequences" << std::endl;
+    }
+    {
+        size_t corrected_bulges = collapseBulges(logger, reads_storage, ref_storage, out_file, threshold, k, threads);
+        logger.info() << "Collapsed bulges in " << corrected_bulges << " reads" << std::endl;
     }
     logger.info() << "Printing reads to disk" << std::endl;
     std::ofstream ors;
