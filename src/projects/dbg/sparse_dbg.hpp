@@ -835,11 +835,16 @@ namespace dbg {
         }
 
         bool operator==(const GraphAlignment &other) const {
-            return start_ == other.start_ && als == other.als;
+            if(start_ != other.start_ || als.size() != other.als.size())
+                return false;
+            for(size_t i = 0; i < als.size(); i++)
+                if(als[i] != other.als[i])
+                    return false;
+            return true;
         }
 
         bool operator!=(const GraphAlignment &other) const {
-            return start_ != other.start_ || als != other.als;
+            return !operator==(other);
         }
     };
 
