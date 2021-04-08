@@ -9,7 +9,7 @@ void correctRead(logging::Logger &logger, std::unordered_map<Edge *, CompactPath
                  const AlignedRead &alignedRead, GraphAlignment &al, bool &corrected);
 
 void printAl(logging::Logger &logger, std::unordered_map<Edge *, CompactPath> &unique_extensions,
-             const AlignedRead &alignedRead, const GraphAlignment &al);
+             const GraphAlignment &al);
 
 std::unordered_map<Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger,
                                                                   const RecordStorage &reads_storage, const UniqueClassificator &classificator) {
@@ -93,26 +93,29 @@ GraphAlignment correctRead(logging::Logger &logger, std::string &read_id,
 void correctReads(logging::Logger &logger, RecordStorage &reads_storage,
                   std::unordered_map<Edge *, CompactPath> &unique_extensions) {
     for(AlignedRead &alignedRead : reads_storage) {
-        GraphAlignment al = alignedRead.path.getAlignment();
+        const GraphAlignment al = alignedRead.path.getAlignment();
         if(al.size() > 1) {
-            printAl(logger, unique_extensions, alignedRead, al);
+            logger << "Processing " << alignedRead.id << std::endl;
+            printAl(logger, unique_extensions, al);
             GraphAlignment corrected1 = correctRead(logger, alignedRead.id, unique_extensions, al);
-            printAl(logger, unique_extensions, alignedRead, corrected1);
-            printAl(logger, unique_extensions, alignedRead, corrected1.RC());
+            printAl(logger, unique_extensions, corrected1);
+            printAl(logger, unique_extensions, corrected1.RC());
             GraphAlignment corrected2 = correctRead(logger, alignedRead.id, unique_extensions, corrected1.RC()).RC();
-            printAl(logger, unique_extensions, alignedRead, corrected2.RC());
-            printAl(logger, unique_extensions, alignedRead, corrected2);
+            printAl(logger, unique_extensions, corrected2.RC());
+            printAl(logger, unique_extensions, corrected2);
+            printAl(logger, unique_extensions, al);
             if(al != corrected2) {
                 reads_storage.reroute(alignedRead, al, corrected2);
                 logger << "Corrected read " << alignedRead.id << " " << alignedRead.path << std::endl;
+            } else {
+                logger << "No corrections were made" << std::endl;
             }
         }
     }
 }
 
 void printAl(logging::Logger &logger, std::unordered_map<Edge *, CompactPath> &unique_extensions,
-             const AlignedRead &alignedRead, const GraphAlignment &al) {
-    logger << alignedRead.id << " ";
+             const GraphAlignment &al) {
     for(auto &piece : al) {
         logger << piece.contig().str() << " ";
         if(unique_extensions.find(&piece.contig()) != unique_extensions.end()) {
