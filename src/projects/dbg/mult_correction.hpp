@@ -45,16 +45,20 @@ GraphAlignment correctRead(logging::Logger &logger, std::string &read_id,
     GraphAlignment al = initial_al;
     bool bad;
     bool corrected = false;
-    for(size_t i = 0; i < al.size(); i++) {
+    for(size_t i = 0; i + 1 < al.size(); i++) {
+        logger << al[i].contig().str() << std::endl;
         if(unique_extensions.find(&al[i].contig()) == unique_extensions.end())
             continue;
         CompactPath &compactPath = unique_extensions.find(&al[i].contig())->second;
+        logger << compactPath << " " << CompactPath(al.subPath(i + 1, al.size())) << std::endl;
         if(compactPath.seq().nonContradicts(CompactPath(al.subPath(i + 1, al.size())).cpath()))
             continue;
+        logger << "Corrected" << std::endl;
         corrected = true;
         GraphAlignment new_al = al.subPath(0, i + 1);
         size_t corrected_len = al.subPath(i + 1, al.size()).len();
         GraphAlignment replacement = compactPath.getAlignment();
+        logger << replacement.len() << " " << corrected_len << std::endl;
         if(replacement.len() < corrected_len) {
             size_t deficite = corrected_len - replacement.len();
             logger.info() << "Need to correct more than known " << read_id << "\n"
@@ -66,16 +70,16 @@ GraphAlignment correctRead(logging::Logger &logger, std::string &read_id,
                 deficite -= len;
             }
             bad = true;
-            break;
-        }
-        for(Segment<Edge> &rep_seg : replacement) {
-            if(corrected_len <= rep_seg.size()) {
-                new_al += rep_seg.shrinkRight(rep_seg.size() - corrected_len);
-                corrected_len = 0;
-                break;
-            } else {
-                new_al += rep_seg;
-                corrected_len -= rep_seg.size();
+        } else {
+            for (Segment<Edge> &rep_seg : replacement) {
+                if (corrected_len <= rep_seg.size()) {
+                    new_al += rep_seg.shrinkRight(rep_seg.size() - corrected_len);
+                    corrected_len = 0;
+                    break;
+                } else {
+                    new_al += rep_seg;
+                    corrected_len -= rep_seg.size();
+                }
             }
         }
         al = new_al;
