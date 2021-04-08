@@ -97,7 +97,7 @@ void correctReads(logging::Logger &logger, RecordStorage &reads_storage,
         GraphAlignment corrected1 = correctRead(logger, alignedRead.id, unique_extensions, al);
         GraphAlignment corrected2 = correctRead(logger, alignedRead.id, unique_extensions, corrected1.RC()).RC();
         if(al != corrected2) {
-            reads_storage.reroute(alignedRead, alignedRead.path.getAlignment(), al);
+            reads_storage.reroute(alignedRead, al, corrected2);
             logger << "Corrected read " << alignedRead.id << " " << alignedRead.path << std::endl;
         }
     }
