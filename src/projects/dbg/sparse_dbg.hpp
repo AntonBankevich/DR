@@ -52,6 +52,7 @@ namespace dbg {
         void incCov(size_t val) const;
         std::string str() const;
         bool operator==(const Edge &other) const;
+        bool operator!=(const Edge &other) const;
         bool operator<(const Edge &other) const;
     };
 
@@ -835,12 +836,7 @@ namespace dbg {
         }
 
         bool operator==(const GraphAlignment &other) const {
-            if(start_ != other.start_ || als.size() != other.als.size())
-                return false;
-            for(size_t i = 0; i < als.size(); i++)
-                if(als[i] != other.als[i])
-                    return false;
-            return true;
+            return start_ == other.start_ && als == other.als;
         }
 
         bool operator!=(const GraphAlignment &other) const {

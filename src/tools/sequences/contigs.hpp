@@ -84,11 +84,11 @@ public:
     }
 
     bool operator==(const Segment<T> &other) const {
-        return contig().id == other.contig().id && left == other.left && right == other.right;
+        return contig() == other.contig() && left == other.left && right == other.right;
     }
 
     bool operator!=(const Segment<T> &other) const {
-        return contig().id != other.contig().id || left != other.left || right != other.right;
+        return contig() != other.contig() || left != other.left || right != other.right;
     }
 
     Segment<T> shrinkRight(size_t len) const {

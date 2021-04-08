@@ -111,6 +111,10 @@ bool Edge::operator==(const Edge &other) const {
     return this == &other;
 }
 
+bool Edge::operator!=(const Edge &other) const {
+    return this != &other;
+}
+
 bool Edge::operator<(const Edge &other) const {
     return this->seq < other.seq;
 }
