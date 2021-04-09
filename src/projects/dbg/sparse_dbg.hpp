@@ -60,7 +60,7 @@ namespace dbg {
     private:
         friend class SparseDBG;
 
-        std::vector<Edge> outgoing_{};
+        mutable std::vector<Edge> outgoing_{};
         Vertex *rc_;
         htype hash_;
         omp_lock_t writelock{};
@@ -106,27 +106,6 @@ namespace dbg {
             omp_init_lock(&writelock);
         }
 
-//    Vertex(Vertex &&other) noexcept : rc_(other.rc_), hash_(other.hash_), canonical(other.canonical) {
-//        std::swap(outgoing_, other.outgoing_);
-//        std::swap(seq, other.seq);
-//        omp_init_lock(&writelock);
-//        if(other.rc_ != nullptr) {
-//            other.rc_->rc_ = this;
-//            other.rc_ = nullptr;
-//        }
-//        for(Edge &edge : rc_->outgoing_) {
-//            if(edge.end() == &other) {
-//                edge.end_ = this;
-//            } else if (edge.end() != nullptr){
-//                for(Edge &back : edge.end()->rc().outgoing_) {
-//                    if(back.end() == &other) {
-//                        back.end_ = this;
-//                    }
-//                }
-//            }
-//        }
-//    }
-//
         void sortOutgoing() {
             std::sort(outgoing_.begin(), outgoing_.end());
         }
@@ -247,12 +226,16 @@ namespace dbg {
             omp_unset_lock(&writelock);
         }
 
-        const std::vector<Edge> &getOutgoing() const {
-            return outgoing_;
+        std::vector<Edge>::iterator begin() const {
+            return outgoing_.begin();
         }
 
-        const Edge &getOutgoing(char c) const {
-            for (const Edge &edge : outgoing_) {
+        std::vector<Edge>::iterator end() const {
+            return outgoing_.end();
+        }
+
+        Edge &getOutgoing(unsigned char c) const {
+            for (Edge &edge : outgoing_) {
                 if (edge.seq[0] == c) {
                     return edge;
                 }
@@ -263,35 +246,16 @@ namespace dbg {
                 std::cout << edge.seq << std::endl;
             }
             VERIFY(false);
-            return getOutgoing()[0];
+            return outgoing_[0];
         }
 
-        Edge &getOutgoing(char c) {
-            for (Edge &edge : outgoing_) {
-                if (edge.seq[0] == c) {
-                    return edge;
-                }
-            }
-            std::cout << seq << std::endl;
-            std::cout << size_t(c) << std::endl;
-            for (Edge &edge : outgoing_) {
-                std::cout << edge.seq << std::endl;
-            }
-            VERIFY(false);
-            return getOutgoing()[0];
-        }
-
-        bool hasOutgoing(char c) const {
+        bool hasOutgoing(unsigned char c) const {
             for (const Edge &edge : outgoing_) {
                 if (edge.seq[0] == c) {
                     return true;
                 }
             }
             return false;
-        }
-
-        std::vector<Edge> &getOutgoing() {
-            return outgoing_;
         }
 
         size_t outDeg() const {
@@ -306,6 +270,10 @@ namespace dbg {
             return outDeg() != 1 || inDeg() != 1;
         }
 
+        Edge &operator[](size_t ind) const {
+            return outgoing_[ind];
+        }
+
         bool operator==(const Vertex &other) const {
             return this == &other;
         }
@@ -316,6 +284,27 @@ namespace dbg {
 
         bool operator<(const Vertex &other) const {
             return hash_ < other.hash_ || (hash_ == other.hash_ && canonical && !other.canonical);
+        }
+    };
+
+    class EdgePointer {
+    private:
+        Vertex *vertex;
+        unsigned char c;
+    public:
+        EdgePointer(Edge &edge) : vertex(edge.start()), c(edge.seq[0]) {
+        }
+
+        Edge &operator*() const {
+            return vertex->getOutgoing(c);
+        }
+
+        bool operator==(const EdgePointer &other) {
+            return vertex == other.vertex && c == other.c;
+        }
+
+        size_t hash() const {
+            return std::hash<void*>()(vertex) ^ std::hash<unsigned char>()(c);
         }
     };
 
@@ -587,7 +576,7 @@ namespace dbg {
             }
             std::vector<GraphAlignment> res;
             Vertex &end = als.size() == 0 ? *start_ : *back().contig().end();
-            for (Edge &edge : end.getOutgoing()) {
+            for (Edge &edge : end) {
                 GraphAlignment copy = *this;
                 res.emplace_back(std::move(copy.addStep(edge)));
             }
@@ -887,7 +876,7 @@ namespace dbg {
             if (pos == edge->size()) {
                 std::vector<EdgePosition> res;
                 Vertex &v = *edge->end();
-                for (Edge &next : v.getOutgoing()) {
+                for (Edge &next : v) {
                     res.emplace_back(v, next, 1);
                 }
                 return std::move(res);
@@ -1069,7 +1058,7 @@ namespace dbg {
             std::function<void(std::pair<const htype, Vertex> &)> task = [&res, w, this](
                     std::pair<const htype, Vertex> &iter) {
                 Vertex &vertex = iter.second;
-                for (Edge &edge : vertex.getOutgoing()) {
+                for (Edge &edge : vertex) {
                     if (edge.size() > w) {
                         Sequence seq = vertex.seq + edge.seq;
 //                    Does not run for the first and last kmers.
@@ -1086,7 +1075,7 @@ namespace dbg {
                         }
                     }
                 }
-                for (Edge &edge : vertex.rc().getOutgoing()) {
+                for (Edge &edge : vertex.rc()) {
                     if (edge.size() > w) {
                         Sequence seq = vertex.rc().seq + edge.seq;
 //                    Does not run for the first and last kmers.
@@ -1170,7 +1159,7 @@ namespace dbg {
                                   kmer.pos << " " << size_t(seq[kmer.pos + hasher_.k]) << std::endl
                                   << kmer.getSeq() << std::endl;
                         std::cout << vertex.hash() << " " << vertex.outDeg() << " " << vertex.inDeg() << std::endl;
-                        for (const Edge &e : vertex.getOutgoing()) {
+                        for (const Edge &e : vertex) {
                             std::cout << e.seq << std::endl;
                         }
                         VERIFY(false);
@@ -1261,14 +1250,14 @@ namespace dbg {
             os << "digraph {\nnodesep = 0.5;\n";
             for (std::pair<const htype, Vertex> &it : this->v) {
                 Vertex &start = it.second;
-                for (Edge &edge : start.getOutgoing()) {
+                for (Edge &edge : start) {
                     Vertex &end = *edge.end();
                     printEdge(os, start, edge, output_coverage);
                     if (v.find(end.hash()) == v.end()) {
                         printEdge(os, end.rc(), edge.rc(), output_coverage);
                     }
                 }
-                for (Edge &edge : start.rc().getOutgoing()) {
+                for (Edge &edge : start.rc()) {
                     Vertex &end = *edge.end();
                     printEdge(os, start.rc(), edge, output_coverage);
                     if (v.find(end.hash()) == v.end()) {
@@ -1355,7 +1344,7 @@ namespace dbg {
             for (auto &val: v) {
                 Vertex &tmp = val.second;
                 if (tmp.inDeg() == 0 && tmp.outDeg() == 1) {
-                    Path path = tmp.getOutgoing()[0].walkForward();
+                    Path path = tmp[0].walkForward();
                     if (path.back().end() != nullptr && path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
                         isolated += 1;
                         for (Edge *edge : path) {
@@ -1365,7 +1354,7 @@ namespace dbg {
                     }
                 }
                 if (tmp.inDeg() == 1 && tmp.outDeg() == 0) {
-                    Path path = tmp.rc().getOutgoing()[0].walkForward();
+                    Path path = tmp.rc()[0].walkForward();
                     if (path.back().end() != nullptr && path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
                         isolated += 1;
                         for (Edge *edge : path) {
@@ -1380,29 +1369,29 @@ namespace dbg {
                 inout[std::min<size_t>(4u, tmp.outDeg()) * 5 + std::min<size_t>(4u, tmp.inDeg())] += 1;
                 inout[std::min<size_t>(4u, tmp.inDeg()) * 5 + std::min<size_t>(4u, tmp.outDeg())] += 1;
                 if (tmp.outDeg() == 1 && tmp.inDeg() == 0) {
-                    Vertex &tmp1 = tmp.getOutgoing()[0].end()->rc();
-                    VERIFY(tmp.getOutgoing()[0].end() != nullptr);
+                    Vertex &tmp1 = tmp[0].end()->rc();
+                    VERIFY(tmp[0].end() != nullptr);
                 }
                 if (tmp.outDeg() == 0 && tmp.inDeg() == 1) {
-                    Vertex &tmp1 = tmp.rc().getOutgoing()[0].end()->rc();
-                    VERIFY(tmp.rc().getOutgoing()[0].end() != nullptr);
+                    Vertex &tmp1 = tmp.rc()[0].end()->rc();
+                    VERIFY(tmp.rc()[0].end() != nullptr);
                 }
                 if (tmp.inDeg() == 1 && tmp.outDeg() == 1) {
                     n11 += 1;
                 }
                 if (tmp.inDeg() + tmp.outDeg() == 1) {
                     n01 += 1;
-                    Edge tip_edge = tmp.outDeg() == 1 ? tmp.getOutgoing()[0] : tmp.rc().getOutgoing()[0];
+                    Edge tip_edge = tmp.outDeg() == 1 ? tmp[0] : tmp.rc()[0];
                     if (tip_edge.end()->outDeg() > 1) {
                         ltips += tip_edge.size();
                         ntips += 1;
                     }
 
                 }
-                for (const Edge &edge : tmp.getOutgoing()) {
+                for (const Edge &edge : tmp) {
                     e += 1;
                 }
-                for (const Edge &edge : tmp.rc().getOutgoing()) {
+                for (const Edge &edge : tmp.rc()) {
                     e += 1;
                 }
             }
@@ -1439,7 +1428,7 @@ namespace dbg {
             std::vector<size_t> covLen_tips(100);
             for (auto &val: v) {
                 const Vertex &tmp = val.second;
-                for (const Edge &edge : tmp.getOutgoing()) {
+                for (const Edge &edge : tmp) {
                     cov[std::min(size_t(edge.getCoverage()), cov.size() - 1)] += 1;
                     covLen[std::min(size_t(edge.getCoverage()), cov.size() - 1)] += edge.size();
                     cov_ldist[std::min(size_t(edge.getCoverage()), cov.size() - 1)][std::min(edge.size() / 50,
@@ -1453,7 +1442,7 @@ namespace dbg {
                                                                                                       1)] += 1;
                     }
                 }
-                for (const Edge &edge : tmp.rc().getOutgoing()) {
+                for (const Edge &edge : tmp.rc()) {
                     cov[std::min(size_t(edge.getCoverage()), cov.size() - 1)] += 1;
                     covLen[std::min(size_t(edge.getCoverage()), cov.size() - 1)] += edge.size();
                     cov_ldist[std::min(size_t(edge.getCoverage()), cov.size() - 1)][std::min(edge.size() / 50,
@@ -1527,7 +1516,7 @@ namespace dbg {
                 const Vertex &vertex = it.second;
                 VERIFY(!vertex.seq.empty());
                 for (size_t i = 0; i < vertex.outDeg(); i++) {
-                    const Edge &edge = vertex.getOutgoing()[i];
+                    const Edge &edge = *(vertex.begin() + i);
                     Sequence tmp = vertex.seq + edge.seq;
                     Vertex &end = *edge.end();
                     out << ">" << cnt << "_" << vertex.hash() << int(vertex.isCanonical()) <<
@@ -1538,7 +1527,7 @@ namespace dbg {
                 }
                 const Vertex &rcvertex = vertex.rc();
                 for (size_t i = 0; i < rcvertex.outDeg(); i++) {
-                    const Edge &edge = rcvertex.getOutgoing()[i];
+                    const Edge &edge = rcvertex[i];
                     Sequence tmp = rcvertex.seq + edge.seq;
                     Vertex &end = *edge.end();
                     out << ">" << cnt << "_" << rcvertex.hash() << int(rcvertex.isCanonical()) <<
@@ -1557,7 +1546,7 @@ namespace dbg {
                 for (const Vertex *pv : {&it.second, &it.second.rc()}) {
                     const Vertex &vertex = *pv;
                     VERIFY(!vertex.seq.empty());
-                    for (const Edge &edge : vertex.getOutgoing()) {
+                    for (const Edge &edge : vertex) {
                         if (vertex.isCanonical(edge)) {
                             if (calculate_coverage)
                                 out << "S\t" << vertex.edgeId(edge) << "\t" << vertex.seq << edge.seq
@@ -1570,10 +1559,10 @@ namespace dbg {
             }
             for (const auto &it : v) {
                 const Vertex &vertex = it.second;
-                for (const Edge &out_edge : vertex.getOutgoing()) {
+                for (const Edge &out_edge : vertex) {
                     std::string outid = vertex.edgeId(out_edge);
                     bool outsign = vertex.isCanonical(out_edge);
-                    for (const Edge &inc_edge : vertex.rc().getOutgoing()) {
+                    for (const Edge &inc_edge : vertex.rc()) {
                         std::string incid = vertex.rc().edgeId(inc_edge);
                         bool incsign = !vertex.rc().isCanonical(inc_edge);
                         out << "L\t" << incid << "\t" << (incsign ? "+" : "-") << "\t" << outid << "\t"
@@ -1627,6 +1616,15 @@ namespace dbg {
             res.fillSparseDBGEdges(sequences.begin(), sequences.end(), logger, threads, hasher.k + 1);
             logger.info() << "Finished loading graph" << std::endl;
             return std::move(res);
+        }
+    };
+}
+
+namespace std {
+    template <>
+    struct hash<dbg::EdgePointer> {
+        std::size_t operator()(const dbg::EdgePointer &p) const {
+            return p.hash();
         }
     };
 }

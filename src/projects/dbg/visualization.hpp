@@ -78,11 +78,11 @@ public:
         os << "digraph {\nnodesep = 0.5;\n";
         for(std::pair<const htype, Vertex> & it : dbg) {
             Vertex &start = it.second;
-            for(Edge &edge : start.getOutgoing()) {
+            for(Edge &edge : start) {
                 Vertex &end = *edge.end();
                 printEdgeDot(os, start, edge);
             }
-            for(Edge &edge : start.rc().getOutgoing()) {
+            for(Edge &edge : start.rc()) {
                 Vertex &end = *edge.end();
                 printEdgeDot(os, start.rc(), edge);
             }
@@ -111,11 +111,11 @@ public:
         os << "digraph {\nnodesep = 0.5;\n";
         for(std::pair<const htype, Vertex> & it : dbg) {
             Vertex &start = it.second;
-            for(Edge &edge : start.getOutgoing()) {
+            for(Edge &edge : start) {
                 Vertex &end = *edge.end();
                 printEdge(os, start, edge);
             }
-            for(Edge &edge : start.rc().getOutgoing()) {
+            for(Edge &edge : start.rc()) {
                 Vertex &end = *edge.end();
                 printEdge(os, start.rc(), edge);
             }
@@ -137,7 +137,7 @@ public:
 
     size_t outDeg(const Vertex &vert, size_t min_cov) const {
         size_t res = 0;
-        for(const Edge &edge : vert.getOutgoing()) {
+        for(const Edge &edge : vert) {
             if(edge.getCoverage() >= min_cov) {
                 res += 1;
             }
@@ -150,7 +150,7 @@ public:
     }
 
     Edge &getOut(Vertex &vert, size_t min_cov) const {
-        for(Edge &edge : vert.getOutgoing()) {
+        for(Edge &edge : vert) {
             if(edge.getCoverage() >= min_cov) {
                 return edge;
             }
@@ -196,11 +196,11 @@ public:
             if(val.first > radius)
                 continue;
             Vertex &vert = graph.getVertex(val.second);
-            for(Edge & edge : vert.getOutgoing()) {
+            for(Edge & edge : vert) {
                 if(edge.getCoverage() >= min_coverage)
                     queue.emplace(val.first + edge.size(), edge.end()->hash());
             }
-            for(Edge & edge : vert.rc().getOutgoing()) {
+            for(Edge & edge : vert.rc()) {
                 if(edge.getCoverage() >= min_coverage)
                     queue.emplace(val.first + edge.size(), edge.end()->hash());
             }
@@ -221,7 +221,7 @@ public:
             if(prev.find(&v2) != prev.end())
                 continue;
             prev[&v2] = last_edge;
-            for(auto & edge : v2.getOutgoing()) {
+            for(auto & edge : v2) {
                 if(dist + edge.size() <= max_len)
                     queue.emplace(dist + edge.size(), &edge.rc(), edge.end());
             }
@@ -262,11 +262,11 @@ public:
             if(val.first > radius)
                 continue;
             Vertex &vert = graph.getVertex(val.second);
-            for(Edge & edge : vert.getOutgoing()) {
+            for(Edge & edge : vert) {
                 if(edge.getCoverage() >= min_coverage)
                     queue.emplace(val.first + edge.size(), edge.end()->hash());
             }
-            for(Edge & edge : vert.rc().getOutgoing()) {
+            for(Edge & edge : vert.rc()) {
                 if(edge.getCoverage() >= min_coverage)
                     queue.emplace(val.first + edge.size(), edge.end()->hash());
             }
@@ -291,13 +291,13 @@ public:
                 visited.insert(val);
                 component.emplace_back(val);
                 Vertex &vert = graph.getVertex(val);
-                for (Edge &edge : vert.getOutgoing()) {
+                for (Edge &edge : vert) {
                     if (edge.size() < len) {
                         queue.emplace_back(edge.end()->hash());
                         component.emplace_back(edge.end()->hash());
                     }
                 }
-                for (Edge &edge : vert.rc().getOutgoing()) {
+                for (Edge &edge : vert.rc()) {
                     if (edge.size() < len) {
                         queue.emplace_back(edge.end()->hash());
                         component.emplace_back(edge.end()->hash());
@@ -351,7 +351,7 @@ public:
         for(htype vid : v)
             for(Vertex * vit : graph.getVertices(vid)) {
                 Vertex &start = *vit;
-                for (Edge &edge : start.getOutgoing()) {
+                for (Edge &edge : start) {
                     extended.emplace(edge.end()->hash());
                 }
             }
@@ -365,7 +365,7 @@ public:
         for(htype vid : v) {
             for(Vertex * vit : graph.getVertices(vid)) {
                 Vertex &start = *vit;
-                for (Edge &edge : start.getOutgoing()) {
+                for (Edge &edge : start) {
                     if (edge.getCoverage() < min_cov)
                         continue;
                     Vertex &end = *edge.end();
@@ -388,7 +388,7 @@ public:
         for(htype vid : v)
             for(Vertex * vit : graph.getVertices(vid)) {
                 Vertex &start = *vit;
-                for (Edge &edge : start.getOutgoing()) {
+                for (Edge &edge : start) {
                     extended.emplace(edge.end()->hash());
                 }
             }
@@ -402,7 +402,7 @@ public:
         for(htype vid : v) {
             for(Vertex * vit : graph.getVertices(vid)) {
                 Vertex &start = *vit;
-                for (Edge &edge : start.getOutgoing()) {
+                for (Edge &edge : start) {
                     if (edge.getCoverage() < min_cov)
                         continue;
                     Vertex &end = *edge.end();
@@ -430,7 +430,7 @@ public:
             Vertex &start = graph.getVertex(vid);
             if(isUnbranching(start, min_cov))
                 continue;
-            for(Edge &edge : start.getOutgoing()) {
+            for(Edge &edge : start) {
                 if(edge.getCoverage() < min_cov)
                     continue;
                 Path path = unbranching(start, edge, min_cov);
@@ -441,7 +441,7 @@ public:
                     printEdge(os, rcpath);
                 }
             }
-            for(Edge &edge : start.rc().getOutgoing()) {
+            for(Edge &edge : start.rc()) {
                 if(edge.getCoverage() < min_cov)
                     continue;
                 Path path = unbranching(start.rc(), edge, min_cov);

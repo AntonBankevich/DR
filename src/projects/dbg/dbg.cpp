@@ -89,7 +89,7 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
     os_mult.close();
     for(auto & pair : dbg) {
         Vertex &vert = pair.second;
-        for (Edge &edge : vert.getOutgoing()) {
+        for (Edge &edge : vert) {
             size_t cov_val = std::min(max_cov, size_t(edge.getCoverage()));
             if (eset.find(&edge) == eset.end() && eset.find(&edge.rc()) == eset.end()) {
                 cov_bad[cov_val] += 1;
@@ -477,13 +477,13 @@ int main(int argc, char **argv) {
         for(auto & it : dbg) {
             Vertex &vert = it.second;
             bool add = false;
-            for(Edge & edge : vert.getOutgoing()) {
+            for(Edge & edge : vert) {
                 if (edge.getCoverage() >= threshold) {
                     edges.push_back(vert.seq + edge.seq);
                     add = true;
                 }
             }
-            for(Edge & edge : vert.rc().getOutgoing()) {
+            for(Edge & edge : vert.rc()) {
                 if (edge.getCoverage() >= threshold){
                     edges.push_back(vert.rc().seq + edge.seq);
                     add = true;
@@ -498,10 +498,10 @@ int main(int argc, char **argv) {
             Vertex &vert = it.second;
             Vertex &other = dbg.getVertex(vert.hash());
             bool add = false;
-            for(Edge & edge : vert.getOutgoing()) {
+            for(Edge & edge : vert) {
                 edge.incCov(other.getOutgoing(edge.seq[0]).intCov());
             }
-            for(Edge & edge : vert.rc().getOutgoing()) {
+            for(Edge & edge : vert.rc()) {
                 edge.incCov(other.rc().getOutgoing(edge.seq[0]).intCov());
             }
         }

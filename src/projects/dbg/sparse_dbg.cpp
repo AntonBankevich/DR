@@ -4,7 +4,7 @@ using namespace dbg;
 size_t Edge::updateTipSize() const {
     size_t new_val = 0;
     if(extraInfo == size_t(-1) && end_->inDeg() == 1) {
-        for (const Edge & other : end_->getOutgoing()) {
+        for (const Edge & other : *end_) {
             other.end_->lock();
             new_val = std::max(new_val, other.extraInfo);
             other.end_->unlock();
@@ -33,7 +33,7 @@ Edge &Edge::rc() const {
 Edge &Edge::sparseRcEdge() const {
     Vertex &vend = end()->rc();
     VERIFY(start_->seq.size() > 0);
-    for(Edge &candidate : vend.getOutgoing()) {
+    for(Edge &candidate : vend) {
         if(*candidate.end() == start_->rc() && candidate.size() == size() &&
            (size() <= seq.size() || candidate.seq.startsWith((!seq).Subseq(start_->seq.size())))) {
             return candidate;
@@ -42,14 +42,14 @@ Edge &Edge::sparseRcEdge() const {
     std::cout << start_->seq + seq << std::endl;
     std::cout << seq << std::endl;
     std::cout << vend.seq << std::endl;
-    for(Edge &candidate : vend.getOutgoing()) {
+    for(Edge &candidate : vend) {
         if(*candidate.end() == start_->rc() && candidate.size() == size() &&
            (size() <= seq.size() || candidate.seq.startsWith((!seq).Subseq(start_->seq.size())))) {
             std::cout << vend.seq + candidate.seq << std::endl;
         }
     }
     VERIFY(false);
-    return vend.getOutgoing()[0];
+    return vend[0];
 }
 
 Path Edge::walkForward() {
@@ -57,8 +57,8 @@ Path Edge::walkForward() {
     res += *this;
     Vertex *next = end();
     while(next != nullptr && next != start_ && !next->isJunction()) {
-        res += next->getOutgoing()[0];
-        next = next->getOutgoing()[0].end();
+        res += (*next)[0];
+        next = (*next)[0].end();
     }
     return std::move(res);
 }

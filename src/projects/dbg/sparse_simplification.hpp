@@ -8,10 +8,10 @@
 #include <common/logging.hpp>
 #include <vector>
 
-
+using namespace dbg;
 size_t maxOutgoingCov(const Vertex &rec) {
     size_t res = 0;
-    for(const Edge &edge : rec.getOutgoing())
+    for(const Edge &edge : rec)
         res = std::max(res, edge.end()->coverage());
     return res;
 }
@@ -20,7 +20,7 @@ void processVertex(Vertex &rec, size_t threshold, size_t k) {
     rec.lock();
     rec.rc().lock();
     if (rec.outDeg() > 1 && rec.coverage() > threshold && maxOutgoingCov(rec) < threshold) {
-        for (const Edge &edge : rec.getOutgoing()) {
+        for (Edge &edge : rec) {
             VERIFY(edge.end() != nullptr);
             Path path = edge.walkForward();
             Vertex &end = path.back().end()->rc();
@@ -35,9 +35,9 @@ void processVertex(Vertex &rec, size_t threshold, size_t k) {
             }
             bool ok = true;
             size_t len = 0;
-            for (const Edge &path_edge : path) {
-                len += path_edge.size();
-                if (path_edge.end()->coverage() > threshold) {
+            for (Edge *path_edge : path) {
+                len += path_edge->size();
+                if (path_edge->end()->coverage() > threshold) {
                     ok = false;
                     break;
                 }

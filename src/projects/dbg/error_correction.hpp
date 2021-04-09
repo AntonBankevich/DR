@@ -261,7 +261,7 @@ namespace error_correction {
                 }
             }
             for(size_t i = 0; i < next.state.graph_position->outDeg(); i++) {
-                Edge &edge = next.state.graph_position->getOutgoing()[i];
+                Edge &edge = next.state.graph_position->operator[](i);
                 if (!next.state.match || edge.seq != path[next.state.last_match].seq) {
                     queue.emplace(State(next.state.last_match, next.state.diff + edge.size(), edge.end(), false),
                                   ResRecord(&prev, &edge, false),

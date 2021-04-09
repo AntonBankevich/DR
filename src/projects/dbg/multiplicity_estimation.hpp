@@ -22,7 +22,7 @@ public:
         for(htype hash : component.v) {
             for(dbg::Vertex *v_it : {&graph.getVertex(hash), &graph.getVertex(hash).rc()}) {
                 dbg::Vertex &v = *v_it;
-                for(dbg::Edge &edge : v.getOutgoing()) {
+                for(dbg::Edge &edge : v) {
                     if(edge.size() < unique_len) {
                         int eid = addEdge(vertex_mapping[&v], vertex_mapping[edge.end()], min_flow, 10000);
                         edge_mapping[eid] = &edge;
@@ -64,7 +64,7 @@ public:
         size_t cnt = 0;
         for(auto & it : dbg) {
             for(auto v_it : {&it.second, &it.second.rc()}) {
-                for(Edge &edge : v_it->getOutgoing()) {
+                for(Edge &edge : *v_it) {
                     if(edge.size() > unique_len) {
                         unique_set.emplace(&edge);
                     }

@@ -50,8 +50,7 @@ void tieTips(logging::Logger &logger, SparseDBG &sdbg, size_t w, size_t threads)
                 for(auto *vit : {&cvertex, &cvertex.rc()}) {
                     Vertex &vertex = *vit;
                     VERIFY(!vertex.seq.empty());
-                    for (size_t i = 0; i < vertex.getOutgoing().size(); i++) {
-                        const auto &ext = vertex.getOutgoing()[i];
+                    for (const Edge & ext : vertex) {
                         if (ext.end() == nullptr) {
                             Sequence seq = vertex.seq + ext.seq;
                             KWH kwh(sdbg.hasher(), seq, ext.size());
@@ -80,7 +79,7 @@ void tieTips(logging::Logger &logger, SparseDBG &sdbg, size_t w, size_t threads)
 
 void UpdateVertexTips(Vertex &rec, ParallelRecordCollector<Vertex *> &queue) {
     bool ok = true;
-    for (const Edge &edge : rec.getOutgoing()) {
+    for (const Edge &edge : rec) {
         if (edge.getTipSize() == size_t(-1)) {
             edge.updateTipSize();
         }
@@ -89,7 +88,7 @@ void UpdateVertexTips(Vertex &rec, ParallelRecordCollector<Vertex *> &queue) {
         }
     }
     if(ok && rec.inDeg() == 1) {
-        queue.add(&(rec.rc().getOutgoing()[0].end()->rc()));
+        queue.add(&(rec.rc()[0].end()->rc()));
     }
 }
 
@@ -191,12 +190,12 @@ void mergeLinearPaths(logging::Logger &logger, SparseDBG &sdbg, size_t threads) 
                 if (!start.isJunction())
                     return;
                 start.lock();
-                for (Edge &edge: start.getOutgoing()) {
+                for (Edge &edge: start) {
                     MergeEdge(sdbg, start, edge);
                 }
                 start.unlock();
                 start.rc().lock();
-                for (Edge &edge: start.rc().getOutgoing()) {
+                for (Edge &edge: start.rc()) {
                     MergeEdge(sdbg, start.rc(), edge);
                 }
                 start.rc().unlock();
@@ -214,7 +213,7 @@ void mergeCyclicPaths(logging::Logger &logger, SparseDBG &sdbg, size_t threads) 
                 if(start.isJunction() || start.marked()) {
                     return;
                 }
-                Path path = start.getOutgoing()[0].walkForward();
+                Path path = start[0].walkForward();
                 VERIFY(path.finish() == start);
                 bool ismin = true;
                 for (const Edge *e : path) {
@@ -232,7 +231,7 @@ void mergeCyclicPaths(logging::Logger &logger, SparseDBG &sdbg, size_t threads) 
     logger.info() << "Found " << loops.size() << " perfect loops" << std::endl;
     for(htype loop : loops) {
         Vertex &start = sdbg.getVertex(loop);
-        Path path = start.getOutgoing()[0].walkForward();
+        Path path = start[0].walkForward();
         mergeLoop(path);
     }
     logger.info() << "Finished merging cyclic paths" << std::endl;
@@ -261,10 +260,10 @@ void CalculateCoverage(const std::experimental::filesystem::path &dir, const Rol
     for (std::pair<const htype, Vertex> &pair : dbg) {
         Vertex &v = pair.second;
         os << v.hash() << " " << v.outDeg() << " " << v.inDeg() << std::endl;
-        for (const Edge &edge : v.getOutgoing()) {
+        for (const Edge &edge : v) {
             os << size_t(edge.seq[0]) << " " << edge.intCov() << std::endl;
         }
-        for (const Edge &edge : v.rc().getOutgoing()) {
+        for (const Edge &edge : v.rc()) {
             os << size_t(edge.seq[0]) << " " << edge.intCov() << std::endl;
         }
     }

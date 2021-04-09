@@ -106,7 +106,7 @@ std::unordered_map<Vertex *, size_t> findReachable(Vertex &start, double min_cov
         queue.pop();
         if(res.find(next.second) == res.end()) {
             res[next.second] = next.first;
-            for(Edge &edge : next.second->getOutgoing()) {
+            for(Edge &edge : *next.second) {
                 size_t new_len = next.first + edge.size();
                 if((edge.getCoverage() >= min_cov || edge.is_reliable) && new_len <= max_dist) {
                     queue.emplace(new_len, edge.end());
@@ -148,7 +148,7 @@ std::vector<GraphAlignment> FindPlausibleBulgeAlternatives(logging::Logger &logg
                 }
             }
             forward = false;
-            for(Edge &edge : alternative.finish().getOutgoing()) {
+            for(Edge &edge : alternative.finish()) {
                 if((edge.getCoverage() >= min_cov || edge.is_reliable) && reachable.find(&edge.end()->rc()) != reachable.end() &&
                    reachable[&edge.end()->rc()] + edge.size() + len <= max_len) {
                     len += edge.size();
@@ -164,7 +164,7 @@ std::vector<GraphAlignment> FindPlausibleBulgeAlternatives(logging::Logger &logg
             alternative.pop_back();
             len -= old_edge.size();
             bool found = false;
-            for(Edge &edge : alternative.finish().getOutgoing()) {
+            for(Edge &edge : alternative.finish()) {
                 if((edge.getCoverage() >= min_cov || edge.is_reliable) &&
                         reachable.find(&edge.end()->rc()) != reachable.end() &&
                         reachable[&edge.end()->rc()] + edge.size() + len <= max_len) {
@@ -209,7 +209,7 @@ std::vector<GraphAlignment> FindPlausibleTipAlternatives(logging::Logger &logger
                     return {path};
                 }
             } else {
-                for (Edge &edge : alternative.finish().getOutgoing()) {
+                for (Edge &edge : alternative.finish()) {
                     if (edge.getCoverage() >= min_cov || edge.is_reliable) {
                         len += edge.size();
                         alternative.push_back(Segment<Edge>(edge, 0, edge.size()));
@@ -225,7 +225,7 @@ std::vector<GraphAlignment> FindPlausibleTipAlternatives(logging::Logger &logger
             alternative.pop_back();
             len -= old_edge.size();
             bool found = false;
-            for(Edge &edge : alternative.finish().getOutgoing()) {
+            for(Edge &edge : alternative.finish()) {
                 if(edge.getCoverage() >= min_cov || edge.is_reliable) {
                     if(found) {
                         len += edge.size();
@@ -573,9 +573,9 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
                            << std::endl;
                     Vertex &tmpv = corrected_path.getVertex(corrected_path.size() - step_back);
                     logger << tmpv.outDeg() << " " << tmpv.inDeg() << std::endl;
-                    for (Edge &e : tmpv.getOutgoing())
+                    for (Edge &e : tmpv)
                         logger << "Edge out " << e.size() << " " << e.getCoverage() << std::endl;
-                    for (Edge &e : tmpv.rc().getOutgoing())
+                    for (Edge &e : tmpv.rc())
                         logger << "Edge in " << e.size() << " " << e.getCoverage() << std::endl;
                 }
                 if (path_pos + 1 + step_front < path.size()) {
@@ -584,9 +584,9 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
                            << " " << path[path_pos + step_front].contig().getCoverage() << std::endl;
                     Vertex &tmpv = path.getVertex(path_pos + step_front + 1);
                     logger << tmpv.outDeg() << " " << tmpv.inDeg() << std::endl;
-                    for (Edge &e : tmpv.getOutgoing())
+                    for (Edge &e : tmpv)
                         logger << "Edge out " << e.size() << " " << e.getCoverage() << std::endl;
-                    for (Edge &e : tmpv.rc().getOutgoing())
+                    for (Edge &e : tmpv.rc())
                         logger << "Edge in " << e.size() << " " << e.getCoverage() << std::endl;
                 }
             }
@@ -702,10 +702,10 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage,
             }
             Vertex &start = path.getVertex(path_pos);
             Vertex &end = path.getVertex(path_pos + 1);
-            if(start.outDeg() != 2 || start.getOutgoing()[0].end() != start.getOutgoing()[1].end()) {
+            if(start.outDeg() != 2 || start[0].end() != start[1].end()) {
                 continue;
             }
-            Edge & alt = edge == start.getOutgoing()[0] ? start.getOutgoing()[1] : start.getOutgoing()[0];
+            Edge & alt = edge == start[0] ? start[1] : start[0];
 
             const VertexRecord &rec = ref_storage.getRecord(start);
             if(edge.getCoverage() < 1 || alt.getCoverage() < 1) {
@@ -865,7 +865,7 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
 Edge * checkBorder(Vertex &v) {
     Edge * res = nullptr;
     size_t out_rel = 0;
-    for(Edge &edge : v.rc().getOutgoing()) {
+    for(Edge &edge : v.rc()) {
         if(edge.is_reliable) {
             if (res == nullptr)
                 res = &edge.rc();
@@ -873,7 +873,7 @@ Edge * checkBorder(Vertex &v) {
                 return nullptr;
         }
     }
-    for(Edge &edge : v.getOutgoing()) {
+    for(Edge &edge : v) {
         if(edge.is_reliable)
             out_rel += 1;
     }
@@ -886,11 +886,11 @@ Edge * checkBorder(Vertex &v) {
 bool checkInner(Vertex &v) {
     size_t inc_rel = 0;
     size_t out_rel = 0;
-    for(Edge &edge : v.rc().getOutgoing()) {
+    for(Edge &edge : v.rc()) {
         if(edge.is_reliable)
             inc_rel += 1;
     }
-    for(Edge &edge : v.getOutgoing()) {
+    for(Edge &edge : v) {
         if(edge.is_reliable)
             out_rel += 1;
     }
@@ -903,7 +903,7 @@ void RefillReliable(logging::Logger &logger, SparseDBG &sdbg, double threshold,
     for(auto &vit : sdbg) {
         for(Vertex * vp : {&vit.second, &vit.second.rc()}) {
             Vertex &v = *vp;
-            for(Edge &edge : v.getOutgoing()) {
+            for(Edge &edge : v) {
                 edge.is_reliable = edge.getCoverage() >= threshold;
             }
         }
@@ -948,7 +948,7 @@ void RefillReliable(logging::Logger &logger, SparseDBG &sdbg, double threshold,
                     cnt_paths += 1;
                     break;
                 } else {
-                    for(Edge &edge : next->end()->getOutgoing()) {
+                    for(Edge &edge : *next->end()) {
                         double score = edge.size() / std::max<double>(std::min(edge.getCoverage(), threshold), 1);
                         queue.emplace(dist + score, &edge);
                     }
@@ -989,7 +989,7 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
     for(auto &it :sdbg) {
         for(Vertex * vit : {&it.second, &it.second.rc()}) {
             Vertex &v = *vit;
-            for(Edge &e : v.getOutgoing()) {
+            for(Edge &e : v) {
                 bool low = e.getCoverage() < threshold;
                 bool err = ref_storage.getRecord(v).countStartsWith(Sequence(std::vector<char>({char(e.seq[0])}))) == 0;
                 if(low)

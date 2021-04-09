@@ -422,7 +422,10 @@ public:
     template<class I>
     void fill(I begin, I end, size_t min_read_size, logging::Logger &logger, size_t threads) {
         for(auto & it: dbg) {
-            for(Edge &edge : it.second.getOutgoing()) {
+            for(Edge &edge : it.second) {
+                edge.incCov(-edge.intCov());
+            }
+            for(Edge &edge : it.second.rc()) {
                 edge.incCov(-edge.intCov());
             }
         }

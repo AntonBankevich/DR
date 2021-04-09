@@ -65,8 +65,8 @@ GraphAlignment correctRead(logging::Logger &logger, std::string &read_id,
                           << CompactPath(al.subPath(i + 1, al.size())) << "\n" << compactPath << std::endl;
             new_al += replacement;
             while(new_al.finish().outDeg() == 1 && deficite > 0) {
-                size_t len = std::min(deficite, new_al.finish().getOutgoing()[0].size());
-                new_al += Segment<Edge>(new_al.finish().getOutgoing()[0], 0, len);
+                size_t len = std::min(deficite, new_al.finish()[0].size());
+                new_al += Segment<Edge>(new_al.finish()[0], 0, len);
                 deficite -= len;
             }
             bad = true;

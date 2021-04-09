@@ -10,13 +10,13 @@ double avgCoverage(const SparseDBG &dbg) {
     size_t len = 0;
     for(const std::pair<const htype, Vertex> &it : dbg) {
         const Vertex &v = it.second;
-        for (const Edge &edge : v.getOutgoing()) {
+        for (const Edge &edge : v) {
             if (edge.intCov() >= 2 * edge.size()) {
                 cov += edge.intCov();
                 len += edge.size();
             }
         }
-        for (const Edge &edge : v.rc().getOutgoing()) {
+        for (const Edge &edge : v.rc()) {
             if (edge.intCov() >= 2 * edge.size()) {
                 cov += edge.intCov();
                 len += edge.size();
@@ -31,7 +31,7 @@ std::unordered_set<const Edge *> filterEdges(const SparseDBG &dbg, size_t thresh
     std::unordered_set<const Edge *> to_skip;
     for(auto & it : dbg) {
         for (const Vertex *pv : {&it.second, &it.second.rc()}) {
-            for (const Edge &edge : pv->getOutgoing())
+            for (const Edge &edge : *pv)
                 if (edge.getCoverage() < threshold) {
                     to_skip.emplace(&edge);
                     to_skip.emplace(&edge.rc());
@@ -43,7 +43,7 @@ std::unordered_set<const Edge *> filterEdges(const SparseDBG &dbg, size_t thresh
     for(auto & it : dbg) {
         for(const Vertex *pv : {&it.second, &it.second.rc()}) {
             size_t indeg = 0;
-            for(const Edge &edge : pv->rc().getOutgoing())
+            for(const Edge &edge : pv->rc())
                 if (to_skip.find(&edge) == to_skip.end()){
                     indeg += 1;
                 }
@@ -57,12 +57,12 @@ std::unordered_set<const Edge *> filterEdges(const SparseDBG &dbg, size_t thresh
                 size_t outdeg = 0;
                 indeg = 0;
                 const Edge *next = nullptr;
-                for(const Edge &edge : pv->getOutgoing())
+                for(const Edge &edge : *pv)
                     if (to_skip.find(&edge) == to_skip.end()){
                         outdeg += 1;
                         next = &edge;
                     }
-                for(const Edge &edge : pv->rc().getOutgoing())
+                for(const Edge &edge : pv->rc())
                     if (to_skip.find(&edge) == to_skip.end()){
                         indeg += 1;
                     }
@@ -96,7 +96,7 @@ SparseDBG simplifyGraph(logging::Logger &logger, SparseDBG &dbg,
         Vertex &vert = it.second;
         bool add = false;
         for(Vertex *pv : {&it.second, &it.second.rc()}) {
-            for(Edge & edge : pv->getOutgoing()) {
+            for(Edge & edge : *pv) {
                 if (to_skip.find(&edge) == to_skip.end()) {
                     edges.push_back(pv->seq + edge.seq);
                     add = true;
@@ -112,10 +112,10 @@ SparseDBG simplifyGraph(logging::Logger &logger, SparseDBG &dbg,
         Vertex &vert = it.second;
         Vertex &other = dbg.getVertex(vert.hash());
         bool add = false;
-        for(Edge & edge : vert.getOutgoing()) {
+        for(Edge & edge : vert) {
             edge.incCov(other.getOutgoing(edge.seq[0]).intCov());
         }
-        for(Edge & edge : vert.rc().getOutgoing()) {
+        for(Edge & edge : vert.rc()) {
             edge.incCov(other.rc().getOutgoing(edge.seq[0]).intCov());
         }
     }
@@ -127,10 +127,10 @@ SparseDBG simplifyGraph(logging::Logger &logger, SparseDBG &dbg,
 
 void handleSimpleBulge(Vertex &v, std::unordered_map<const Edge *, Sequence> &edge_map, double avg_cov,
                   logging::Logger &logger) {
-    Edge &edge1 = v.getOutgoing()[0].getCoverage() < v.getOutgoing()[1].getCoverage() ? v.getOutgoing()[0] : v.getOutgoing()[1];
-    Edge &edge2 = v.getOutgoing()[0].getCoverage() < v.getOutgoing()[1].getCoverage() ? v.getOutgoing()[1] : v.getOutgoing()[0];
+    Edge &edge1 = v.begin()->getCoverage() < (v.begin() + 1)->getCoverage() ? *v.begin() : *(v.begin() + 1);
+    Edge &edge2 = v.begin()->getCoverage() < (v.begin() + 1)->getCoverage() ? *(v.begin() + 1) : *v.begin();
+    Edge &edge0 = v.rc().begin()->rc();
     logger.info() << "Handling simple bulge " << v.hash() << v.isCanonical() << " " << edge1.end()->hash() << edge1.end()->isCanonical() << std::endl;
-    Edge &edge0 = v.rc().getOutgoing()[0].rc();
     bool c1 = edge0.getCoverage() < avg_cov * 3 / 2 && edge1.getCoverage() + edge2.getCoverage() < avg_cov * 3 / 2;
     bool c2 = edge0.size() > 20000 && edge0.getCoverage() < avg_cov * 3 / 2;
     bool c3 = edge0.size() > 40000 && edge0.getCoverage() < avg_cov * 7 / 8;
@@ -188,9 +188,9 @@ std::vector<Edge *> choosePath(Vertex &start, Edge &bulge, Edge &alternative) {
 void handleComplexBulge(Vertex &v, std::unordered_set<const Edge *> &to_skip, std::unordered_map<const Edge *, Sequence> &edge_map, double avg_cov,
                        logging::Logger &logger) {
     logger.info() << "Handling complex bulge " << v.hash() << v.isCanonical() << std::endl;
-    Edge &edge1 = v.getOutgoing()[0].getCoverage() < v.getOutgoing()[1].getCoverage() ? v.getOutgoing()[0] : v.getOutgoing()[1];
-    Edge &edge2 = v.getOutgoing()[0].getCoverage() < v.getOutgoing()[1].getCoverage() ? v.getOutgoing()[1] : v.getOutgoing()[0];
-    Edge &edge0 = v.rc().getOutgoing()[0].rc();
+    Edge &edge1 = v.begin()->getCoverage() < (v.begin() + 1)->getCoverage() ? *v.begin() : *(v.begin() + 1);
+    Edge &edge2 = v.begin()->getCoverage() < (v.begin() + 1)->getCoverage() ? *(v.begin() + 1) : *v.begin();
+    Edge &edge0 = v.rc().begin()->rc();
     bool c1 = edge0.getCoverage() < avg_cov * 3 / 2 && edge1.getCoverage() + edge2.getCoverage() < avg_cov * 3 / 2;
     bool c2 = edge0.size() > 20000 && edge0.getCoverage() < avg_cov * 3 / 2;
     if (c1 || c2) {
@@ -259,7 +259,7 @@ bool checkComponent(Vertex *start, Vertex *end, const std::vector<Edge *> &path,
         visited.emplace(next);
         queue.pop_back();
         bool ok = true;
-        for(Edge & edge : next->rc().getOutgoing()) {
+        for(Edge & edge : next->rc()) {
             if (good.find(&edge.end()->rc()) == good.end())
                 ok = false;
         }
@@ -268,7 +268,7 @@ bool checkComponent(Vertex *start, Vertex *end, const std::vector<Edge *> &path,
             if(next == end) {
                 break;
             }
-            for(Edge & edge : next->getOutgoing()) {
+            for(Edge & edge : *next) {
                 if(edge.size() > start->seq.size() * 2)
                     return false;
                 queue.push_back(edge.end());
@@ -289,7 +289,7 @@ bool checkComponent(Vertex *start, Vertex *end, const std::vector<Edge *> &path,
     for(Vertex *v : good) {
         if(v == end)
             continue;
-        for(Edge & edge : v->getOutgoing()) {
+        for(Edge & edge : *v) {
             if(path_set.find(&edge) == path_set.end()) {
                 to_skip.emplace(&edge);
                 to_skip.emplace(&edge.rc());
@@ -308,7 +308,7 @@ bool handleSubcomponent(Vertex &v, double avg_cov, std::unordered_map<const Edge
     Vertex * cv = &v;
     while (true) {
         Edge *next = nullptr;
-        for(Edge &cand : cv->getOutgoing()) {
+        for(Edge &cand : *cv) {
             if (next == nullptr || cand.getCoverage() > next->getCoverage()) {
                 next = &cand;
             }
@@ -372,16 +372,19 @@ std::experimental::filesystem::path CrudeCorrect(logging::Logger &logger, Sparse
     for(std::pair<const htype, Vertex> &it : simp_dbg) {
         for (Vertex *vit : {&it.second, &it.second.rc()}) {
             Vertex &v = *vit;
-            if (v.inDeg() == 1 && v.outDeg() == 2 && v.rc().getOutgoing()[0].getCoverage() < avg_cov * 3 / 2 &&
-                    edge_map.find(&v.getOutgoing()[0]) == edge_map.end() &&
-                    edge_map.find(&v.getOutgoing()[1]) == edge_map.end()) {
-                if (v.getOutgoing()[0].end() == v.getOutgoing()[1].end()) {
-                    handleSimpleBulge(v, edge_map, avg_cov, logger);
-                }
-                else {
-                    bool is_subcomponent = handleSubcomponent(v, avg_cov, edge_map, to_skip, logger);
-                    if(!is_subcomponent) {
-                        handleComplexBulge(v, to_skip, edge_map, avg_cov, logger);
+            if (v.inDeg() == 1 && v.outDeg() == 2) {
+                Edge &edge1 = *v.begin();
+                Edge &edge2 = *(v.begin() + 1);
+                if(v.rc().begin()->getCoverage() < avg_cov * 3 / 2 &&
+                    edge_map.find(&edge1) == edge_map.end() &&
+                    edge_map.find(&edge2) == edge_map.end()) {
+                    if (edge1.end() == edge2.end()) {
+                        handleSimpleBulge(v, edge_map, avg_cov, logger);
+                    } else {
+                        bool is_subcomponent = handleSubcomponent(v, avg_cov, edge_map, to_skip, logger);
+                        if (!is_subcomponent) {
+                            handleComplexBulge(v, to_skip, edge_map, avg_cov, logger);
+                        }
                     }
                 }
             }

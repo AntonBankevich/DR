@@ -10,19 +10,19 @@ Sequence buildDisjointig(Path &path) {
     disjointig = disjointig.Subseq(path[0].intCov(), disjointig.size() - lastEdge.intCov());
     if (path.start().inDeg() > 1 && path.start().outDeg() == 1) {
         VERIFY(path[0].intCov() == 0);
-        const Edge& extra = path.start().rc().getOutgoing()[0];
+        const Edge& extra = *path.start().rc().begin();
         disjointig = !(extra.seq.Subseq(0, extra.intCov())) + disjointig;
     }
     if(last.inDeg() > 1 && last.outDeg() == 1) {
         VERIFY(lastEdge.intCov() == 0);
-        const Edge& extra = last.rc().getOutgoing()[0];
+        const Edge& extra = *last.rc().begin();
         disjointig = disjointig + extra.seq.Subseq(0, extra.intCov());
     }
     return disjointig;
 }
 
 void processVertex(Vertex &rec, ParallelRecordCollector<Sequence> &res) {
-    for(Edge & edge : rec.getOutgoing()) {
+    for(Edge & edge : rec) {
         VERIFY(edge.end() != nullptr);
         VERIFY(!rec.seq.empty());
         Path path = edge.walkForward();
@@ -56,10 +56,10 @@ void processVertex(Vertex &rec, ParallelRecordCollector<Sequence> &res) {
 void prepareVertex(Vertex &vertex) {
     vertex.sortOutgoing();
     for(size_t i = 1; i < vertex.outDeg(); i++) {
-        vertex.getOutgoing()[i].incCov(vertex.getOutgoing()[i].seq.commonPrefix(vertex.getOutgoing()[i - 1].seq));
+        vertex[i].incCov(vertex[i].seq.commonPrefix(vertex[i - 1].seq));
     }
     if(vertex.outDeg() > 1) {
-        vertex.getOutgoing()[0].incCov(vertex.getOutgoing()[1].intCov());
+        vertex[0].incCov(vertex[1].intCov());
     }
 }
 
@@ -84,11 +84,11 @@ void extractLinearDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequence>
                     if (rec.inDeg() != 1 && rec.outDeg() != 1 &&  (rec.inDeg() != 0 || rec.outDeg() != 0)) {
                         Sequence disjointig  = rec.seq;
                         if (rec.inDeg() > 0) {
-                            Edge &e1 = rec.rc().getOutgoing()[0];
+                            Edge &e1 = *rec.rc().begin();
                             disjointig = !(e1.seq.Subseq(0, e1.intCov())) + disjointig;
                         }
                         if (rec.outDeg() > 0) {
-                            Edge &e2 = rec.getOutgoing()[0];
+                            Edge &e2 = *rec.begin();
                             disjointig = disjointig + e2.seq.Subseq(0, e2.intCov());
                         }
                         res.add(disjointig.copy());
@@ -106,7 +106,7 @@ void extractCircularDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequenc
                 htype hash = pair.first;
                 if(rec.isJunction() || rec.seq.empty())
                     return;
-                Edge &edge = rec.getOutgoing()[0];
+                Edge &edge = *rec.begin();
                 VERIFY(edge.end() != nullptr);
                 Path path = edge.walkForward();
                 if(path.finish() != rec) {
