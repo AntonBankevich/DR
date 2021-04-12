@@ -35,7 +35,7 @@ Edge &Edge::sparseRcEdge() const {
     VERIFY(start_->seq.size() > 0);
     for(Edge &candidate : vend) {
         if(*candidate.end() == start_->rc() && candidate.size() == size() &&
-           (size() <= seq.size() || candidate.seq.startsWith((!seq).Subseq(start_->seq.size())))) {
+           (size() <= start_->seq.size() || candidate.seq.startsWith((!seq).Subseq(start_->seq.size())))) {
             return candidate;
         }
     }
