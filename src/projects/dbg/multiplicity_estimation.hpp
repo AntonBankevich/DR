@@ -45,7 +45,7 @@ public:
         std::vector<dbg::Edge*> res;
         std::unordered_map<int, size_t> multiplicities = findFixedMultiplicities();
         for (auto &rec : multiplicities) {
-            logger << "Edge " << edge_mapping[rec.first]->start()->hash()
+            logger << "Edge " << edge_mapping[rec.first]->start()->hash() << edge_mapping[rec.first]->start()->isCanonical()
                    << "ACGT"[edge_mapping[rec.first]->seq[0]]
                    << " has fixed multiplicity " << rec.second + min_flow << std::endl;
             if (rec.second + min_flow == 1) {
@@ -159,7 +159,7 @@ public:
         os.open(out_file);
         component.printDot(os, labeler, colorer);
         os.close();
-        return {unique_set.begin(), unique_set.end()};
+        return {unique_in_component.begin(), unique_in_component.end()};
     }
 
     bool isUnique(Edge &edge) const {
