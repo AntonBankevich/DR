@@ -29,7 +29,7 @@ public:
             for(dbg::Vertex *v_it : {&graph.getVertex(hash), &graph.getVertex(hash).rc()}) {
                 dbg::Vertex &v = *v_it;
                 for(dbg::Edge &edge : v) {
-                    if(unique(edge)) {
+                    if(!unique(edge)) {
                         int eid = addEdge(vertex_mapping[&v], vertex_mapping[edge.end()], min_flow, max_flow(edge));
                         edge_mapping[eid] = &edge;
                     } else {
