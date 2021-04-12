@@ -13,10 +13,7 @@ void fillCoverage(SparseDBG &sdbg, logging::Logger &logger, Iterator begin, Iter
             lens.add(path.size());
             for(Segment<Edge> &seg : path) {
                 seg.contig().incCov(seg.size());
-            }
-            path = sdbg.align(!seq);
-            for(Segment<Edge> &seg : path) {
-                seg.contig().incCov(seg.size());
+                seg.contig().rc().incCov(seg.size());
             }
         }
     };
