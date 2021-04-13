@@ -5,16 +5,16 @@
 #include "compact_path.hpp"
 #include <experimental/filesystem>
 
-void correctRead(logging::Logger &logger, std::unordered_map<Edge *, CompactPath> &unique_extensions,
+void correctRead(logging::Logger &logger, std::unordered_map<const Edge *, CompactPath> &unique_extensions,
                  const AlignedRead &alignedRead, GraphAlignment &al, bool &corrected);
 
-void printAl(logging::Logger &logger, std::unordered_map<Edge *, CompactPath> &unique_extensions,
+void printAl(logging::Logger &logger, std::unordered_map<const Edge *, CompactPath> &unique_extensions,
              const GraphAlignment &al);
 
-std::unordered_map<Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger,
+std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger,
                                                                   const RecordStorage &reads_storage, const UniqueClassificator &classificator) {
-    std::unordered_map<Edge *, CompactPath> unique_extensions;
-    for(Edge *edge : classificator.unique_set) {
+    std::unordered_map<const Edge *, CompactPath> unique_extensions;
+    for(const Edge *edge : classificator.unique_set) {
         const VertexRecord &rec = reads_storage.getRecord(*edge->start());
         Sequence seq = edge->seq.Subseq(0, 1);
         while(true) {
@@ -39,7 +39,7 @@ std::unordered_map<Edge *, CompactPath> constructUniqueExtensions(logging::Logge
 }
 
 GraphAlignment correctRead(logging::Logger &logger, std::string &read_id,
-                           std::unordered_map<Edge *, CompactPath> &unique_extensions,
+                           std::unordered_map<const Edge *, CompactPath> &unique_extensions,
                            const GraphAlignment &initial_al) {
     CompactPath initialCompactPath(initial_al);
     GraphAlignment al = initial_al;
@@ -91,7 +91,7 @@ GraphAlignment correctRead(logging::Logger &logger, std::string &read_id,
 }
 
 void correctReads(logging::Logger &logger, RecordStorage &reads_storage,
-                  std::unordered_map<Edge *, CompactPath> &unique_extensions) {
+                  std::unordered_map<const Edge *, CompactPath> &unique_extensions) {
     for(AlignedRead &alignedRead : reads_storage) {
         const GraphAlignment al = alignedRead.path.getAlignment();
         if(al.size() > 1) {
@@ -114,7 +114,7 @@ void correctReads(logging::Logger &logger, RecordStorage &reads_storage,
     }
 }
 
-void printAl(logging::Logger &logger, std::unordered_map<Edge *, CompactPath> &unique_extensions,
+void printAl(logging::Logger &logger, std::unordered_map<const Edge *, CompactPath> &unique_extensions,
              const GraphAlignment &al) {
     for(auto &piece : al) {
         logger << piece.contig().str() << " ";
@@ -145,7 +145,7 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
     {
         UniqueClassificator classificator(sdbg, reads_storage);
         classificator.classify(logger, unique_threshold, multiplicity_figures);
-        std::unordered_map<Edge *, CompactPath> unique_extensions =
+        std::unordered_map<const Edge *, CompactPath> unique_extensions =
                 constructUniqueExtensions(logger, reads_storage, classificator);
         Component all(sdbg);
         std::function<std::string(Edge &)> labeler = [&reads_storage](Edge &edge){

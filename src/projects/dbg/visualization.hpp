@@ -272,7 +272,7 @@ public:
         return Component(graph, v.begin(), v.end());
     }
 
-    std::vector<Component> split(size_t len = 100000) const {
+    std::vector<Component> split(const std::function<bool(const dbg::Edge &)> &is_unique) const {
         std::vector<Component> res;
         std::unordered_set<htype, alt_hasher<htype>> visited;
         for(const htype &vid : v) {
@@ -290,13 +290,13 @@ public:
                 component.emplace_back(val);
                 Vertex &vert = graph.getVertex(val);
                 for (Edge &edge : vert) {
-                    if (edge.size() < len) {
+                    if (!is_unique(edge)) {
                         queue.emplace_back(edge.end()->hash());
                         component.emplace_back(edge.end()->hash());
                     }
                 }
                 for (Edge &edge : vert.rc()) {
-                    if (edge.size() < len) {
+                    if (!is_unique(edge)) {
                         queue.emplace_back(edge.end()->hash());
                         component.emplace_back(edge.end()->hash());
                     }
@@ -305,6 +305,10 @@ public:
             res.emplace_back(graph, component.begin(), component.end());
         }
         return std::move(res);
+    }
+
+    std::vector<Component> split(size_t len = 100000) const {
+        return split([len](const dbg::Edge &edge) {return edge.size() >= len;});
     }
 
     std::string vertexLabel(const Vertex &vert) const {
