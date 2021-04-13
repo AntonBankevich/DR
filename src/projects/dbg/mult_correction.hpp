@@ -143,7 +143,7 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
     io::SeqReader readReader(reads_lib);
     reads_storage.fill(readReader.begin(), readReader.end(), min_read_size, logger, threads);
     {
-        UniqueClassificator classificator(sdbg);
+        UniqueClassificator classificator(sdbg, reads_storage);
         classificator.classify(logger, unique_threshold, multiplicity_figures);
         std::unordered_map<Edge *, CompactPath> unique_extensions =
                 constructUniqueExtensions(logger, reads_storage, classificator);
