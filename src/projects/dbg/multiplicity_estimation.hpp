@@ -102,8 +102,8 @@ public:
                 dbg::Vertex &v = *v_it;
                 for(dbg::Edge &edge : v) {
                     if(edge.size() >= unique_len) {
-                        const VertexRecord & record = reads_storage.getRecord(edge.start()->rc());
-                        std::string s = edge.seq.Subseq(0, 1).str();
+                        const VertexRecord & record = reads_storage.getRecord(edge.end()->rc());
+                        std::string s = edge.rc().seq.Subseq(0, 1).str();
                         size_t cnt = record.countStartsWith(Sequence(s + "A")) +
                                 record.countStartsWith(Sequence(s + "C")) +
                                 record.countStartsWith(Sequence(s + "G")) +
@@ -113,7 +113,7 @@ public:
                 }
             }
         }
-        max_cov = max_cov * 1.2;
+        max_cov = max_cov * 1.4;
         std::function<size_t(const dbg::Edge &)> max_flow = [max_cov](const dbg::Edge &edge) {
             return edge.getCoverage() < max_cov ? 1 : 100000;
         };
