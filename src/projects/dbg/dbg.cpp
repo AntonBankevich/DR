@@ -157,7 +157,7 @@ int main(int argc, char **argv) {
                      "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
                      "correct", "simplify", "coverage", "cov-threshold=2", "tip-correct", "crude-correct", "initial-correct",
                      "mult-correct", "compress", "help", "genome-path", "dump", "extension-size=none", "print-all",
-                     "extract-subdatasets"},
+                     "extract-subdatasets", "--print-alignments"},
                     {"reads", "align", "paths", "print-segment"},
                     {"h=help", "o=output-dir", "t=threads", "k=k-mer-size","w=window"},
                     constructMessage());
@@ -270,6 +270,13 @@ int main(int argc, char **argv) {
             storage.print(coordinates);
             coordinates.close();
         }
+    }
+
+    if(parser.getCheck("print-alignments")) {
+        RecordStorage reads_storage(dbg, 0, 100000, true);
+        io::SeqReader readReader(reads_lib);
+        reads_storage.fill(readReader.begin(), readReader.end(), hasher.k + w - 1, logger, threads);
+        reads_storage.printAlignments(logger, dir/"alignments.txt");
     }
 
     if(parser.getCheck("print-all")) {

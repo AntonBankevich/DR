@@ -138,8 +138,7 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
     ensure_dir_existance(multiplicity_figures);
     logger.info() << "Collecting info from reads" << std::endl;
 //    size_t extension_size = std::max(std::min(min_read_size * 3 / 4, sdbg.hasher().k * 11 / 2), sdbg.hasher().k * 3 / 2);
-    size_t min_extension = sdbg.hasher().k * 2 / 3;
-    RecordStorage reads_storage(sdbg, min_extension, 100000, true);
+    RecordStorage reads_storage(sdbg, 0, 100000, true);
     io::SeqReader readReader(reads_lib);
     reads_storage.fill(readReader.begin(), readReader.end(), min_read_size, logger, threads);
     {
@@ -183,8 +182,19 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
     ors.open(out_reads);
     for(auto it = reads_storage.begin(); it != reads_storage.end(); ++it) {
         AlignedRead &alignedRead = *it;
-        ors << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
+        GraphAlignment al = alignedRead.path.getAlignment();
+        bool ok = true;
+        for(Segment<dbg::Edge> &seg : al) {
+            if(seg.contig().getCoverage() < 2) {
+                ok = false;
+                break;
+            }
+        }
+        if(ok)
+            ors << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
+        else
+            logger << "Could not correct read " << alignedRead.id << ". Removing it from dataset." << std::endl;
     }
-    reads_storage.printAlignments(logger, out_alignments);
+//    reads_storage.printAlignments(logger, out_alignments);
     ors.close();
 }

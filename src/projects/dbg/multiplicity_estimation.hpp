@@ -112,8 +112,12 @@ public:
         std::function<size_t(const Edge &)> max_flow = [threshold](const Edge &edge) {
             return edge.getCoverage() < threshold ? 1 : 100000;
         };
-        logger << "Attempting to use coverage for multiplicity estimation with coverage threshold " << threshold
-       << std::endl;
+        logger << "Attempting to use coverage for multiplicity estimation with coverage threshold " << threshold << std::endl;
+        logger << "Component: ";
+        for(htype hash : subcomponent.v) {
+            logger << " " << hash % 100000;
+        }
+        logger << std::endl;
         MappedNetwork net2(subcomponent, is_unique, min_flow, max_flow);
         bool res2 = net2.fillNetwork();
         std::vector<const dbg::Edge *> extra_unique;
