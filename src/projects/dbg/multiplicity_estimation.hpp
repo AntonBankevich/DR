@@ -89,7 +89,8 @@ public:
 
     std::vector<const dbg::Edge *> ProcessUsingCoverage(logging::Logger &logger, const Component &subcomponent,
                               const std::function<bool(const dbg::Edge &)> &is_unique, size_t min_flow) const {
-        double max_cov = 100000;
+        double max_cov = 0;
+        double min_cov = 100000;
         for(htype hash : subcomponent.v) {
             for(Vertex *v_it : {&subcomponent.graph.getVertex(hash), &subcomponent.graph.getVertex(hash).rc()}) {
                 Vertex &v = *v_it;
@@ -101,16 +102,17 @@ public:
                                      record.countStartsWith(Sequence(s + "C")) +
                                      record.countStartsWith(Sequence(s + "G")) +
                                      record.countStartsWith(Sequence(s + "T"));
-                        max_cov = std::min<double>(max_cov, cnt);
+                        min_cov = std::min<double>(max_cov, cnt);
+                        max_cov = std::max<double>(min_cov, cnt);
                     }
                 }
             }
         }
-        max_cov = max_cov * 1.4;
-        std::function<size_t(const Edge &)> max_flow = [max_cov](const Edge &edge) {
-            return edge.getCoverage() < max_cov ? 1 : 100000;
+        double threshold = std::max(min_cov * 1.4, max_cov * 1.1);
+        std::function<size_t(const Edge &)> max_flow = [threshold](const Edge &edge) {
+            return edge.getCoverage() < threshold ? 1 : 100000;
         };
-        logger << "Attempting to use coverage for multiplicity estimation with coverage threshold " << max_cov
+        logger << "Attempting to use coverage for multiplicity estimation with coverage threshold " << threshold
        << std::endl;
         MappedNetwork net2(subcomponent, is_unique, min_flow, max_flow);
         bool res2 = net2.fillNetwork();
