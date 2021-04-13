@@ -326,10 +326,11 @@ int main(int argc, char **argv) {
             if(contig.size() < hasher.k + w - 1)
                 continue;
             GraphAlignment al = dbg.align(contig.seq);
-            for(size_t i = 0; i <= al.size(); i++) {
-                for(size_t j = 0; j < comps.size(); j++) {
+            for(size_t j = 0; j < comps.size(); j++) {
+                for(size_t i = 0; i <= al.size(); i++) {
                     if(comps[j].v.find(al.getVertex(i).hash()) != comps[j].v.end()) {
                         *os[j] << ">" << contig.id << "\n" <<initial_seq << "\n";
+                        break;
                     }
                 }
             }
@@ -337,6 +338,7 @@ int main(int argc, char **argv) {
         for(size_t j = 0; j < comps.size(); j++) {
             os[j]->close();
             delete os[j];
+            os[j] = nullptr;
         }
     }
 
