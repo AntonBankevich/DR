@@ -249,9 +249,7 @@ public:
 //        TODO Every edge must have a full sequence stored as a composite sequence
         for(PerfectAlignment<Contig, Edge> &al : als1) {
             queue.emplace(0, al.seg_to.contig().end()->hash());
-        }
-        for(PerfectAlignment<Contig, Edge> &al : als2) {
-            queue.emplace(0, al.seg_to.contig().end()->hash());
+            queue.emplace(0, al.seg_to.contig().start()->hash());
         }
         while(!queue.empty()) {
             std::pair<size_t, htype> val = queue.top();

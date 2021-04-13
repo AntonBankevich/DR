@@ -323,6 +323,8 @@ int main(int argc, char **argv) {
         for(StringContig scontig : read_reader) {
             string initial_seq = scontig.seq;
             Contig contig = scontig.makeContig();
+            if(contig.size() < hasher.k + w - 1)
+                continue;
             GraphAlignment al = dbg.align(contig.seq);
             for(size_t i = 0; i <= al.size(); i++) {
                 for(size_t j = 0; j < comps.size(); j++) {
