@@ -102,8 +102,8 @@ public:
                                      record.countStartsWith(Sequence(s + "C")) +
                                      record.countStartsWith(Sequence(s + "G")) +
                                      record.countStartsWith(Sequence(s + "T"));
-                        min_cov = std::min<double>(max_cov, cnt);
-                        max_cov = std::max<double>(min_cov, cnt);
+                        min_cov = std::min<double>(min_cov, cnt);
+                        max_cov = std::max<double>(max_cov, cnt);
                     }
                 }
             }
