@@ -975,7 +975,7 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
     size_t k = sdbg.hasher().k;
     logger.info() << "Collecting info from reads" << std::endl;
 //    size_t extension_size = std::max(std::min(min_read_size * 3 / 4, sdbg.hasher().k * 11 / 2), sdbg.hasher().k * 3 / 2);
-    size_t min_extension = sdbg.hasher().k * 2 / 3;
+    size_t min_extension = 0;
     RecordStorage reads_storage(sdbg, min_extension, extension_size, true);
     io::SeqReader readReader(reads_lib);
     reads_storage.fill(readReader.begin(), readReader.end(), min_read_size, logger, threads);

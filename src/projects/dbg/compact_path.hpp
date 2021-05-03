@@ -369,15 +369,15 @@ private:
             edge_task(Segment<Edge>(edge, seg_left, seg_right));
         }
         size_t j = 1;
-        size_t clen = 0;
-        for (size_t i = 1; i < al.size(); i++) {
+        size_t clen = al[0].size();
+        for (size_t i = 1; i <= al.size(); i++) {
+            clen -= al[i - 1].size();
             while (j < al.size() && clen < max_len) {
                 clen += al[j].contig().size();
                 j++;
             }
             if (clen >= min_len)
                 task(al.getVertex(i - 1), cpath.cpath().Subseq(i - 1, j));
-            clen -= al[i].size();
         }
     }
 
