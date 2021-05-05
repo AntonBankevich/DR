@@ -369,9 +369,9 @@ private:
             edge_task(Segment<Edge>(edge, seg_left, seg_right));
         }
         size_t j = 1;
-        size_t clen = al[0].size();
+        size_t clen = al[0].contig().size();
         for (size_t i = 1; i <= al.size(); i++) {
-            clen -= al[i - 1].size();
+            clen -= al[i - 1].contig().size();
             while (j < al.size() && clen < max_len) {
                 clen += al[j].contig().size();
                 j++;
@@ -421,14 +421,6 @@ public:
 
     template<class I>
     void fill(I begin, I end, size_t min_read_size, logging::Logger &logger, size_t threads) {
-        for(auto & it: dbg) {
-            for(Edge &edge : it.second) {
-                edge.incCov(-edge.intCov());
-            }
-            for(Edge &edge : it.second.rc()) {
-                edge.incCov(-edge.intCov());
-            }
-        }
         logger.info() << "Collecting alignments of sequences to the graph" << std::endl;
         ParallelRecordCollector<AlignedRead> tmpReads(threads);
         ParallelCounter cnt(threads);

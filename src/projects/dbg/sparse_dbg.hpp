@@ -769,10 +769,10 @@ namespace dbg {
         }
 
         void operator+=(const Segment<Edge> &other) {
-            if (als.back().right < als.back().contig().size()) {
+            if (als.size() > 0 && als.back().right < als.back().contig().size()) {
                 als.back() = als.back() + other;
             } else {
-                VERIFY(other.left == 0);
+                VERIFY(als.size() == 0 || other.left == 0);
                 VERIFY(finish() == *other.contig().start());
                 als.push_back(other);
             }
