@@ -2,7 +2,7 @@
 #include "graph_algorithms.hpp"
 #include "dbg_construction.hpp"
 #include "crude_correct.hpp"
-#include "rolling_hash.hpp"
+#include "common/rolling_hash.hpp"
 #include "common/hash_utils.hpp"
 #include "visualization.hpp"
 #include <sequences/seqio.hpp>

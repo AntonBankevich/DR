@@ -107,6 +107,14 @@ public:
         return std::min(fhash, rhash);
     }
 
+    htype fHash() const {
+        return fhash;
+    }
+
+    htype rHash() const {
+        return rhash;
+    }
+
     htype extendRight(unsigned char c) const {
         return std::min(hasher.extendRight(seq, pos, fhash, c), hasher.extendLeft(!seq, seq.size() - pos - hasher.k, rhash, c ^ 3u));
     }

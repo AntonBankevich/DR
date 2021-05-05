@@ -1,6 +1,6 @@
 #include "crude_correct.hpp"
 #include "dbg_construction.hpp"
-#include "rolling_hash.hpp"
+#include "common/rolling_hash.hpp"
 #include "sequences/seqio.hpp"
 #include <iostream>
 #include <unordered_set>

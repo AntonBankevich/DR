@@ -10,7 +10,7 @@
 #include "dbg_disjointigs.hpp"
 #include "minimizer_selection.hpp"
 #include "sparse_dbg.hpp"
-#include "rolling_hash.hpp"
+#include "common/rolling_hash.hpp"
 #include "common/hash_utils.hpp"
 #include "crude_correct.hpp"
 #include "common/hash_utils.hpp"

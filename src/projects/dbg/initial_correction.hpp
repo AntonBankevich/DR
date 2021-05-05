@@ -560,7 +560,7 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
                                             + path.subPath(path_pos, path_pos + 1 + step_front);
             corrected_path.pop_back(step_back);
             if(dump) {
-                logger << "Bad read segment " << alignedRead.id << " " << path_pos << " " << step_back << " "
+                logger << "Bad read segment " <<    alignedRead.id << " " << path_pos << " " << step_back << " "
                        << step_front << " " << path.size()
                        << " " << size << " " << edge.getCoverage() << " size " << step_back + step_front + 1
                        << std::endl;

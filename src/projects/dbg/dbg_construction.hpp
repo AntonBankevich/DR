@@ -6,7 +6,7 @@
 #include "minimizer_selection.hpp"
 #include "dbg_disjointigs.hpp"
 #include "sparse_dbg.hpp"
-#include "rolling_hash.hpp"
+#include "common/rolling_hash.hpp"
 #include "sequences/sequence.hpp"
 #include "common/bloom_filter.hpp"
 #include "common/output_utils.hpp"

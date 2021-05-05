@@ -8,7 +8,7 @@
 #include "common/hash_utils.hpp"
 #include "common/omp_utils.hpp"
 #include "common/logging.hpp"
-#include "rolling_hash.hpp"
+#include "common/rolling_hash.hpp"
 #include "common/hash_utils.hpp"
 #include <vector>
 #include <numeric>

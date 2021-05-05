@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "rolling_hash.hpp"
+#include "common/rolling_hash.hpp"
 #include "common/hash_utils.hpp"
 #include "sequences/seqio.hpp"
 #include "common/logging.hpp"
