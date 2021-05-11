@@ -328,21 +328,23 @@ int main(int argc, char **argv) {
             cnt += 1;
         }
         io::SeqReader read_reader(reads_lib);
-        for(StringContig scontig : read_reader) {
+        std::function<void(StringContig &)> task = [&dbg, &comps, &os, &hasher, w, &logger](StringContig & scontig) {
             string initial_seq = scontig.seq;
             Contig contig = scontig.makeContig();
             if(contig.size() < hasher.k + w - 1)
-                continue;
+                return;
             GraphAlignment al = dbg.align(contig.seq);
             for(size_t j = 0; j < comps.size(); j++) {
                 for(size_t i = 0; i <= al.size(); i++) {
                     if(comps[j].v.find(al.getVertex(i).hash()) != comps[j].v.end()) {
+#pragma omp critical
                         *os[j] << ">" << contig.id << "\n" <<initial_seq << "\n";
                         break;
                     }
                 }
             }
-        }
+        };
+        processRecords(read_reader.begin(), read_reader.end(), logger, threads, task);
         for(size_t j = 0; j < comps.size(); j++) {
             os[j]->close();
             delete os[j];
