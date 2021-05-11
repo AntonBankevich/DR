@@ -157,7 +157,7 @@ int main(int argc, char **argv) {
                      "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
                      "correct", "simplify", "coverage", "cov-threshold=2", "tip-correct", "crude-correct", "initial-correct",
                      "mult-correct", "compress", "help", "genome-path", "dump", "extension-size=none", "print-all",
-                     "extract-subdatasets", "print-alignments"},
+                     "extract-subdatasets", "print-alignments", "subdataset-radius=10000"},
                     {"reads", "align", "paths", "print-segment"},
                     {"h=help", "o=output-dir", "t=threads", "k=k-mer-size","w=window"},
                     constructMessage());
@@ -319,9 +319,10 @@ int main(int argc, char **argv) {
         GraphAlignmentStorage storage(dbg);
         io::SeqReader reader(paths_lib);
         size_t cnt = 0;
+        size_t radius = std::stoull(parser.getValue("subdataset-radius"));
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
-            comps.emplace_back(Component::neighbourhood(dbg, contig, dbg.hasher().k + 10000));
+            comps.emplace_back(Component::neighbourhood(dbg, contig, dbg.hasher().k + radius));
             os.emplace_back(new std::ofstream());
             os.back()->open(subdatasets_dir / (std::to_string(cnt) + ".fasta"));
             cnt += 1;
