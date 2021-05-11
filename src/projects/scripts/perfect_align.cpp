@@ -9,7 +9,7 @@
 #include <vector>
 
 int main(int argc, char **argv) {
-    CLParser parser({"ref=", "kmer-size=", "width", "output-dir"}, {"reads"}, {"k=kmer-size", "w=width", "o=output-dir"});
+    CLParser parser({"ref=", "kmer-size=", "width=", "output-dir="}, {"reads"}, {"k=kmer-size", "w=width", "o=output-dir"});
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
         std::cout << "Incorrect parameters" << std::endl;
@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
         logger << argv[i] << " ";
     }
     logger << std::endl;
-    size_t k = std::stoi(parser.getValue("k-mer-size"));
+    size_t k = std::stoi(parser.getValue("kmer-size"));
     RollingHash hasher(k, 239);
     size_t w = std::stoi(parser.getValue("width"));
     io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
@@ -35,10 +35,22 @@ int main(int argc, char **argv) {
     StringContig::needs_compressing = true;
     std::vector<Contig> ref;
     io::SeqReader reader(reff);
+    std::ofstream refos;
+    refos.open(dir/"contigs.fasta");
     for(StringContig scontig : reader) {
-        ref.emplace_back(scontig.makeContig());
-        ref.emplace_back(ref.back().RC());
+        Contig new_contig = scontig.makeContig();
+        bool rc = false;
+        for(Contig &c : ref) {
+            if(c.seq == !new_contig.seq)
+                rc = true;
+        }
+        if (!rc) {
+            ref.emplace_back(scontig.makeContig());
+            ref.emplace_back(ref.back().RC());
+            refos << ">" << scontig.id << "\n" << scontig.seq << std::endl;
+        }
     }
+    refos.close();
     for(Contig &contig : ref) {
         for(size_t pos = 0; pos + k <= contig.size(); pos += w) {
             htype h = hasher.hash(contig.seq, pos);
@@ -56,7 +68,7 @@ int main(int argc, char **argv) {
         while (true) {
             if (position_map.find(kwh.fHash()) != position_map.end()) {
                 for(std::pair<Contig *, size_t> &pos : position_map[kwh.fHash()]) {
-                    if (kwh.pos >= pos.second && kwh.pos - pos.second + read.size()<= pos.first->size()) {
+                    if (kwh.pos <= pos.second && -kwh.pos + pos.second + read.size()<= pos.first->size()) {
                         res.emplace_back(pos.first, pos.second - kwh.pos);
                     }
                 }
@@ -67,15 +79,15 @@ int main(int argc, char **argv) {
         }
         std::sort(res.begin(), res.end());
         res.erase(std::unique(res.begin(), res.end()), res.end());
-        VERIFY(res.size() > 0);
+//        VERIFY(res.size() > 0);
         bool ok = false;
         for(std::pair<Contig *, size_t> &pos : res) {
-            if(read.seq == pos.first->seq.Subseq(pos.second, read.size())) {
+            if(read.seq == pos.first->seq.Subseq(pos.second, pos.second + read.size())) {
                 os << read.id << " " << pos.first->id << " " << pos.second << " " << pos.second + read.size() << std::endl;
                 ok = true;
             }
         }
-        VERIFY(ok);
+//        VERIFY(ok);
     }
     os.close();
 
