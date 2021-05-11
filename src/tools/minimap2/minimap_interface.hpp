@@ -8,6 +8,7 @@
 #include <string>
 #include "minimap.h"
 #include "sequences/contigs.hpp"
+#include "ksw2.h"
 
 void destroyIndex(std::vector<mm_idx_t *> & ref);
 
@@ -35,3 +36,10 @@ std::vector<RawAlignment> run_minimap(const std::string & read, size_t read_id, 
 std::vector<std::vector<RawAlignment>> run_minimap(const std::string * reads_from, const std::string * reads_to, size_t read_id,
         std::vector<mm_idx_t *> & ref, const char * preset = nullptr);
 std::vector<mm_idx_t *> constructIndex(std::vector<std::string> &ref, size_t threads, const char *preset = nullptr);
+
+struct cigar_pair {
+    char type;
+    size_t length;
+    cigar_pair(char type, size_t len):type(type), length(len) {}
+};
+std::vector<cigar_pair> align_example(const char *tseq, const char *qseq, int sc_mch, int sc_mis, int gapo, int gape, int width);

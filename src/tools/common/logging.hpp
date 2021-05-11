@@ -42,7 +42,7 @@ public:
         double mem = size_t(usage.ru_maxrss * 0.001);
         std::string t = "Mb";
         if (mem > 500) {
-            mem = (size_t(mem) / 100) * 0.1;
+            mem = size_t(mem) / 100 * 0.1;
             t = "Gb";
         }
         ss << itos(worktime / 60 / 60, 2) << ":" << itos(worktime / 60 % 60, 2) << ":"
