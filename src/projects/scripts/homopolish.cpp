@@ -10,6 +10,8 @@
 #include <iostream>
 
 using namespace std;
+using logging::Logger;
+
 
 struct AlignmentInfo {
     string read_id;
@@ -18,7 +20,12 @@ struct AlignmentInfo {
     size_t alignment_end;
     bool rc;
     int length() {
-        return alignment_start - alignment_end;
+        return alignment_end - alignment_start;
+    }
+    string str() {
+        stringstream ss;
+        ss << read_id << " " << contig_id << " " <<alignment_start << " " << alignment_end << " "<< rc;
+        return ss.str();
     }
 };
 
@@ -27,8 +34,8 @@ struct ContigInfo {
     string sequence;
     string name;
     size_t len;
-    vector<int8_t > quantity;
-    vector<int16_t> sum;
+    vector<uint8_t > quantity;
+    vector<uint16_t> sum;
 
     ContigInfo(string sequence, string name):sequence(sequence), name(name) {
         len = sequence.length();
@@ -48,19 +55,25 @@ struct ContigInfo {
  * string getSequence(AlignmentInfo al){
 
     } */
-    string GenerateConsensus(){
+    string GenerateConsensus(Logger& logger){
         io:stringstream ss;
+        vector<int> quantities(256);
         for (size_t i = 0; i < len; i++) {
             int cov = 1;
             if (quantity[i] == 0) {
-                cout << "EMPTY COVERAGE" ;
-//ss <<"EMPTY"
-//              exit(1);
-            }
 
-            cov = trunc(sum[i] / quantity[i]);
+            }
+            else {
+                cov = trunc(sum[i] / quantity[i]);
+            }
+            quantities[quantity[i]] ++;
             for (size_t j = 0; j < cov; j++)
                 ss << sequence[i];
+        }
+        logger.info() <<"Contig " << name << endl;
+//Constants;
+        for (size_t i = 0; i < 20; i++) {
+            logger.info() << i << " " << quantities[i] << endl;
         }
         return ss.str();
     }
@@ -69,11 +82,17 @@ struct ContigInfo {
 struct AssemblyInfo {
     map<string, ContigInfo> contigs;
     CLParser parser;
-    AssemblyInfo (CLParser parser):parser(parser) {
+    Logger logger;
+    size_t used_pairs;
+    size_t filtered_pairs;
+    AssemblyInfo (CLParser& parser):parser(parser), logger(), used_pairs(0), filtered_pairs(0) {
+//TODO paths;
+        logging::LoggerStorage ls("/home/lab44/work/homo_compress/", "homopolish");
+        logger.addLogFile(ls.newLoggerFile());
         std::vector<Contig> assembly = io::SeqReader(parser.getValue("contigs")).readAllContigs();
         for (auto contig: assembly) {
 //TODO switch to Contig()
-            contigs[contig.id] = ContigInfo(contig.id, contig.seq.str());
+            contigs[contig.id] = ContigInfo(contig.seq.str(), contig.id);
         }
 
     }
@@ -81,16 +100,16 @@ struct AssemblyInfo {
         contigs[contig_name].AddRead();
     }
 
-    string getSequence(AlignmentInfo al) {
+    /*string getSequence(AlignmentInfo al) {
         if (!al.rc) {
-            return contigs[al.contig_id].sequence.substr(al.alignment_start, al.alignment_end);
+            return contigs[al.contig_id].sequence.substr(al.alignment_start, al.alignment_end - al.alignment_end);
         } else {
 //TOFILL
             return "";
         }
-    }
+    } */
 
-    AlignmentInfo readAssembly(std::ifstream& ss){
+    AlignmentInfo readAlignment(std::ifstream &ss){
         AlignmentInfo res;
         if (ss.eof())
             return res;
@@ -106,56 +125,132 @@ struct AssemblyInfo {
         return res;
     }
 
-    void processReadPair (StringContig& read, AlignmentInfo aln) {
-        string seq = read.seq;
+    void processReadPair (StringContig& read, AlignmentInfo& aln) {
+        Sequence read_seq = read.makeSequence();
+        size_t rlen = read.size();
+        if (aln.rc) {
+            read_seq = !read_seq;
+            size_t contig_len = contigs[aln.contig_id].len;
+            size_t tmp = contig_len - aln.alignment_end;
+            aln.alignment_end = contig_len - aln.alignment_start;
+            aln.alignment_start = tmp;
+//
+//            read = read.RC();
+        }
+
+        string seq = read_seq.str();
         seq.erase(std::unique(seq.begin(), seq.end()), seq.end());
+//TODO: rc reads;
         if (seq.length() == aln.length()) {
 //TODO appropriate condition?
+            string contig_seq = contigs[aln.contig_id].sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
+            size_t bad_pos = 0;
+
+            for (size_t i = 0; i < contig_seq.length(); i++)
+                if (seq[i]!=contig_seq[i])
+                    bad_pos ++;
+            if (rlen > 100 && bad_pos * 4 > rlen) {
+                logger.info()<< "Lots of bad positions in read " << float(bad_pos)/float(rlen) << endl;
+                logger.info ()<< aln.str() << endl;
+                filtered_pairs ++;
+                return;
+            }
+/*
+ *          logger.info() << seq << endl;
+            logger.info()<< aln.read_id << " " << aln.contig_id << endl;
+            logger.info() << aln.alignment_start << " " << aln.alignment_end << endl;
+            logger.info() << contigs[aln.contig_id].sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start) << endl;
+/*            exit(0); */
             int cur_ind = 0;
             int shift = 0;
-            size_t rlen = read.size();
             int next_ind = cur_ind + 1;
             while (cur_ind < rlen) {
-                while (next_ind < rlen && read.seq[cur_ind] == read.seq[next_ind]) {
+                while (next_ind < rlen && read_seq[cur_ind] == read_seq[next_ind]) {
                     next_ind ++;
                 }
+
+                int vote = next_ind - cur_ind;
+        //TODO: consts, overfill
+                size_t coord = shift + aln.alignment_start;
+/*                if (contigs[aln.contig_id].sequence[coord] != nucl(read_seq[cur_ind]))
+                    bad_pos ++;
+                logger.info() << contigs[aln.contig_id].sequence[coord] << nucl(read_seq[cur_ind]) << endl;
+*/
+                if (contigs[aln.contig_id].quantity[coord] != 255 && contigs[aln.contig_id].sum[coord] < 60000) {
+                    contigs[aln.contig_id].quantity[coord] ++;
+                    contigs[aln.contig_id].sum[coord] += vote;
+                } else {
+                    logger.info() << " overfilled " << contigs[aln.contig_id].quantity[coord] << contigs[aln.contig_id].sum[coord];
+                }
+                cur_ind = next_ind;
+                next_ind = cur_ind + 1;
+                shift++;
             }
-            int vote = next_ind - cur_ind;
-//TODO: overfill
-            contigs[aln.contig_id].quantity[shift + aln.alignment_start] ++;
-            contigs[aln.contig_id].sum[shift + aln.alignment_start] += vote;
-            cur_ind = next_ind;
-            next_ind = cur_ind + 1;
-            shift++;
+            used_pairs ++;
+            if (rlen > 100 && bad_pos * 4 > rlen) {
+                logger.info()<< "Lots of bad positions in read " << float(bad_pos)/float(rlen) << endl;
+                logger.info ()<< aln.str() << endl;
+            }
+        } else {
+            filtered_pairs ++;
+       //     logger.trace() << seq.length() << " " << aln.length () << endl;
         }
     }
 
     void process() {
-        ifstream reads;
+
         ifstream compressed_reads;
+        ofstream corrected_contigs;
+        corrected_contigs.open(parser.getValue("output"));
+        compressed_reads.open(parser.getValue("aligned"));
         io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
 //        io::Library lib = oneline::initialize<std::experimental::filesystem::path>("reads.fasta");
         io::SeqReader reader(lib);
-        AlignmentInfo cur_align = readAssembly(compressed_reads);
+        logger.info() << "Initialized\n";
+
+        AlignmentInfo cur_align = readAlignment(compressed_reads);
         string cur_compressed = cur_align.read_id;
         string cur_read = "";
         string cur_seq = "";
         StringContig cur;
+        logger.info() << "Assembly read\n";
+        size_t reads_count = 0;
+        size_t aln_count = 1;
         while (!compressed_reads.eof()) {
+            bool reads_over = false;
             while (cur.id != cur_compressed) {
-                cur = reader.read();
-            }
 
+                if (reader.eof()) {
+                    logger.info() << "Reads are over\n";
+                    reads_over = true;
+                    break;
+                }
+                cur = reader.read();
+                reads_count ++;
+                if (reads_count % 1000 == 0) {
+                    logger.info() << "Processed " << reads_count << " original reads " << endl;
+
+                }
+            }
+            if (reads_over) {
+                break;
+            }
             processReadPair(cur, cur_align);
 //TODO:: appropriate logic for multiple alignment
             do {
-                cur_align = readAssembly(compressed_reads);
-            } while (cur_compressed == cur_align.contig_id);
-            cur_compressed = cur_align.contig_id;
+                cur_align = readAlignment(compressed_reads);
+                aln_count ++;
+                if (aln_count % 1000 == 0) {
+                    logger.info() << "Processed " << aln_count << " compressed reads " << endl;
+                }
+            } while (cur_compressed == cur_align.read_id);
+            cur_compressed = cur_align.read_id;
+
         }
+        logger.info() << "Reads processed, used " <<used_pairs << " filtered by compressed length " << filtered_pairs << endl;
         for (auto& contig: contigs){
 
-            cout << contig.first << "/n" << contig.second.GenerateConsensus();
+            corrected_contigs << ">" << contig.first << '\n' << contig.second.GenerateConsensus(logger) << '\n';
         }
     }
 };
@@ -169,7 +264,7 @@ struct AssemblyInfo {
  *
  */
 int main(int argc, char **argv) {
-    CLParser parser({"aligned=", "contigs="}, {"reads"},
+    CLParser parser({"aligned=", "contigs=", "output="}, {"reads"},
                     {});
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
@@ -177,6 +272,7 @@ int main(int argc, char **argv) {
         std::cout << parser.check() << std::endl;
         return 1;
     }
+
     AssemblyInfo assemblyInfo(parser);
     assemblyInfo.process();
 /*
