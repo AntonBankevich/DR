@@ -176,11 +176,11 @@ struct AssemblyInfo {
                     bad_pos ++;
                 logger.info() << contigs[aln.contig_id].sequence[coord] << nucl(read_seq[cur_ind]) << endl;
 */
-                if (contigs[aln.contig_id].quantity[coord] != 255 && contigs[aln.contig_id].sum[coord] < 60000) {
+                if (contigs[aln.contig_id].sequence[coord] == nucl(read_seq[cur_ind]) && contigs[aln.contig_id].quantity[coord] != 255 && contigs[aln.contig_id].sum[coord] < 60000) {
                     contigs[aln.contig_id].quantity[coord] ++;
                     contigs[aln.contig_id].sum[coord] += vote;
                 } else {
-                    logger.info() << " overfilled " << contigs[aln.contig_id].quantity[coord] << contigs[aln.contig_id].sum[coord];
+//                    logger.info() << " overfilled " << contigs[aln.contig_id].quantity[coord] << contigs[aln.contig_id].sum[coord];
                 }
                 cur_ind = next_ind;
                 next_ind = cur_ind + 1;
@@ -242,8 +242,11 @@ struct AssemblyInfo {
                 aln_count ++;
                 if (aln_count % 1000 == 0) {
                     logger.info() << "Processed " << aln_count << " compressed reads " << endl;
+
                 }
             } while (cur_compressed == cur_align.read_id);
+/*            if (aln_count %2000 == 1999)
+                break; */
             cur_compressed = cur_align.read_id;
 
         }
