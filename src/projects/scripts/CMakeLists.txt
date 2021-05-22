@@ -31,5 +31,5 @@ target_link_libraries(stats_from_paf common sequence)
 target_link_libraries(find common sequence alignment)
 target_link_libraries(subseq common sequence alignment)
 target_link_libraries(perfect_align common sequence)
-target_link_libraries(homopolish common minimap sequence alignment)
+target_link_libraries(homopolish common minimap sequence alignment ssw)
 

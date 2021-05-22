@@ -8,6 +8,7 @@
 #include <unordered_set>
 #include <vector>
 #include <iostream>
+#include <ssw/ssw_cpp.h>
 
 using namespace std;
 using logging::Logger;
@@ -36,6 +37,7 @@ struct ContigInfo {
     size_t len;
     vector<uint8_t > quantity;
     vector<uint16_t> sum;
+    size_t zero_covered = 0;
 
     ContigInfo(string sequence, string name):sequence(sequence), name(name) {
         len = sequence.length();
@@ -61,7 +63,7 @@ struct ContigInfo {
         for (size_t i = 0; i < len; i++) {
             int cov = 1;
             if (quantity[i] == 0) {
-
+                zero_covered ++;
             }
             else {
                 cov = trunc(sum[i] / quantity[i]);
@@ -70,7 +72,8 @@ struct ContigInfo {
             for (size_t j = 0; j < cov; j++)
                 ss << sequence[i];
         }
-        logger.info() <<"Contig " << name << endl;
+        logger.info() <<"Contig " << name << " " << sequence.length() << endl;
+        logger.info() << "Zero covered (after filtering) " << zero_covered << endl;
 //Constants;
         for (size_t i = 0; i < 20; i++) {
             logger.info() << i << " " << quantities[i] << endl;
@@ -85,7 +88,14 @@ struct AssemblyInfo {
     Logger logger;
     size_t used_pairs;
     size_t filtered_pairs;
-    AssemblyInfo (CLParser& parser):parser(parser), logger(), used_pairs(0), filtered_pairs(0) {
+    bool get_uncovered_only;
+    StripedSmithWaterman::Aligner aligner;
+    // Declares a default filter
+    StripedSmithWaterman::Filter filter;
+    // Declares an alignment that stores the result
+    StripedSmithWaterman::Alignment alignment;
+
+    AssemblyInfo (CLParser& parser):parser(parser), logger(), used_pairs(0), filtered_pairs(0), get_uncovered_only(false) {
 //TODO paths;
         logging::LoggerStorage ls("/home/lab44/work/homo_compress/", "homopolish");
         logger.addLogFile(ls.newLoggerFile());
@@ -138,20 +148,28 @@ struct AssemblyInfo {
 //            read = read.RC();
         }
 
+
+
+
         string seq = read_seq.str();
         seq.erase(std::unique(seq.begin(), seq.end()), seq.end());
-//TODO: rc reads;
+        string contig_seq = contigs[aln.contig_id].sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
+        size_t maskLen = 15;
+        aligner.Align(seq.c_str(), contig_seq.c_str(), contig_seq.length(), filter, &alignment, maskLen);
+        logger.info() << "Cigar " << alignment.cigar_string << endl;
+
+
+
         if (seq.length() == aln.length()) {
 //TODO appropriate condition?
-            string contig_seq = contigs[aln.contig_id].sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
             size_t bad_pos = 0;
 
             for (size_t i = 0; i < contig_seq.length(); i++)
                 if (seq[i]!=contig_seq[i])
                     bad_pos ++;
             if (rlen > 100 && bad_pos * 4 > rlen) {
-                logger.info()<< "Lots of bad positions in read " << float(bad_pos)/float(rlen) << endl;
-                logger.info ()<< aln.str() << endl;
+//                logger.info()<< "Lots of bad positions in read " << float(bad_pos)/float(rlen) << endl;
+//                logger.info ()<< aln.str() << endl;
                 filtered_pairs ++;
                 return;
             }
@@ -244,6 +262,9 @@ struct AssemblyInfo {
                     logger.info() << "Processed " << aln_count << " compressed reads " << endl;
 
                 }
+                if (cur_compressed == cur_align.read_id) {
+                    processReadPair(cur, cur_align);
+                }
             } while (cur_compressed == cur_align.read_id);
 /*            if (aln_count %2000 == 1999)
                 break; */
@@ -255,6 +276,11 @@ struct AssemblyInfo {
 
             corrected_contigs << ">" << contig.first << '\n' << contig.second.GenerateConsensus(logger) << '\n';
         }
+        size_t total_zero_covered = 0;
+        for (auto & contig: contigs) {
+            total_zero_covered += contig.second.zero_covered;
+        }
+        logger.info() << "Total zero covered "  << total_zero_covered << endl;
     }
 };
 
