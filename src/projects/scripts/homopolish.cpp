@@ -20,6 +20,7 @@ struct AlignmentInfo {
     size_t alignment_start;
     size_t alignment_end;
     bool rc;
+
     int length() {
         return alignment_end - alignment_start;
     }
@@ -38,8 +39,9 @@ struct ContigInfo {
     vector<uint8_t > quantity;
     vector<uint16_t> sum;
     size_t zero_covered = 0;
+    string debug_f;
 
-    ContigInfo(string sequence, string name):sequence(sequence), name(name) {
+    ContigInfo(string sequence, string name, string debug_f):sequence(sequence), name(name), debug_f(debug_f) {
         len = sequence.length();
         quantity.resize(len);
         sum.resize(len);
@@ -60,19 +62,27 @@ struct ContigInfo {
     string GenerateConsensus(Logger& logger){
         io:stringstream ss;
         vector<int> quantities(256);
+        ofstream debug;
+        debug.open(debug_f + name);
+        debug << name << endl;
+        size_t total_count = 0 ;
         for (size_t i = 0; i < len; i++) {
             int cov = 1;
             if (quantity[i] == 0) {
                 zero_covered ++;
             }
             else {
-                cov = trunc(sum[i] / quantity[i]);
+                cov = int (round(sum[i] * 1.0 / quantity[i]));
             }
+
             quantities[quantity[i]] ++;
-            for (size_t j = 0; j < cov; j++)
+            for (size_t j = 0; j < cov; j++) {
                 ss << sequence[i];
+                debug << total_count << " " << sum[i] << " " << int(quantity[i]) << " " <<cov << " " << sequence[i] << endl;
+                total_count ++;
+            }
         }
-        logger.info() <<"Contig " << name << " " << sequence.length() << endl;
+        logger.info() <<" Contig " << name << " " << sequence.length() << endl;
         logger.info() << "Zero covered (after filtering) " << zero_covered << endl;
 //Constants;
         for (size_t i = 0; i < 20; i++) {
@@ -100,9 +110,10 @@ struct AssemblyInfo {
         logging::LoggerStorage ls("/home/lab44/work/homo_compress/", "homopolish");
         logger.addLogFile(ls.newLoggerFile());
         std::vector<Contig> assembly = io::SeqReader(parser.getValue("contigs")).readAllContigs();
+        string debug_f = parser.getValue("debug");
         for (auto contig: assembly) {
 //TODO switch to Contig()
-            contigs[contig.id] = ContigInfo(contig.seq.str(), contig.id);
+            contigs[contig.id] = ContigInfo(contig.seq.str(), contig.id, debug_f);
         }
 
     }
@@ -155,8 +166,16 @@ struct AssemblyInfo {
         seq.erase(std::unique(seq.begin(), seq.end()), seq.end());
         string contig_seq = contigs[aln.contig_id].sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
         size_t maskLen = 15;
-        aligner.Align(seq.c_str(), contig_seq.c_str(), contig_seq.length(), filter, &alignment, maskLen);
-        logger.info() << "Cigar " << alignment.cigar_string << endl;
+/*        RawAligner<Contig> minimapaligner(Contig(contig_seq, "contig_part"), 1, "ava-hifi");
+        Contig cref(s, "ref");
+        std::vector<const Contig *> ref = {&cref};
+*/
+//        auto als = alignment_recipes::SimpleAlign(reads, aligner);
+
+//        minimapaligner.align(seq);
+
+//        aligner.Align(seq.c_str(), contig_seq.c_str(), contig_seq.length(), filter, &alignment, maskLen);
+//        logger.info() << "Cigar " << alignment.cigar_string << endl;
 
 
 
@@ -293,7 +312,7 @@ struct AssemblyInfo {
  *
  */
 int main(int argc, char **argv) {
-    CLParser parser({"aligned=", "contigs=", "output="}, {"reads"},
+    CLParser parser({"aligned=", "contigs=", "output=", "debug="}, {"reads"},
                     {});
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
