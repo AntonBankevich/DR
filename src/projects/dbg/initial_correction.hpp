@@ -717,7 +717,7 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage,
             Edge &rcEdge = edge.rc();
             bulge_cnt.emplace_back(&edge);
             bulge_cnt.emplace_back(&rcEdge);
-            if(edge.getCoverage() + alt.getCoverage() > 35 || edge.getCoverage() > alt.getCoverage()) {
+            if(edge.getCoverage() + alt.getCoverage() > threshold || edge.getCoverage() > alt.getCoverage()) {
                 continue;
             }
             collapsable_cnt.emplace_back(&edge);
@@ -971,7 +971,7 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &new_reliable,
                     const io::Library &reads_lib,
                     const std::experimental::filesystem::path &ref,
-                    double threshold, double reliable_coverage, size_t threads, const size_t min_read_size, size_t extension_size, bool dump) {
+                    double threshold, double bulge_threshold, double reliable_coverage, size_t threads, const size_t min_read_size, size_t extension_size, bool dump) {
     size_t k = sdbg.hasher().k;
     logger.info() << "Collecting info from reads" << std::endl;
 //    size_t extension_size = std::max(std::min(min_read_size * 3 / 4, sdbg.hasher().k * 11 / 2), sdbg.hasher().k * 3 / 2);
@@ -1020,7 +1020,7 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
         logger.info() << "Corrected low covered regions in " << corrected_low << " reads" << std::endl;
     }
     {
-        size_t corrected_bulges = collapseBulges(logger, reads_storage, ref_storage, out_file, threshold, k, threads);
+        size_t corrected_bulges = collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
         logger.info() << "Collapsed bulges in " << corrected_bulges << " reads" << std::endl;
     }
     for(size_t i = 0; i < 3; i++){
@@ -1028,7 +1028,7 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
         logger.info() << "Corrected " << correctedAT << " dinucleotide sequences" << std::endl;
     }
     {
-        size_t corrected_bulges = collapseBulges(logger, reads_storage, ref_storage, out_file, threshold, k, threads);
+        size_t corrected_bulges = collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
         logger.info() << "Collapsed bulges in " << corrected_bulges << " reads" << std::endl;
     }
     logger.info() << "Printing reads to disk" << std::endl;

@@ -3,6 +3,7 @@
 //
 #define _GLIBCXX_PARALLEL
 #include "mult_correction.hpp"
+#include "parameter_estimator.hpp"
 #include "visualization.hpp"
 #include "error_correction.hpp"
 #include "graph_algorithms.hpp"
@@ -19,7 +20,6 @@
 #include "common/dir_utils.hpp"
 #include "common/cl_parser.hpp"
 #include "common/logging.hpp"
-#include "alignment/cigar_alignment.hpp"
 #include <iostream>
 #include <queue>
 #include <omp.h>
@@ -244,7 +244,7 @@ int main(int argc, char **argv) {
             extension_size = std::stoull(parser.getValue("extension-size"));
         initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta",
                        dir / "bad.fasta", dir / "new_reliable.fasta", reads_lib, {parser.getValue("reference")},
-                       threshold, reliable, threads,
+                       threshold, 2 * threshold, reliable, threads,
                        w + k - 1, extension_size, parser.getCheck("dump"));
         Component comp(dbg);
         DrawSplit(comp, dir / "split");
