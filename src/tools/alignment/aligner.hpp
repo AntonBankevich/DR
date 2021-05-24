@@ -49,7 +49,7 @@ public:
     }
 
     template <class T>
-    std::vector<CigarAlignment<T, R>> align(const T & read) {
+    std::vector<CigarAlignment<T, R>> align( T & read) {
         std::vector<RawAlignment> raw_results = run_minimap(read.seq.str(), 0, index, preset);
         std::vector<CigarAlignment<T, R>> final_results;
         for(RawAlignment & rawAlignment: raw_results) {

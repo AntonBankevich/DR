@@ -22,7 +22,8 @@ struct CigarAlignment {
         size_t to_pos;
         size_t type;
         size_t length;
-
+        CigarEvent (size_t from_pos, size_t to_pos, size_t type, size_t length):from_pos(from_pos), to_pos(to_pos), type(type), length(length) {
+        }
         size_t from_end() const {
             if (type == cigar_event_type::del)
                 return from_pos;
@@ -62,6 +63,7 @@ struct CigarAlignment {
 
         Iterator & operator++() {
             VERIFY(valid());
+            cigar_pos += 1;
             size_t block_len = al.cigar_container->cigar[cigar_pos] >> 4u;
             size_t event = al.cigar_container->cigar[cigar_pos] & 15u;
             if (event == cigar_event_type::ins) {
@@ -92,7 +94,8 @@ struct CigarAlignment {
         }
 
         bool operator==(const Iterator &other) const {
-            return &al == *other.al && cigar_pos == other.cigar_pos;
+//TOOO check
+            return al.cigar_container == other.al.cigar_container && cigar_pos == other.cigar_pos;
         }
 
         bool operator!=(const Iterator &other) const {
@@ -228,17 +231,21 @@ struct CigarAlignment {
         return {new_from, new_to, subcigar};
     }
 
-    Iterator begin() const {
+    Iterator begin() {
         return Iterator(*this, seg_from.left, seg_to.left, 0);
     }
 
-    Iterator end() const {
+    Iterator end() {
         return Iterator(*this, seg_from.right, seg_to.right, cigar_container->n_cigar);
     }
 
-    std::string cigarString() const {
+    std::string cigarString() {
         std::stringstream ss;
-        for(Iterator it = begin(); it != end(); ++it) {
+        size_t count = 0;
+        for(Iterator it = begin(); it != end(); ++it, ++count) {
+            if (count == 1000) {
+                break;
+            }
             CigarEvent event = *it;
             ss << event.length << "MID"[event.type];
         }

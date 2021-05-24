@@ -166,16 +166,22 @@ struct AssemblyInfo {
         seq.erase(std::unique(seq.begin(), seq.end()), seq.end());
         string contig_seq = contigs[aln.contig_id].sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
         size_t maskLen = 15;
-/*        RawAligner<Contig> minimapaligner(Contig(contig_seq, "contig_part"), 1, "ava-hifi");
-        Contig cref(s, "ref");
-        std::vector<const Contig *> ref = {&cref};
-*/
-//        auto als = alignment_recipes::SimpleAlign(reads, aligner);
 
-//        minimapaligner.align(seq);
+        Contig cref(contig_seq, "ref");
+        std::vector<Contig > ref = {cref};
+        logger.info() << "contig length " << contig_seq.length() << " read length: " << seq.length() << endl;
+        Contig cread(seq, "read");
+        std::vector<Contig > reads = {cread};
 
-//        aligner.Align(seq.c_str(), contig_seq.c_str(), contig_seq.length(), filter, &alignment, maskLen);
-//        logger.info() << "Cigar " << alignment.cigar_string << endl;
+        RawAligner<Contig> minimapaligner(ref, 1, "ava-hifi");
+        auto minimapaln = minimapaligner.align(cread);
+        logger.info() << "Aligned\n";
+        logger.info() << "Shift_from " << minimapaln[0].seg_from.left << " shift to " << minimapaln[0].seg_to.left << " " << minimapaln[0].cigarString()<< endl;
+        for (auto it = minimapaln[0].begin(); it != minimapaln[0].end(); ++it){
+            logger.info()<<(*it).length << " " << "MID"[(*it).type] << endl;
+        }
+        aligner.Align(seq.c_str(), contig_seq.c_str(), contig_seq.length(), filter, &alignment, maskLen);
+        logger.info() << "Cigar " << alignment.cigar_string << endl;
 
 
 
@@ -209,10 +215,7 @@ struct AssemblyInfo {
                 int vote = next_ind - cur_ind;
         //TODO: consts, overfill
                 size_t coord = shift + aln.alignment_start;
-/*                if (contigs[aln.contig_id].sequence[coord] != nucl(read_seq[cur_ind]))
-                    bad_pos ++;
-                logger.info() << contigs[aln.contig_id].sequence[coord] << nucl(read_seq[cur_ind]) << endl;
-*/
+
                 if (contigs[aln.contig_id].sequence[coord] == nucl(read_seq[cur_ind]) && contigs[aln.contig_id].quantity[coord] != 255 && contigs[aln.contig_id].sum[coord] < 60000) {
                     contigs[aln.contig_id].quantity[coord] ++;
                     contigs[aln.contig_id].sum[coord] += vote;
@@ -323,38 +326,4 @@ int main(int argc, char **argv) {
 
     AssemblyInfo assemblyInfo(parser);
     assemblyInfo.process();
-/*
-    std::unordered_map<std::string, Sequence> ref;
-    std::ifstream is;
-    is.open(parser.getValue("paf"));
-    const std::experimental::filesystem::path out(parser.getValue("output"));
-    std::ofstream os;
-    std::string line;
-    std::unordered_set<std::string> read_set;
-    bool check_size = parser.getCheck("full");
-    while (std::getline(is, line))
-    {
-        std::vector<std::string> ss = split(line);
-        if(ss[5] != parser.getValue("chr"))
-            continue;
-        if (check_size) {
-            size_t from = std::stoull(ss[7]);
-            size_t to = std::stoull(ss[8]);
-            size_t sz = std::stoull(ss[1]);
-            if (to - from > std::max(std::min(sz * 9 / 10, sz - 1000), sz * 2 / 3)) {
-                read_set.insert(ss[0]);
-            }
-        }
-    }
-    is.close();
-    os.open(out);
-    io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
-    io::SeqReader reader(lib);
-    for (StringContig read : reader) {
-        if (read_set.find(read.id) != read_set.end()) {
-            os << ">" << read.id << "\n" << read.seq << "\n";
-        }
-    }
-    os.close();
-    return 0;*/
 }
