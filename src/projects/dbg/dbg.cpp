@@ -242,7 +242,7 @@ int main(int argc, char **argv) {
         size_t extension_size = k * 5 / 2;
         if(parser.getValue("extension-size") != "none")
             extension_size = std::stoull(parser.getValue("extension-size"));
-        initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta",
+        initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta", dir / "good.fasta",
                        dir / "bad.fasta", dir / "new_reliable.fasta", reads_lib, {parser.getValue("reference")},
                        threshold, 2 * threshold, reliable, threads,
                        w + k - 1, extension_size, parser.getCheck("dump"));

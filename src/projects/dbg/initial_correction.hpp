@@ -967,6 +967,7 @@ void RefillReliable(logging::Logger &logger, SparseDBG &sdbg, double threshold,
 void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &out_file,
                     const std::experimental::filesystem::path &out_reads,
+                    const std::experimental::filesystem::path &good_reads,
                     const std::experimental::filesystem::path &bad_reads,
                     const std::experimental::filesystem::path &new_reliable,
                     const io::Library &reads_lib,
@@ -1034,16 +1035,24 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
     logger.info() << "Printing reads to disk" << std::endl;
     std::ofstream ors;
     std::ofstream brs;
+    std::ofstream grs;
     ors.open(out_reads);
     brs.open(bad_reads);
+    grs.open(good_reads);
     for(auto it = reads_storage.begin(); it != reads_storage.end(); ++it) {
         AlignedRead &alignedRead = *it;
         ors << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
+        bool good = true;
         for(auto edge_it : alignedRead.path.getAlignment().path()) {
             if(edge_it->getCoverage() < threshold) {
-                brs << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
+                good = false;
                 break;
             }
+        }
+        if(good) {
+            grs << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
+        } else {
+            brs << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
         }
     }
     ors.close();
