@@ -57,6 +57,13 @@ public:
     }
 };
 
+class MultiplicityBounds {
+private:
+    SparseDBG &dbg;
+    std::unordered_map<const Edge *, std::pair<size_t, size_t>> multiplicity_bounds;
+public:
+};
+
 class UniqueClassificator {
 private:
     SparseDBG &dbg;

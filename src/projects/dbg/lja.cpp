@@ -73,7 +73,7 @@ std::experimental::filesystem::path CrudeCorrection(logging::Logger &logger, con
     };
     runInFork(cc_task);
     std::experimental::filesystem::path res = dir / "corrected.fasta";
-    logger.info() << "Initial correction results with k = " << k << " printed to " << res << std::endl;
+    logger.info() << "Crude correction results with k = " << k << " printed to " << res << std::endl;
     return res;
 }
 
@@ -100,8 +100,7 @@ std::experimental::filesystem::path MultCorrection(logging::Logger &logger, cons
 
 int main(int argc, char **argv) {
     CLParser parser({"output-dir=", "threads=16", "k-mer-size=511", "window=2000", "K-mer-size=5001", "Window=500",
-                     "cov-threshold=2", "rel-threshold=7", "Cov-threshold=2", "Rel-threshold=7", "crude-threshold=3",
-                     "mult-correct", "dump"},
+                     "cov-threshold=2", "rel-threshold=7", "Cov-threshold=2", "Rel-threshold=7", "crude-threshold=3", "dump"},
                     {"reads"},
                     {"o=output-dir", "t=threads", "k=k-mer-size","w=window", "K=K-mer-size","W=Window"},
                     "Error message not implemented");
@@ -137,8 +136,8 @@ int main(int argc, char **argv) {
             InitialCorrection(logger, dir / "initial1", lib, threads, k, w,
                               threshold, reliable_coverage, false, dump);
 
-    size_t K = std::stoi(parser.getValue("k-mer-size"));
-    size_t W = std::stoi(parser.getValue("window"));
+    size_t K = std::stoi(parser.getValue("K-mer-size"));
+    size_t W = std::stoi(parser.getValue("Window"));
     double Threshold = std::stod(parser.getValue("Cov-threshold"));
     double Reliable_coverage = std::stod(parser.getValue("Rel-threshold"));
     std::experimental::filesystem::path corrected2 =
