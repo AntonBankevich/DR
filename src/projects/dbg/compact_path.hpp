@@ -11,6 +11,9 @@ private:
     size_t _first_skip;
     size_t _last_skip;
 public:
+    CompactPath() : _start(nullptr) {
+    }
+
     CompactPath(Vertex &start, const Sequence& edges, size_t first_skip = 0, size_t last_skip = 0) :
             _start(&start), _edges(edges), _first_skip(first_skip), _last_skip(last_skip) {
     }
@@ -33,6 +36,10 @@ public:
             edges.push_back(seg.contig().seq[0]);
         }
         _edges = Sequence(edges);
+    }
+
+    bool valid() const {
+        return _start == nullptr;
     }
 
     const Sequence &seq() const {
@@ -96,7 +103,7 @@ public:
     }
 };
 
-std::ostream& operator<<(std::ostream  &os, const CompactPath &cpath) {
+inline std::ostream& operator<<(std::ostream  &os, const CompactPath &cpath) {
     return os << cpath.start().hash() << cpath.start().isCanonical() << " " << cpath.cpath() << " " << cpath.leftSkip() << " " << cpath.rightSkip();
 }
 
@@ -107,6 +114,10 @@ public:
 
     AlignedRead(const Contig &read, GraphAlignment &_path) : id(read.id), path(_path) {}
     AlignedRead(const Contig &read, CompactPath &_path) : id(read.id), path(_path) {}
+
+    void invalidate() {
+        path = CompactPath();
+    }
 };
 
 class AlignedReadStorage {
@@ -326,7 +337,7 @@ public:
     }
 };
 
-std::ostream& operator<<(std::ostream  &os, const VertexRecord &rec) {
+inline std::ostream& operator<<(std::ostream  &os, const VertexRecord &rec) {
     return os << rec.str();
 }
 
@@ -494,6 +505,8 @@ public:
         os.open(path);
         for(const AlignedRead &read : reads) {
             CompactPath al = read.path;
+            if(!al.valid())
+                continue;
             os  << read.id << " " << al.start().hash() << int(al.start().isCanonical())
                 << " " << al.cpath().str() << "\n";
             al = al.RC();

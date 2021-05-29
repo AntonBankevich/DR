@@ -16,52 +16,87 @@ public:
     std::unordered_map<dbg::Vertex *, int> vertex_mapping;
 
     MappedNetwork(const Component &component, const std::function<bool(const dbg::Edge &)> &unique, size_t min_flow = 0,
-                  const std::function<size_t(const dbg::Edge &)> &max_flow = [](const dbg::Edge &){return 100000;}) :
-                min_flow(min_flow) {
-        dbg::SparseDBG &graph = component.graph;
-        for(htype hash : component.v) {
-            for(dbg::Vertex *v_it : {&graph.getVertex(hash), &graph.getVertex(hash).rc()}) {
-                dbg::Vertex &v = *v_it;
-                vertex_mapping[&v] = addVertex();
-                std::cout << vertices.size() - 1 << " " << v.hash() << " " << v.isCanonical() << std::endl;
-            }
-        }
-        for(htype hash : component.v) {
-            for(dbg::Vertex *v_it : {&graph.getVertex(hash), &graph.getVertex(hash).rc()}) {
-                dbg::Vertex &v = *v_it;
-                for(dbg::Edge &edge : v) {
-                    if(!unique(edge)) {
-                        int eid = addEdge(vertex_mapping[&v], vertex_mapping[edge.end()], min_flow, max_flow(edge));
-                        edge_mapping[eid] = &edge;
-                    } else {
-                        addSink(vertex_mapping[&v], 1);
-                        addSource(vertex_mapping[&v.rc()], 1);
-                    }
-                }
-            }
-        }
+                  const std::function<size_t(const dbg::Edge &)> &max_flow = [](const dbg::Edge &){return 100000;});
+
+    std::vector<dbg::Edge*> getUnique(logging::Logger &logger);
+};
+
+struct BoundRecord {
+    size_t lowerBound;
+    size_t upperBound;
+    static size_t inf;
+    BoundRecord() : lowerBound(0), upperBound(inf){
     }
 
-    std::vector<dbg::Edge*> getUnique(logging::Logger &logger) {
-        std::vector<dbg::Edge*> res;
-        std::unordered_map<int, size_t> multiplicities = findFixedMultiplicities();
-        for (auto &rec : multiplicities) {
-            logger << "Edge " << edge_mapping[rec.first]->start()->hash() << edge_mapping[rec.first]->start()->isCanonical()
-                   << "ACGT"[edge_mapping[rec.first]->seq[0]]
-                   << " has fixed multiplicity " << rec.second + min_flow << std::endl;
-            if (rec.second + min_flow == 1) {
-                res.push_back(edge_mapping[rec.first]);
-            }
-        }
-        return std::move(res);
+    bool isUnique() const {
+        return lowerBound == 1 && upperBound == 1;
     }
 };
 
 class MultiplicityBounds {
 private:
-    SparseDBG &dbg;
-    std::unordered_map<const Edge *, std::pair<size_t, size_t>> multiplicity_bounds;
+    std::unordered_map<const Edge *, BoundRecord> multiplicity_bounds;
+    size_t inf = 100000;
 public:
+    size_t upperBound(const Edge &edge) const {
+        auto it = multiplicity_bounds.find(&edge);
+        if(it == multiplicity_bounds.end())
+            return inf;
+        else return it->second.upperBound;
+    }
+
+    size_t lowerBound(const Edge &edge) const {
+        auto it = multiplicity_bounds.find(&edge);
+        if(it == multiplicity_bounds.end())
+            return 0;
+        else return it->second.lowerBound;
+    }
+
+    void setLowerBound(const Edge &edge, size_t val) {
+        multiplicity_bounds[&edge].lowerBound = val;
+    }
+
+    void setUpperBound(const Edge &edge, size_t val) {
+        multiplicity_bounds[&edge].upperBound = val;
+    }
+
+    void setBounds(const Edge &edge, size_t lower, size_t upper) {
+        BoundRecord &bounds = multiplicity_bounds[&edge];
+        bounds.lowerBound = lower;
+        bounds.upperBound = upper;
+    }
+
+    bool isUnique(const Edge &edge) const {
+        auto it = multiplicity_bounds.find(&edge);
+        if(it == multiplicity_bounds.end())
+            return false;
+        return it->second.isUnique();
+    }
+};
+
+class MultiplicityBoundsEstimator {
+private:
+    SparseDBG &dbg;
+public:
+    MultiplicityBounds bounds;
+
+    void diploidUnique(size_t unique_length) {
+    }
+
+    void haploidUnique(size_t unique_length) {
+    }
+
+    std::vector<Component> uniqueSplit() {
+        return {};
+    }
+
+    bool updateComponent(size_t min_mult) {
+        return false;
+    }
+
+    bool updateComponentWithCoverage(size_t min_mult, double unique_coverage) {
+        return false;
+    }
 };
 
 class UniqueClassificator {

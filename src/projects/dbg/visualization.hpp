@@ -459,7 +459,7 @@ public:
     }
 };
 
-void DrawSplit(const Component &component, const std::experimental::filesystem::path &dir,
+inline void DrawSplit(const Component &component, const std::experimental::filesystem::path &dir,
                const std::function<std::string(Edge &)> &labeler, size_t len = 100000) {
     ensure_dir_existance(dir);
     std::vector<Component> split = component.split(len);
@@ -472,7 +472,7 @@ void DrawSplit(const Component &component, const std::experimental::filesystem::
     }
 }
 
-void DrawSplit(const Component &component, const std::experimental::filesystem::path &dir, size_t len = 100000) {
+inline void DrawSplit(const Component &component, const std::experimental::filesystem::path &dir, size_t len = 100000) {
     std::function<std::string(Edge &)> labeler = [](Edge &){return "";};
     DrawSplit(component, dir, labeler, len);
 }

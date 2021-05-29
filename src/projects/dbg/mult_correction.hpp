@@ -190,11 +190,13 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
                 break;
             }
         }
-        if(ok)
+        if(ok) {
             ors << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
-        else
+        } else {
             logger << "Could not correct read " << alignedRead.id << ". Removing it from dataset." << std::endl;
+            alignedRead.path = CompactPath();
+        }
     }
-//    reads_storage.printAlignments(logger, out_alignments);
+    reads_storage.printAlignments(logger, out_alignments);
     ors.close();
 }
