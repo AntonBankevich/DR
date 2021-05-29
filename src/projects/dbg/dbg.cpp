@@ -29,16 +29,6 @@ using namespace dbg;
 
 using logging::Logger;
 
-struct hash_pair {
-    template <class T1, class T2>
-    size_t operator()(const std::pair<T1, T2>& p) const
-    {
-        auto hash1 = std::hash<T1>{}(p.first);
-        auto hash2 = std::hash<T2>{}(p.second);
-        return hash1 ^ hash2;
-    }
-};
-
 void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
                    const std::experimental::filesystem::path &path_dump,
                    const std::experimental::filesystem::path &mult_dump, Logger &logger) {
@@ -242,8 +232,12 @@ int main(int argc, char **argv) {
         size_t extension_size = k * 5 / 2;
         if(parser.getValue("extension-size") != "none")
             extension_size = std::stoull(parser.getValue("extension-size"));
+        std::vector<StringContig> ref_vector;
+        if (parser.getValue("reference") != "none") {
+            ref_vector = io::SeqReader(parser.getValue("reference")).readAll();
+        }
         initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta", dir / "good.fasta",
-                       dir / "bad.fasta", dir / "new_reliable.fasta", reads_lib, {parser.getValue("reference")},
+                       dir / "bad.fasta", dir / "new_reliable.fasta", reads_lib, ref_vector,
                        threshold, 2 * threshold, reliable, threads,
                        w + k - 1, extension_size, parser.getCheck("dump"));
         Component comp(dbg);

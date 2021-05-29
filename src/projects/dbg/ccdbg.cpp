@@ -37,11 +37,11 @@ int main(int argc, char **argv) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
         k += 1;
     }
-    RollingHash hasher(k, std::stoi(parser.getValue("base")));
     const size_t w = std::stoi(parser.getValue("window"));
     io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     size_t threads = std::stoi(parser.getValue("threads"));
     size_t threshold = std::__cxx11::stoull(parser.getValue("cov-threshold"));
+    RollingHash hasher(k, std::stoi(parser.getValue("base")));
     std::function<void()> initial_dbg_task = [&dir, &logger, &hasher, w, &lib, threads, threshold] {
         const std::experimental::filesystem::path initial_dir = dir / "initial_graph";
         ensure_dir_existance(initial_dir);

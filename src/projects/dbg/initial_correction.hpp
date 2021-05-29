@@ -971,7 +971,7 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &bad_reads,
                     const std::experimental::filesystem::path &new_reliable,
                     const io::Library &reads_lib,
-                    const std::experimental::filesystem::path &ref,
+                    const std::vector<StringContig> &ref,
                     double threshold, double bulge_threshold, double reliable_coverage, size_t threads, const size_t min_read_size, size_t extension_size, bool dump) {
     size_t k = sdbg.hasher().k;
     logger.info() << "Collecting info from reads" << std::endl;
@@ -990,8 +990,7 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
     reads_storage.fill(readReader.begin(), readReader.end(), min_read_size, logger, threads);
     logger.info() << "Collecting info from reference" << std::endl;
     RecordStorage ref_storage(sdbg, min_extension, extension_size, false);
-    io::SeqReader refReader(ref);
-    ref_storage.fill(refReader.begin(), refReader.end(), min_read_size, logger, threads);
+    ref_storage.fill(ref.begin(), ref.end(), min_read_size, logger, threads);
     size_t clow = 0;
     size_t cerr = 0;
     size_t both = 0;
@@ -1016,7 +1015,7 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
         logger.info() << "Corrected " << correctedAT << " dinucleotide sequences" << std::endl;
     }
     for(size_t i = 0; i < 1; i++){
-        RefillReliable(logger, sdbg, 15, new_reliable);
+        RefillReliable(logger, sdbg, reliable_coverage, new_reliable);
         size_t corrected_low = correctLowCoveredRegions(logger, reads_storage, ref_storage, out_file, threshold, reliable_coverage, k, threads, dump);
         logger.info() << "Corrected low covered regions in " << corrected_low << " reads" << std::endl;
     }

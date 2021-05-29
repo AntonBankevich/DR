@@ -2,6 +2,9 @@ project(debruijn)
 set(CMAKE_CXX_STANDARD 14)
 
 find_package(OpenMP)
+add_executable(lja lja.cpp crude_correct.cpp sparse_dbg.cpp graph_algorithms.cpp graph_algorithms.hpp dbg_disjointigs.cpp dbg_construction.cpp minimizer_selection.cpp)
+target_link_libraries(lja common sequence m)
+
 add_executable(dbg dbg.cpp crude_correct.cpp sparse_dbg.cpp graph_algorithms.cpp graph_algorithms.hpp dbg_disjointigs.cpp dbg_construction.cpp minimizer_selection.cpp)
 target_link_libraries(dbg common sequence m)
 

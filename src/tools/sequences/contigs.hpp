@@ -214,6 +214,8 @@ public:
 
     StringContig(StringContig && other) = default;
 
+    StringContig(const StringContig & other) = default;
+
     StringContig& operator=(StringContig && other) = default;
 
     void compress() {
