@@ -90,11 +90,11 @@ public:
         return {};
     }
 
-    bool updateComponent(size_t min_mult) {
+    bool updateComponent(double rel_coverage) {
         return false;
     }
 
-    bool updateComponentWithCoverage(size_t min_mult, double unique_coverage) {
+    bool updateComponentWithCoverage(double rel_coverage, double unique_coverage) {
         return false;
     }
 };

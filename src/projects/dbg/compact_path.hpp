@@ -39,7 +39,7 @@ public:
     }
 
     bool valid() const {
-        return _start == nullptr;
+        return _start != nullptr;
     }
 
     const Sequence &seq() const {
