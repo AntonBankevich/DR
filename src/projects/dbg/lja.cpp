@@ -36,7 +36,7 @@ std::experimental::filesystem::path InitialCorrection(logging::Logger &logger, c
     std::function<void()> ic_task = [&dir, &logger, &hasher, k, w, &reads_lib, threads, threshold, reliable_coverage, dump] {
         SparseDBG dbg = DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
-        size_t extension_size = k * 5 / 2;
+        size_t extension_size = std::max<size_t>(k * 5 / 2, 2000);
         initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta", dir / "good.fasta",
                        dir / "bad.fasta", dir / "new_reliable.fasta", reads_lib, {},
                        threshold, 2 * threshold, reliable_coverage, threads,
@@ -147,11 +147,11 @@ int main(int argc, char **argv) {
 
     double crude_threshold = std::stod(parser.getValue("crude-threshold"));
     std::experimental::filesystem::path corrected3 =
-            CrudeCorrection(logger, dir / "crude", {corrected2}, threads, k, w, crude_threshold);
+            CrudeCorrection(logger, dir / "crude", {corrected2}, threads, K, W, crude_threshold);
 
     size_t unique_threshold = std::stoi(parser.getValue("unique-threshold"));
     std::experimental::filesystem::path corrected4 =
-            MultCorrection(logger, dir / "mult", {corrected2}, threads, k, w, unique_threshold, dump);
+            MultCorrection(logger, dir / "mult", {corrected2}, threads, K, W, unique_threshold, dump);
 
     logger.info() << "Final corrected reads can be hound here: " << corrected4 << std::endl;
     logger.info() << "LJA pipeline finished" << std::endl;
