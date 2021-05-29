@@ -151,7 +151,7 @@ int main(int argc, char **argv) {
 
     size_t unique_threshold = std::stoi(parser.getValue("unique-threshold"));
     std::experimental::filesystem::path corrected4 =
-            MultCorrection(logger, dir / "mult", {corrected2}, threads, K, W, unique_threshold, dump);
+            MultCorrection(logger, dir / "mult", {corrected3}, threads, K, W, unique_threshold, dump);
 
     logger.info() << "Final corrected reads can be hound here: " << corrected4 << std::endl;
     logger.info() << "LJA pipeline finished" << std::endl;
