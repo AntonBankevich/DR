@@ -71,6 +71,7 @@ struct ContigInfo {
             if (quantity[i] == 0) {
                 zero_covered ++;
             }
+
             else {
                 cov = int (round(sum[i] * 1.0 / quantity[i]));
             }
@@ -147,6 +148,7 @@ struct AssemblyInfo {
     }
 
     void processReadPair (StringContig& read, AlignmentInfo& aln) {
+        logger.info() << read.id << endl;
         Sequence read_seq = read.makeSequence();
         size_t rlen = read.size();
         if (aln.rc) {
@@ -158,10 +160,7 @@ struct AssemblyInfo {
 //
 //            read = read.RC();
         }
-
-
-
-
+        logger.info() << aln.alignment_start << " " << aln.alignment_end << endl;
         string seq = read_seq.str();
         seq.erase(std::unique(seq.begin(), seq.end()), seq.end());
         string contig_seq = contigs[aln.contig_id].sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
@@ -169,24 +168,71 @@ struct AssemblyInfo {
 
         Contig cref(contig_seq, "ref");
         std::vector<Contig > ref = {cref};
-        logger.info() << "contig length " << contig_seq.length() << " read length: " << seq.length() << endl;
+//        logger.info() << "contig length " << contig_seq.length() << " read length: " << seq.length() << endl;
+
+//        logger.trace() << contig_seq << endl;
+//        logger.trace() << seq << endl;
         Contig cread(seq, "read");
         std::vector<Contig > reads = {cread};
-
+//map-hifi
+//asm10
         RawAligner<Contig> minimapaligner(ref, 1, "ava-hifi");
         auto minimapaln = minimapaligner.align(cread);
-        logger.info() << "Aligned\n";
-        logger.info() << "Shift_from " << minimapaln[0].seg_from.left << " shift to " << minimapaln[0].seg_to.left << " " << minimapaln[0].cigarString()<< endl;
-        for (auto it = minimapaln[0].begin(); it != minimapaln[0].end(); ++it){
-            logger.info()<<(*it).length << " " << "MID"[(*it).type] << endl;
+//        logger.info() << "Aligned " << minimapaln.size()<<"\n";
+        if (minimapaln.size() == 0) {
+            return;
         }
+        logger.info() << "Shift_to " << minimapaln[0].seg_to.left << " shift from " << minimapaln[0].seg_from.left << " " << minimapaln[0].cigarString()<< endl;
+
+        int cur_ind = 0;
+        std:vector<size_t> quantities;
+        quantities.resize(seq.length());
+
+        for (size_t i = 0; i < seq.size(); i++){
+            size_t count = 0;
+            while (cur_ind < read_seq.size() && nucl(read_seq[cur_ind]) == seq[i]) {
+                count ++;
+                cur_ind ++;
+            }
+            quantities[i] = count;
+        }
+        size_t cont_coords = minimapaln[0].seg_to.left;
+        size_t read_coords = minimapaln[0].seg_from.left;
+        size_t matches = 0;
+        size_t mismatches = 0;
+        size_t indels = 0;
+//        logger.info() << "quantities_calc\n";
+        for (auto it = minimapaln[0].begin(); it != minimapaln[0].end(); ++it) {
+            if ((*it).type == 1) {
+                read_coords += (*it).length;
+                indels += (*it).length;
+            } else if ((*it).type == 2) {
+                cont_coords += (*it).length;
+                indels += (*it).length;
+            } else {
+                for (size_t i = 0; i < (*it).length; i++) {
+                    size_t coord = cont_coords + aln.alignment_start + i;
+//                    logger.info() << contigs[aln.contig_id].sequence[coord]<< seq[read_coords + i] << endl;
+                    if (contigs[aln.contig_id].sequence[coord] == nucl(seq[read_coords + i]) && contigs[aln.contig_id].quantity[coord] != 255 && contigs[aln.contig_id].sum[coord] < 60000) {
+                        contigs[aln.contig_id].quantity[coord] ++;
+                        contigs[aln.contig_id].sum[coord] += quantities[read_coords + i];
+                        matches ++;
+                    } else {
+                        mismatches ++;
+                    }
+                }
+                read_coords += (*it).length;
+                cont_coords += (*it).length;
+            }
+        }
+
+//        logger.info() << "Matches "<< matches << " mismatches " << mismatches <<" indels " << indels << endl;
+        return;
+//ssw align check;
         aligner.Align(seq.c_str(), contig_seq.c_str(), contig_seq.length(), filter, &alignment, maskLen);
         logger.info() << "Cigar " << alignment.cigar_string << endl;
-
-
-
+//old no_align;
         if (seq.length() == aln.length()) {
-//TODO appropriate condition?
             size_t bad_pos = 0;
 
             for (size_t i = 0; i < contig_seq.length(); i++)
