@@ -105,6 +105,15 @@ struct AssemblyInfo {
     StripedSmithWaterman::Filter filter;
     // Declares an alignment that stores the result
     StripedSmithWaterman::Alignment alignment;
+//at least 2
+    const size_t MIN_DINUCLEOTIDE_REPEAT = 10;
+    struct dinucleotide {
+        size_t start, multiplicity;
+        //do we need sequence?
+        dinucleotide(size_t start, size_t multiplicity): start(start), multiplicity(multiplicity){
+        }
+    };
+
 
     AssemblyInfo (CLParser& parser):parser(parser), logger(), used_pairs(0), filtered_pairs(0), get_uncovered_only(false) {
 //TODO paths;
@@ -147,32 +156,54 @@ struct AssemblyInfo {
         return res;
     }
 
+    void RC(AlignmentInfo & aln){
+        size_t contig_len = contigs[aln.contig_id].len;
+        size_t tmp = contig_len - aln.alignment_end;
+        aln.alignment_end = contig_len - aln.alignment_start;
+        aln.alignment_start = tmp;
+    }
+
+    vector<dinucleotide> GetDinucleotideRepeats(Contig& compressed_contig){
+        size_t len = compressed_contig.size();
+        size_t start = 0;
+        vector<dinucleotide> res;
+        while (start < len) {
+            size_t multiplicity = 1;
+            while ((start + 2 * multiplicity + 3 < len) &&
+                    compressed_contig[start] == compressed_contig[start + 2 * multiplicity + 2] &&
+                    compressed_contig[start + 1] == compressed_contig[start + 2 * multiplicity + 3]) {
+                multiplicity++;
+            }
+            if (multiplicity >= MIN_DINUCLEOTIDE_REPEAT) {
+                res.emplace_back(start, multiplicity);
+            }
+            start = start + 2 * multiplicity - 1;
+        }
+        return res;
+    }
+
     void processReadPair (StringContig& read, AlignmentInfo& aln) {
         logger.info() << read.id << endl;
         Sequence read_seq = read.makeSequence();
         size_t rlen = read.size();
         if (aln.rc) {
             read_seq = !read_seq;
-            size_t contig_len = contigs[aln.contig_id].len;
-            size_t tmp = contig_len - aln.alignment_end;
-            aln.alignment_end = contig_len - aln.alignment_start;
-            aln.alignment_start = tmp;
-//
+            RC(aln);
 //            read = read.RC();
         }
         logger.info() << aln.alignment_start << " " << aln.alignment_end << endl;
-        string seq = read_seq.str();
-        seq.erase(std::unique(seq.begin(), seq.end()), seq.end());
+        string compressed_read = read_seq.str();
+        compressed_read.erase(std::unique(compressed_read.begin(), compressed_read.end()), compressed_read.end());
         string contig_seq = contigs[aln.contig_id].sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
         size_t maskLen = 15;
 
         Contig cref(contig_seq, "ref");
         std::vector<Contig > ref = {cref};
-//        logger.info() << "contig length " << contig_seq.length() << " read length: " << seq.length() << endl;
+//        logger.info() << "contig length " << contig_seq.length() << " read length: " << compressed_read.length() << endl;
 
 //        logger.trace() << contig_seq << endl;
-//        logger.trace() << seq << endl;
-        Contig cread(seq, "read");
+//        logger.trace() << compressed_read << endl;
+        Contig cread(compressed_read, "read");
         std::vector<Contig > reads = {cread};
 //map-hifi
 //asm10
@@ -186,11 +217,11 @@ struct AssemblyInfo {
 
         int cur_ind = 0;
         std:vector<size_t> quantities;
-        quantities.resize(seq.length());
+        quantities.resize(compressed_read.length());
 
-        for (size_t i = 0; i < seq.size(); i++){
+        for (size_t i = 0; i < compressed_read.size(); i++){
             size_t count = 0;
-            while (cur_ind < read_seq.size() && nucl(read_seq[cur_ind]) == seq[i]) {
+            while (cur_ind < read_seq.size() && nucl(read_seq[cur_ind]) == compressed_read[i]) {
                 count ++;
                 cur_ind ++;
             }
@@ -212,8 +243,8 @@ struct AssemblyInfo {
             } else {
                 for (size_t i = 0; i < (*it).length; i++) {
                     size_t coord = cont_coords + aln.alignment_start + i;
-//                    logger.info() << contigs[aln.contig_id].sequence[coord]<< seq[read_coords + i] << endl;
-                    if (contigs[aln.contig_id].sequence[coord] == nucl(seq[read_coords + i]) && contigs[aln.contig_id].quantity[coord] != 255 && contigs[aln.contig_id].sum[coord] < 60000) {
+//                    logger.info() << contigs[aln.contig_id].sequence[coord]<< compressed_read[read_coords + i] << endl;
+                    if (contigs[aln.contig_id].sequence[coord] == nucl(compressed_read[read_coords + i]) && contigs[aln.contig_id].quantity[coord] != 255 && contigs[aln.contig_id].sum[coord] < 60000) {
                         contigs[aln.contig_id].quantity[coord] ++;
                         contigs[aln.contig_id].sum[coord] += quantities[read_coords + i];
                         matches ++;
@@ -229,14 +260,14 @@ struct AssemblyInfo {
 //        logger.info() << "Matches "<< matches << " mismatches " << mismatches <<" indels " << indels << endl;
         return;
 //ssw align check;
-        aligner.Align(seq.c_str(), contig_seq.c_str(), contig_seq.length(), filter, &alignment, maskLen);
+        aligner.Align(compressed_read.c_str(), contig_seq.c_str(), contig_seq.length(), filter, &alignment, maskLen);
         logger.info() << "Cigar " << alignment.cigar_string << endl;
 //old no_align;
-        if (seq.length() == aln.length()) {
+        if (compressed_read.length() == aln.length()) {
             size_t bad_pos = 0;
 
             for (size_t i = 0; i < contig_seq.length(); i++)
-                if (seq[i]!=contig_seq[i])
+                if (compressed_read[i]!=contig_seq[i])
                     bad_pos ++;
             if (rlen > 100 && bad_pos * 4 > rlen) {
 //                logger.info()<< "Lots of bad positions in read " << float(bad_pos)/float(rlen) << endl;
@@ -245,7 +276,7 @@ struct AssemblyInfo {
                 return;
             }
 /*
- *          logger.info() << seq << endl;
+ *          logger.info() << compressed_read << endl;
             logger.info()<< aln.read_id << " " << aln.contig_id << endl;
             logger.info() << aln.alignment_start << " " << aln.alignment_end << endl;
             logger.info() << contigs[aln.contig_id].sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start) << endl;
@@ -279,7 +310,7 @@ struct AssemblyInfo {
             }
         } else {
             filtered_pairs ++;
-       //     logger.trace() << seq.length() << " " << aln.length () << endl;
+       //     logger.trace() << compressed_read.length() << " " << aln.length () << endl;
         }
     }
 
