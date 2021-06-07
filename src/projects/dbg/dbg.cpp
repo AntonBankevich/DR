@@ -210,7 +210,8 @@ int main(int argc, char **argv) {
             parser.getCheck("tip-correct") || parser.getCheck("crude-correct") ||
             parser.getCheck("initial-correct") || parser.getCheck("mult-correct") || !paths_lib.empty();
 
-    if (!parser.getListValue("align").empty() || parser.getCheck("print-alignments") || calculate_coverage) {
+    if (!parser.getListValue("align").empty() || parser.getCheck("print-alignments") ||
+                parser.getCheck("mult-correct") || calculate_coverage) {
         dbg.fillAnchors(w, logger, threads);
     }
 
