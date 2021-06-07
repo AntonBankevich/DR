@@ -9,14 +9,13 @@ class Network {
 public:
     struct Vertex;
     struct Edge {
-        Edge(int id, size_t start, size_t end, size_t capacity) : id(id), start(start), end(end),
-                                                                                      capacity(capacity) {}
-
         int id;
         size_t start;
         size_t end;
         size_t capacity;
-        size_t flow = 0;
+        size_t min_flow;
+        Edge(int id, size_t start, size_t end, size_t capacity, size_t min_capacity = 0) :
+                id(id), start(start), end(end), capacity(capacity), min_flow(min_capacity) {}
     };
 
     struct Vertex {
@@ -28,17 +27,35 @@ public:
         std::vector<int> inc;
     };
 
+private:
+    int innerAddEdge(size_t from, size_t to, size_t min_capacity, size_t max_capacity = 0) {
+        int eid = edges.size() + 1;
+        edges.emplace_back(eid, from, to, max_capacity, min_capacity);
+        back_edges.emplace_back(-eid, to, from, 0);
+        vertices[from].out.push_back(eid);
+        vertices[to].inc.push_back(eid);
+        vertices[to].out.push_back(-eid);
+        vertices[from].inc.push_back(-eid);
+        return eid;
+    }
+
+protected:
     std::vector<Vertex> vertices;
     std::vector<Edge> edges;
     std::vector<Edge> back_edges;
     size_t source;
     size_t sink;
 
+public:
     Edge &getEdge(int id) {
         if (id > 0)
             return edges[id - 1];
         else
             return back_edges[-id - 1];
+    }
+
+    size_t getFlow(int id) {
+        return getEdge(id).min_flow + getEdge(-id).capacity;
     }
 
     Network() {
@@ -51,35 +68,25 @@ public:
         return vertices.size() - 1;
     }
 
-    int addEdge(size_t from, size_t to, size_t capacity) {
-        int eid = edges.size() + 1;
-        edges.emplace_back(eid, from, to, capacity);
-        back_edges.emplace_back(-eid, to, from, 0);
-        vertices[from].out.push_back(eid);
-        vertices[to].inc.push_back(eid);
-        vertices[to].out.push_back(-eid);
-        vertices[from].inc.push_back(-eid);
-        return eid;
-    }
-
     int addEdge(size_t from, size_t to, size_t min_capacity, size_t max_capacity) {
         if(min_capacity > 0) {
             addSource(to, min_capacity);
             addSink(from, min_capacity);
             max_capacity -= min_capacity;
         }
-        return addEdge(from, to, max_capacity);
+        return innerAddEdge(from, to, min_capacity, max_capacity);
     }
 
     void addSource(size_t id, size_t capacity) {
-        addEdge(source, id, capacity);
+        innerAddEdge(source, id, capacity, 0);
     }
 
     void addSink(size_t id, size_t capacity) {
-        addEdge(id, sink, capacity);
+        innerAddEdge(id, sink, capacity, 0);
     }
 
-    std::vector<int> bfs(int startId, int endId) {
+private:
+    std::vector<int> bfs(int startId, int endId, int avoidEdge = 0) {
         std::queue<size_t> queue;
         std::unordered_map<size_t, int> prev;
         prev[startId] = 0;
@@ -98,7 +105,7 @@ public:
             for(int eid : vertices[next].out) {
                 Edge &edge = getEdge(eid);
                 size_t end = edge.end;
-                if(edge.capacity > 0 && prev.find(end) == prev.end()) {
+                if(edge.id != avoidEdge && edge.capacity > 0 && prev.find(end) == prev.end()) {
                     prev[end] = eid;
                     queue.emplace(end);
                 }
@@ -134,6 +141,7 @@ public:
         return indeg;
     }
 
+public:
     bool fillNetwork() {
         size_t outdeg = outCapasity(source);
         for(size_t i = 0; i < outdeg; i++) {
@@ -151,22 +159,60 @@ public:
     }
 
     bool isInLoop(int edgeId) {
+        return !findLoop(edgeId).empty();
+    }
+
+    std::vector<int> findLoop(int edgeId) {
         Edge edge = getEdge(edgeId);
         if(edge.capacity == 0)
-            return false;
+            return {};
         Edge &redge = getEdge(-edgeId);
-        size_t rcap = redge.capacity;
-        redge.capacity = 0;
-        bool result = !bfs(redge.start, redge.end).empty();
-        redge.capacity = rcap;
-        return result;
+        return bfs(redge.start, redge.end, -edgeId);
+    }
+
+    size_t maxFlow(int edgeId) {
+        if(isInLoop(edgeId)) {
+            return getEdge(edgeId).capacity + getEdge(-edgeId).capacity;
+        } else {
+            return getFlow(edgeId);
+        }
+    }
+
+    size_t minFlow(int edgeId) {
+        if(isInLoop(-edgeId)) {
+            return getEdge(edgeId).min_flow;
+        } else {
+            return getFlow(edgeId);
+        }
+    }
+
+    std::unordered_map<int, std::pair<size_t, size_t>> findBounds() {
+        std::unordered_map<int, std::pair<size_t, size_t>> res;
+        for(Edge &e : edges) {
+            size_t minflow = minFlow(e.id);
+            size_t maxflow = maxFlow(e.id);
+            res[e.id] = {minflow, maxflow};
+        }
+        return std::move(res);
     }
 
     std::unordered_map<int, size_t> findFixedMultiplicities() {
         std::unordered_map<int, size_t> res;
         for(Edge &e : edges) {
-            if(e.start != source && e.end != sink && !isInLoop(e.id) && !isInLoop(-e.id)) {
-                res[e.id] = getEdge(-e.id).capacity;
+            size_t minflow = minFlow(e.id);
+            size_t maxflow = maxFlow(e.id);
+            if(e.start != source && e.end != sink && minflow == maxflow) {
+                res[e.id] = minflow;
+            }
+        }
+        return std::move(res);
+    }
+
+    std::vector<int> findUnique() {
+        std::vector<int> res;
+        for(Edge &e : edges) {
+            if(e.start != source && e.end != sink && maxFlow(e.id) == 1 && minFlow(e.id) == 1) {
+                res.emplace_back(e.id);
             }
         }
         return std::move(res);

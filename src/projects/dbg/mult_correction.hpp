@@ -11,12 +11,14 @@ void correctRead(logging::Logger &logger, std::unordered_map<const Edge *, Compa
 void printAl(logging::Logger &logger, std::unordered_map<const Edge *, CompactPath> &unique_extensions,
              const GraphAlignment &al);
 
-std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger,
+std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger, SparseDBG &dbg,
                                                                   const RecordStorage &reads_storage, const UniqueClassificator &classificator) {
     std::unordered_map<const Edge *, CompactPath> unique_extensions;
-    for(const Edge *edge : classificator.unique_set) {
-        const VertexRecord &rec = reads_storage.getRecord(*edge->start());
-        Sequence seq = edge->seq.Subseq(0, 1);
+    for(const Edge &edge : dbg.edges()) {
+        if(!classificator.isUnique(edge))
+            continue;
+        const VertexRecord &rec = reads_storage.getRecord(*edge.start());
+        Sequence seq = edge.seq.Subseq(0, 1);
         while(true) {
             Sequence best;
             size_t best_val = 0;
@@ -32,8 +34,8 @@ std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging:
                 break;
             seq = best;
         }
-        unique_extensions.emplace(edge, CompactPath(*edge->end(), seq.Subseq(1), 0, 0));
-        logger << "Unique extension for edge " << edge->str() << " " << seq.Subseq(1) << std::endl;
+        unique_extensions.emplace(&edge, CompactPath(*edge.end(), seq.Subseq(1), 0, 0));
+        logger << "Unique extension for edge " << edge.str() << " " << seq.Subseq(1) << std::endl;
     }
     return std::move(unique_extensions);
 }
@@ -125,6 +127,28 @@ void printAl(logging::Logger &logger, std::unordered_map<const Edge *, CompactPa
     logger << std::endl;
 }
 
+void NewMultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
+                 const std::experimental::filesystem::path &dir,
+                 const io::Library &reads_lib, size_t unique_threshold,
+                 size_t threads, const size_t min_read_size, bool dump) {
+    const std::experimental::filesystem::path fig_before = dir / "before.dot";
+    const std::experimental::filesystem::path fig_after = dir / "after.dot";
+    const std::experimental::filesystem::path out_reads = dir / "corrected.fasta";
+    const std::experimental::filesystem::path out_alignments = dir / "alignments.txt";
+    const std::experimental::filesystem::path multiplicity_figures = dir / "figs";
+
+    ensure_dir_existance(multiplicity_figures);
+    logger.info() << "Collecting info from reads" << std::endl;
+    RecordStorage reads_storage(sdbg, 0, 100000, true);
+    io::SeqReader readReader(reads_lib);
+    reads_storage.fill(readReader.begin(), readReader.end(), min_read_size, logger, threads);
+
+    SetUniquenessStorage initial_unique = BulgePathAnalyser(sdbg, unique_threshold).uniqueEdges();
+    MultiplicityBoundsEstimator estimator(sdbg, initial_unique);
+    estimator.update(logger, 3, multiplicity_figures);
+}
+
+
 void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
                  const std::experimental::filesystem::path &dir,
                  const io::Library &reads_lib, size_t unique_threshold,
@@ -145,7 +169,7 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
         UniqueClassificator classificator(sdbg, reads_storage);
         classificator.classify(logger, unique_threshold, multiplicity_figures);
         std::unordered_map<const Edge *, CompactPath> unique_extensions =
-                constructUniqueExtensions(logger, reads_storage, classificator);
+                constructUniqueExtensions(logger, sdbg, reads_storage, classificator);
         Component all(sdbg);
         std::function<std::string(Edge &)> labeler = [&reads_storage](Edge &edge){
             const VertexRecord &rec = reads_storage.getRecord(*edge.start());
@@ -165,14 +189,14 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
         {
             std::ofstream os;
             os.open(fig_before);
-            all.printDot(os, labeler, colorer);
+            printDot(os, all, labeler, colorer);
             os.close();
         }
         correctReads(logger, reads_storage, unique_extensions);
         {
             std::ofstream os;
             os.open(fig_after);
-            all.printDot(os, labeler, colorer);
+            printDot(os, all, labeler, colorer);
             os.close();
         }
     }

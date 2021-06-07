@@ -285,6 +285,14 @@ namespace dbg {
         bool operator<(const Vertex &other) const {
             return hash_ < other.hash_ || (hash_ == other.hash_ && canonical && !other.canonical);
         }
+
+        std::string label() const {
+            std::stringstream res;
+            if (!isCanonical())
+                res << "-";
+            res << hash() % 10000000;
+            return res.str();
+        }
     };
 
     class EdgePointer {
@@ -890,7 +898,6 @@ namespace dbg {
         }
     };
 
-
     class SparseDBG {
     public:
         struct EdgePosition {
@@ -911,6 +918,79 @@ namespace dbg {
 
         typedef std::unordered_map<htype, Vertex, alt_hasher<htype>> vertex_map_type;
         typedef std::unordered_map<htype, EdgePosition, alt_hasher<htype>> anchor_map_type;
+    private:
+        class EdgeIterator {
+            typedef typename vertex_map_type::const_iterator iterator;
+            iterator it;
+            iterator end;
+            bool rc;
+            size_t e_num;
+        public:
+            EdgeIterator(iterator it, iterator end, bool rc, size_t e_num) : it(it), end(end), rc(rc), e_num(e_num) {
+            }
+
+            Edge &operator*() const {
+                if(rc)
+                    return it->second.rc()[e_num];
+                else
+                    return it->second[e_num];
+            }
+
+            EdgeIterator& operator++() {
+                e_num += 1;
+                {
+                    const Vertex &v = rc ? it->second.rc() : it->second;
+                    if (e_num < v.outDeg()) {
+                        return *this;
+                    }
+                }
+                e_num = 0;
+                while(it != end) {
+                    if(rc) {
+                        rc = false;
+                        ++it;
+                    } else {
+                        rc = true;
+                    }
+                    const Vertex &v = rc ? it->second.rc() : it->second;
+                    if (e_num < v.outDeg()) {
+                        return *this;
+                    }
+                }
+                return *this;
+            }
+
+            EdgeIterator operator++(int) const {
+                EdgeIterator other = *this;
+                ++other;
+                return std::move(other);
+            }
+
+            bool operator==(const EdgeIterator &other) const {
+                return it == other.it && end == other.end && rc == other.rc && e_num == other.e_num;
+            }
+
+            bool operator!=(const EdgeIterator &other) const {
+                return !operator==(other);
+            }
+        };
+
+        class EdgeStorage {
+        private:
+            const SparseDBG &dbg;
+        public:
+            EdgeStorage(const SparseDBG &dbg) : dbg(dbg) {
+            }
+
+            EdgeIterator begin() const {
+                return {dbg.begin(), dbg.end(), false, 0};
+            }
+
+            EdgeIterator end() const {
+                return {dbg.end(), dbg.end(), false, 0};
+            }
+        };
+
     private:
 //    TODO: replace with perfect hash map? It is parallel, maybe faster and compact.
         vertex_map_type v;
@@ -1329,6 +1409,10 @@ namespace dbg {
 
         size_t size() const {
             return v.size();
+        }
+
+        EdgeStorage edges() const {
+            return EdgeStorage(*this);
         }
 
         void printStats(logging::Logger &logger) {

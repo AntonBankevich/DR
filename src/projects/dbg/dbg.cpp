@@ -2,6 +2,7 @@
 // Created by anton on 17.07.2020.
 //
 #define _GLIBCXX_PARALLEL
+#include "diploidy_analysis.hpp"
 #include "mult_correction.hpp"
 #include "parameter_estimator.hpp"
 #include "visualization.hpp"
@@ -146,7 +147,7 @@ int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "coverages=none", "dbg=none", "output-dir=",
                      "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
                      "correct", "simplify", "coverage", "cov-threshold=2", "rel-threshold=10", "tip-correct", "crude-correct", "initial-correct",
-                     "mult-correct", "compress", "help", "genome-path", "dump", "extension-size=none", "print-all",
+                     "mult-correct", "mult-analyse", "compress", "help", "genome-path", "dump", "extension-size=none", "print-all",
                      "extract-subdatasets", "print-alignments", "subdataset-radius=10000"},
                     {"reads", "align", "paths", "print-segment"},
                     {"h=help", "o=output-dir", "t=threads", "k=k-mer-size","w=window"},
@@ -222,6 +223,11 @@ int main(int argc, char **argv) {
     }
 
     if(parser.getCheck("mult-correct")) {
+        NewMultCorrect(dbg, logger, dir, reads_lib, 70000,threads,
+                    w + k - 1, parser.getCheck("dump"));
+    }
+
+    if(parser.getCheck("mult-analyse")) {
         MultCorrect(dbg, logger, dir, reads_lib, 50000,threads,
                     w + k - 1, parser.getCheck("dump"));
     }
@@ -257,7 +263,7 @@ int main(int argc, char **argv) {
             logger.info() << "Printing graph with paths to dot file " << (dir / "paths.dot") << std::endl;
             std::ofstream coordinates_dot;
             coordinates_dot.open(dir / "paths.dot");
-            storage.printDot(coordinates_dot);
+            printDot(coordinates_dot, Component(dbg), storage.labeler());
             coordinates_dot.close();
         }
         {
@@ -297,10 +303,7 @@ int main(int argc, char **argv) {
             std::ofstream coordinates_dot;
             Component comp = Component::neighbourhood(dbg, contig, dbg.hasher().k + 100);
             coordinates_dot.open(seg_file);
-            std::function<std::string(Edge &)> labeler = [&storage](Edge &edge) {
-                return storage(edge);
-            };
-            comp.printDot(coordinates_dot, labeler);
+            printDot(coordinates_dot, Component(dbg), storage.labeler());
             coordinates_dot.close();
         }
     }
@@ -377,10 +380,7 @@ int main(int argc, char **argv) {
             std::ofstream coordinates_dot;
             Component comp = Component::neighbourhood(dbg, seg, dbg.hasher().k + 100);
             coordinates_dot.open(seg_file);
-            std::function<std::string(Edge &)> labeler = [&storage](Edge &edge) {
-                return storage(edge);
-            };
-            comp.printDot(coordinates_dot, labeler);
+            printDot(coordinates_dot, Component(dbg), storage.labeler());
             coordinates_dot.close();
         }
     }
@@ -398,7 +398,7 @@ int main(int argc, char **argv) {
             logger.info() << "Printing graph to dot file " << (dir / "genome_path.dot") << std::endl;
             std::ofstream coordinates_dot;
             coordinates_dot.open(dir / "genome_path.dot");
-            storage.printDot(coordinates_dot);
+            printDot(coordinates_dot, Component(dbg), storage.labeler());
             coordinates_dot.close();
         }
         {
@@ -507,7 +507,6 @@ int main(int argc, char **argv) {
         for(auto & it : simp_dbg) {
             Vertex &vert = it.second;
             Vertex &other = dbg.getVertex(vert.hash());
-            bool add = false;
             for(Edge & edge : vert) {
                 edge.incCov(other.getOutgoing(edge.seq[0]).intCov());
             }

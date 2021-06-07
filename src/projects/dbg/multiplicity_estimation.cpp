@@ -3,8 +3,7 @@
 size_t BoundRecord::inf = 1000000000000ul;
 
 MappedNetwork::MappedNetwork(const Component &component, const std::function<bool(const dbg::Edge &)> &unique,
-                             size_t min_flow, const std::function<size_t(const dbg::Edge &)> &max_flow) :
-        min_flow(min_flow) {
+                             double rel_coverage) {
     dbg::SparseDBG &graph = component.graph;
     for(htype hash : component.v) {
         for(dbg::Vertex *v_it : {&graph.getVertex(hash), &graph.getVertex(hash).rc()}) {
@@ -14,11 +13,12 @@ MappedNetwork::MappedNetwork(const Component &component, const std::function<boo
         }
     }
     for(htype hash : component.v) {
-        for(dbg::Vertex *v_it : {&graph.getVertex(hash), &graph.getVertex(hash).rc()}) {
+        for(dbg::Vertex *v_it : graph.getVertices(hash)) {
             dbg::Vertex &v = *v_it;
             for(dbg::Edge &edge : v) {
                 if(!unique(edge)) {
-                    int eid = addEdge(vertex_mapping[&v], vertex_mapping[edge.end()], min_flow, max_flow(edge));
+                    size_t min_flow = edge.getCoverage() <rel_coverage ? 0 : 1;
+                    int eid = addEdge(vertex_mapping[&v], vertex_mapping[edge.end()], min_flow, 10000);
                     edge_mapping[eid] = &edge;
                 } else {
                     addSink(vertex_mapping[&v], 1);
@@ -35,10 +35,9 @@ std::vector<dbg::Edge *> MappedNetwork::getUnique(logging::Logger &logger) {
     for (auto &rec : multiplicities) {
         logger << "Edge " << edge_mapping[rec.first]->start()->hash() << edge_mapping[rec.first]->start()->isCanonical()
                << "ACGT"[edge_mapping[rec.first]->seq[0]]
-               << " has fixed multiplicity " << rec.second + min_flow << std::endl;
-        if (rec.second + min_flow == 1) {
-            res.push_back(edge_mapping[rec.first]);
-        }
+               << " has fixed multiplicity " << rec.second << std::endl;
+        if(rec.second == 1)
+            res.emplace_back(edge_mapping[rec.first]);
     }
     return std::move(res);
 }
