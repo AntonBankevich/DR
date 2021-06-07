@@ -31,6 +31,156 @@ struct AlignmentInfo {
     }
 };
 
+struct dinucleotide {
+    size_t start, multiplicity;
+    //do we need sequence?
+    string seq;
+    static const size_t MIN_DINUCLEOTIDE_REPEAT = 10;
+
+    dinucleotide(size_t start, size_t multiplicity, string seq): start(start), multiplicity(multiplicity), seq(seq) {
+    }
+    string str() {
+        stringstream ss;
+        ss << start << " " << multiplicity << " " <<seq;
+        return ss.str();
+    }
+};
+
+template <class Contig>
+vector<dinucleotide> GetDinucleotideRepeats(const Contig& compressed_contig) {
+    size_t len = compressed_contig.size();
+    size_t start = 0;
+    vector<dinucleotide> res;
+    while (start < len) {
+        size_t multiplicity = 1;
+        while ((start + 2 * multiplicity + 1 < len) &&
+               compressed_contig[start] == compressed_contig[start + 2 * multiplicity ] &&
+               compressed_contig[start + 1] == compressed_contig[start + 2 * multiplicity + 1]) {
+            multiplicity++;
+        }
+
+        if (multiplicity >= dinucleotide::MIN_DINUCLEOTIDE_REPEAT)
+        {
+            stringstream ss;
+            ss << compressed_contig[start] << compressed_contig[start+1];
+            res.emplace_back(start, multiplicity, ss.str());
+//Dirty hack to avoid reporting overlapping dinucleotide repeats
+            start ++;
+        }
+        start = start + 2 * multiplicity - 1;
+    }
+    return res;
+}
+
+struct DinucleotideInfo {
+    size_t len;
+//sorted from start to end;
+    vector <dinucleotide> dinucleotide_coords;
+    map <size_t, size_t> num_dinucleotide;
+    vector<vector<size_t>> dinucleotide_read_voting;
+    vector<vector<string>> dinucleotide_strings;
+    DinucleotideInfo(string & sequence) {
+
+        dinucleotide_coords = GetDinucleotideRepeats(sequence);
+        len = sequence.length();
+        size_t count = 0;
+        for (auto di: dinucleotide_coords ) {
+            for (size_t i = 0; i < 2* di.multiplicity; i++)
+                num_dinucleotide[di.start + i] = count;
+            count++;
+            dinucleotide_read_voting.push_back(vector<size_t>());
+            dinucleotide_strings.push_back(vector<string>());
+        }
+    }
+    DinucleotideInfo(){
+        len = 0;
+    }
+
+    string  GenerateDinucleotideConsensus(Logger & logger, string &contig) {
+        stringstream res;
+        size_t prev_coord = 0;
+        size_t total_len = 0;
+        for (size_t i = 0; i < dinucleotide_coords.size(); i++) {
+            int actual_multiplicity = dinucleotide_coords[i].multiplicity;
+            int res_mult = GenerateMajority(i, logger, actual_multiplicity);
+            int difference = res_mult - actual_multiplicity;
+            total_len += actual_multiplicity * 2;
+            res << contig.substr(prev_coord, dinucleotide_coords[i].start - prev_coord);
+            prev_coord  = dinucleotide_coords[i].start + 2* actual_multiplicity;
+            if (abs(difference) > 0 || actual_multiplicity > 100) {
+                logger.info() << "Dimer multiplicity for  pos " << dinucleotide_coords[i].start << endl;
+                logger.info() << "Was " << actual_multiplicity << " real " << res_mult << endl;
+                stringstream ss;
+                for (auto di_mult: dinucleotide_read_voting[i])
+                    ss << di_mult << " ";
+                logger.info() << ss.str() << endl;
+                size_t count = 0;
+                for (auto s : dinucleotide_strings[i]) {
+                    cout << ">" << count << endl;
+                    cout << s << endl;
+                    count ++;
+                }
+            }
+            if (abs(difference) > 0 && abs(difference) < dinucleotide::MIN_DINUCLEOTIDE_REPEAT) {
+//TODO:: here some shifts;
+
+                actual_multiplicity = res_mult;
+            }
+            for (size_t j = 0; j < actual_multiplicity; j++) {
+                res << dinucleotide_coords[i].seq;
+            }
+            logger.info() << dinucleotide_coords[i].start << " " << res.str().length() << endl;
+        }
+        res << contig.substr(prev_coord, len - prev_coord);
+        logger.info() << " Totatlly in dimeric regions " << total_len << endl;
+        return res.str();
+    }
+    double GenerateConsensus(size_t i, Logger& logger) {
+
+        size_t total_multiplicity = 0;
+        for (size_t mult: dinucleotide_read_voting[i])
+            total_multiplicity += mult;
+        double avg_mult = (total_multiplicity * 1.0) / dinucleotide_read_voting[i].size();
+        return avg_mult;
+    }
+    size_t GenerateMajority(size_t i, Logger& logger, int actual_multiplicity) {
+        sort(dinucleotide_read_voting[i].begin(), dinucleotide_read_voting[i].end());
+        size_t max_l = 0;
+        size_t res_len = dinucleotide_read_voting[i][0];
+
+        for(auto it = dinucleotide_read_voting[i].begin(); it != dinucleotide_read_voting[i].end();)
+        {
+            auto r = std::equal_range(it, dinucleotide_read_voting[i].end(), *it);
+            int len = std::distance(r.first, r.second);
+//Second condition to skip "splitted" dimer alignments that may become majority on laaarge multiplicity dimers
+            if ((len >= max_l) && (actual_multiplicity  < dinucleotide::MIN_DINUCLEOTIDE_REPEAT + *it))
+            {
+                max_l = len;
+                res_len = *it;
+            }
+            it = r.second;
+        }
+        return res_len;
+    }
+
+
+//alignment for debug only
+    bool AddDinucl(size_t pos_center, dinucleotide& di, Logger & logger, AlignmentInfo &aln, string &seq) {
+        if (num_dinucleotide.find(pos_center) == num_dinucleotide.end()) {
+            logger.info() << "Skipping dinucleotide for contig " << aln.contig_id << " read " << aln.read_id << endl
+                          << pos_center << endl;
+
+            return false;
+        } else {
+            size_t cur_dinucleotide = num_dinucleotide[pos_center];
+            logger.info() << " cur dinucleo id" <<  cur_dinucleotide << endl;
+            dinucleotide_read_voting[cur_dinucleotide].push_back(di.multiplicity);
+            dinucleotide_strings[cur_dinucleotide].push_back(seq);
+            return true;
+        }
+    }
+
+};
 
 struct ContigInfo {
     string sequence;
@@ -41,7 +191,13 @@ struct ContigInfo {
     size_t zero_covered = 0;
     string debug_f;
 
-    ContigInfo(string sequence, string name, string debug_f):sequence(sequence), name(name), debug_f(debug_f) {
+//TODO more efficient data structure
+    DinucleotideInfo dinucl;
+/*    vector <dinucleotide> dinucleotide_coords;
+    vector <int> num_dinucleotide;
+    vector<vector<size_t>> dinucleotide_read_voting;
+*/
+    ContigInfo(string sequence, string name, string debug_f):sequence(sequence), name(name), debug_f(debug_f), dinucl(sequence) {
         len = sequence.length();
         quantity.resize(len);
         sum.resize(len);
@@ -59,7 +215,7 @@ struct ContigInfo {
  * string getSequence(AlignmentInfo al){
 
     } */
-    string GenerateConsensus(Logger& logger){
+    string GenerateConsensus(Logger & logger){
         io:stringstream ss;
         vector<int> quantities(256);
         ofstream debug;
@@ -91,8 +247,8 @@ struct ContigInfo {
         }
         return ss.str();
     }
-
 };
+
 struct AssemblyInfo {
     map<string, ContigInfo> contigs;
     CLParser parser;
@@ -106,13 +262,7 @@ struct AssemblyInfo {
     // Declares an alignment that stores the result
     StripedSmithWaterman::Alignment alignment;
 //at least 2
-    const size_t MIN_DINUCLEOTIDE_REPEAT = 10;
-    struct dinucleotide {
-        size_t start, multiplicity;
-        //do we need sequence?
-        dinucleotide(size_t start, size_t multiplicity): start(start), multiplicity(multiplicity){
-        }
-    };
+
 
 
     AssemblyInfo (CLParser& parser):parser(parser), logger(), used_pairs(0), filtered_pairs(0), get_uncovered_only(false) {
@@ -123,7 +273,12 @@ struct AssemblyInfo {
         string debug_f = parser.getValue("debug");
         for (auto contig: assembly) {
 //TODO switch to Contig()
-            contigs[contig.id] = ContigInfo(contig.seq.str(), contig.id, debug_f);
+            contigs.emplace(contig.id, ContigInfo(contig.seq.str(), contig.id, debug_f));
+
+            logger.info() << contig.id << endl;
+            for (auto di: contigs[contig.id].dinucl.dinucleotide_coords){
+                logger.info() << di.str() << endl;
+            }
         }
 
     }
@@ -162,24 +317,60 @@ struct AssemblyInfo {
         aln.alignment_end = contig_len - aln.alignment_start;
         aln.alignment_start = tmp;
     }
-
-    vector<dinucleotide> GetDinucleotideRepeats(Contig& compressed_contig){
-        size_t len = compressed_contig.size();
-        size_t start = 0;
-        vector<dinucleotide> res;
-        while (start < len) {
-            size_t multiplicity = 1;
-            while ((start + 2 * multiplicity + 3 < len) &&
-                    compressed_contig[start] == compressed_contig[start + 2 * multiplicity + 2] &&
-                    compressed_contig[start + 1] == compressed_contig[start + 2 * multiplicity + 3]) {
-                multiplicity++;
+    size_t getUncompressedPos(const string &s, size_t pos){
+        size_t real_pos = 0;
+        while (pos > 0) {
+            while (s[real_pos] == s[real_pos + 1]) {
+                real_pos ++;
             }
-            if (multiplicity >= MIN_DINUCLEOTIDE_REPEAT) {
-                res.emplace_back(start, multiplicity);
-            }
-            start = start + 2 * multiplicity - 1;
+            pos --;
+            real_pos ++;
         }
-        return res;
+        return real_pos;
+    }
+
+    string uncompress (size_t from, size_t to, const string &s) {
+        logger.info() << from << " " << to << " " << s.length() << endl;
+        size_t real_from = getUncompressedPos(s, from);
+//can be optimised
+        size_t real_to = getUncompressedPos(s, to);
+        if (real_to >= real_from)
+            return s.substr(real_from,  real_to -real_from);
+        else {
+            logger.info() << "BULLSHIT";
+            return "";
+        }
+    }
+
+    void processDinucleotideReadPair (StringContig& read, AlignmentInfo& aln) {
+        logger.info() << read.id << endl;
+        Sequence uncompressed_read_seq = read.makeSequence();
+        read.compress();
+        Sequence read_seq = read.makeSequence();
+        size_t rlen = read.size();
+        if (aln.rc) {
+            read_seq = !read_seq;
+            uncompressed_read_seq = !uncompressed_read_seq;
+            RC(aln);
+        }
+        logger.info() << aln.alignment_start << " " << aln.alignment_end << endl;
+        vector<dinucleotide> dinucleo_read = GetDinucleotideRepeats(read_seq.str());
+        size_t used = 0;
+        for (auto di: dinucleo_read) {
+            size_t pos_start = aln.alignment_start + di.start;
+            size_t pos_center = pos_start + di.multiplicity;
+            logger.info() << pos_center << " " << di.multiplicity <<  endl;
+            logger.info() << di.str()  << endl;
+            string uncompressed_dimer = uncompress(di.start, di.start + 2* di.multiplicity, uncompressed_read_seq.str());
+            logger.info() << uncompressed_dimer << endl;
+            if (contigs[aln.contig_id].dinucl.AddDinucl(pos_center, di, logger, aln, uncompressed_dimer)) {
+                used ++;
+            }
+        }
+        if (dinucleo_read.size() > 0) {
+            logger.info() << " Used dinucleo " << used << " of " << dinucleo_read.size() << endl;
+        }
+
     }
 
     void processReadPair (StringContig& read, AlignmentInfo& aln) {
@@ -353,6 +544,7 @@ struct AssemblyInfo {
                 break;
             }
             processReadPair(cur, cur_align);
+//            processDinucleotideReadPair(cur, cur_align);
 //TODO:: appropriate logic for multiple alignment
             do {
                 cur_align = readAlignment(compressed_reads);
@@ -363,17 +555,19 @@ struct AssemblyInfo {
                 }
                 if (cur_compressed == cur_align.read_id) {
                     processReadPair(cur, cur_align);
+//                    processDinucleotideReadPair(cur,cur_align);
                 }
             } while (cur_compressed == cur_align.read_id);
 /*            if (aln_count %2000 == 1999)
                 break; */
             cur_compressed = cur_align.read_id;
-
         }
         logger.info() << "Reads processed, used " <<used_pairs << " filtered by compressed length " << filtered_pairs << endl;
         for (auto& contig: contigs){
+            logger.info() << "Generating consensus for contig " << contig.first << endl;
 
             corrected_contigs << ">" << contig.first << '\n' << contig.second.GenerateConsensus(logger) << '\n';
+//            corrected_contigs << ">" << contig.first << '\n' << contig.second.dinucl.GenerateDinucleotideConsensus(logger, contig.second.sequence) << '\n';
         }
         size_t total_zero_covered = 0;
         for (auto & contig: contigs) {
@@ -381,6 +575,80 @@ struct AssemblyInfo {
         }
         logger.info() << "Total zero covered "  << total_zero_covered << endl;
     }
+
+
+//Awfull copypaste, temporary solution
+    void processDinucleo() {
+
+        ifstream compressed_reads;
+        ofstream corrected_contigs;
+        corrected_contigs.open(parser.getValue("output"));
+        compressed_reads.open(parser.getValue("aligned"));
+        io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
+//        io::Library lib = oneline::initialize<std::experimental::filesystem::path>("reads.fasta");
+        io::SeqReader reader(lib);
+        logger.info() << "Initialized\n";
+
+        AlignmentInfo cur_align = readAlignment(compressed_reads);
+        string cur_compressed = cur_align.read_id;
+        string cur_read = "";
+        string cur_seq = "";
+        StringContig cur;
+        logger.info() << "Assembly read\n";
+        size_t reads_count = 0;
+        size_t aln_count = 1;
+        while (!compressed_reads.eof()) {
+            bool reads_over = false;
+            while (cur.id != cur_compressed) {
+
+                if (reader.eof()) {
+                    logger.info() << "Reads are over\n";
+                    reads_over = true;
+                    break;
+                }
+                cur = reader.read();
+                reads_count ++;
+                if (reads_count % 1000 == 0) {
+                    logger.info() << "Processed " << reads_count << " original reads " << endl;
+
+                }
+            }
+            if (reads_over) {
+                break;
+            }
+//            processReadPair(cur, cur_align);
+            processDinucleotideReadPair(cur, cur_align);
+//TODO:: appropriate logic for multiple alignment
+            do {
+                cur_align = readAlignment(compressed_reads);
+                aln_count ++;
+                if (aln_count % 1000 == 0) {
+                    logger.info() << "Processed " << aln_count << " compressed reads " << endl;
+
+                }
+                if (cur_compressed == cur_align.read_id) {
+//                    processReadPair(cur, cur_align);
+                    processDinucleotideReadPair(cur,cur_align);
+                }
+            } while (cur_compressed == cur_align.read_id);
+/*            if (aln_count %2000 == 1999)
+                break; */
+            cur_compressed = cur_align.read_id;
+        }
+        logger.info() << "Reads processed, used " <<used_pairs << " filtered by compressed length " << filtered_pairs << endl;
+        for (auto& contig: contigs){
+            logger.info() << "Generating consensus for contig " << contig.first << endl;
+            //contig.second.dinucl.GenerateDinucleotideConsensus(logger);
+            // corrected_contigs << ">" << contig.first << '\n' << contig.second.GenerateConsensus(logger) << '\n';
+            corrected_contigs << ">" << contig.first << '\n' << contig.second.dinucl.GenerateDinucleotideConsensus(logger, contig.second.sequence) << '\n';
+        }
+        size_t total_zero_covered = 0;
+        for (auto & contig: contigs) {
+            total_zero_covered += contig.second.zero_covered;
+        }
+        logger.info() << "Total zero covered "  << total_zero_covered << endl;
+    }
+
 };
 
 
@@ -392,7 +660,7 @@ struct AssemblyInfo {
  *
  */
 int main(int argc, char **argv) {
-    CLParser parser({"aligned=", "contigs=", "output=", "debug="}, {"reads"},
+    CLParser parser({"aligned=", "contigs=", "output=", "debug=", "dinucleo="}, {"reads"},
                     {});
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
@@ -402,5 +670,8 @@ int main(int argc, char **argv) {
     }
 
     AssemblyInfo assemblyInfo(parser);
-    assemblyInfo.process();
+    if (parser.getValue("dinucleo") == "true")
+        assemblyInfo.processDinucleo();
+    else
+        assemblyInfo.process();
 }
