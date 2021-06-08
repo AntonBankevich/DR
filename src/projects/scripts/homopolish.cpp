@@ -9,6 +9,8 @@
 #include <vector>
 #include <iostream>
 #include <ssw/ssw_cpp.h>
+#include <spoa/spoa.hpp>
+
 
 using namespace std;
 using logging::Logger;
@@ -120,6 +122,7 @@ struct DinucleotideInfo {
                     cout << s << endl;
                     count ++;
                 }
+
             }
             if (abs(difference) > 0 && abs(difference) < dinucleotide::MIN_DINUCLEOTIDE_REPEAT) {
 //TODO:: here some shifts;
@@ -190,13 +193,42 @@ struct ContigInfo {
     vector<uint16_t> sum;
     size_t zero_covered = 0;
     string debug_f;
-
+//neighbourhoud for complex regions;
+    static const size_t COMPLEX_EPS = 5;
+    static const size_t MAX_CONSENSUS_COVERAGE = 25;
+    //Complex_regions: map from start to length;
+    map<size_t, size_t> complex_regions;
+    map<size_t, vector<string>> complex_strings;
 //TODO more efficient data structure
     DinucleotideInfo dinucl;
+
 /*    vector <dinucleotide> dinucleotide_coords;
     vector <int> num_dinucleotide;
     vector<vector<size_t>> dinucleotide_read_voting;
 */
+    void FillComplex() {
+        size_t current_id = 0;
+        size_t total_d = dinucl.dinucleotide_coords.size();
+        while (current_id < total_d) {
+            size_t cur_start = get_start(dinucl.dinucleotide_coords[current_id]);
+            size_t cur_finish = get_finish(dinucl.dinucleotide_coords[current_id]);
+            size_t next_id = current_id + 1;
+            cerr << cur_start << " " << cur_finish << " " << current_id <<endl;
+            while ((next_id) < total_d && get_start(dinucl.dinucleotide_coords[next_id]) <= cur_finish) {
+                cerr << next_id << " " << total_d << endl;
+                cur_finish = std::max(cur_finish, get_finish(dinucl.dinucleotide_coords[next_id]));
+                next_id ++;
+
+            }
+            if (cur_finish > len)
+                cur_finish = len;
+            complex_regions[cur_start] = cur_finish - cur_start;
+            complex_strings[cur_start] = vector<string>();
+            current_id = next_id;
+        }
+
+    }
+
     ContigInfo(string sequence, string name, string debug_f):sequence(sequence), name(name), debug_f(debug_f), dinucl(sequence) {
         len = sequence.length();
         quantity.resize(len);
@@ -205,8 +237,18 @@ struct ContigInfo {
             sum[i] = 0;
             quantity[i] = 0;
         }
+        FillComplex();
     }
     ContigInfo() = default;
+
+    size_t get_finish(dinucleotide d) {
+        return d.start + COMPLEX_EPS + d.multiplicity * 2;
+    }
+    size_t get_start(dinucleotide d) {
+        if (d.start < COMPLEX_EPS) return 0;
+        else return d.start - COMPLEX_EPS;
+    }
+
 
     void AddRead(){
 
@@ -215,6 +257,45 @@ struct ContigInfo {
  * string getSequence(AlignmentInfo al){
 
     } */
+
+    bool complexStartPosition(size_t ind){
+        return (complex_regions.find(ind) != complex_regions.end());
+    }
+
+    string MSAConsensus(vector<string> &s) {
+
+//Magic consts from spoa default settings
+        auto alignment_engine = spoa::AlignmentEngine::Create(
+// -8 in default for third parameter(gap) opening, -6 for forth(gap extension)
+                spoa::AlignmentType::kNW, 5, -4, -8, -6, -10, -4);  // linear gaps
+
+        spoa::Graph graph{};
+        size_t cov = 0;
+        for (const auto& it : s) {
+            std::int32_t score = 0;
+            auto alignment = alignment_engine->Align(it, graph, &score);
+            graph.AddAlignment(alignment, it);
+            cov ++;
+            if (cov == MAX_CONSENSUS_COVERAGE) {
+                break;
+            }
+        }
+
+        return graph.GenerateConsensus();
+    }
+
+    string checkMSAConsensus(string s) {
+        s.erase(std::unique(s.begin(), s.end()), s.end());
+        if (s.length() <= 2 * COMPLEX_EPS + 2) return "TOO SHORT";
+        size_t len = s.length();
+        for (size_t i = COMPLEX_EPS + 2; i < len - COMPLEX_EPS; i++) {
+            if (s[i] != s[COMPLEX_EPS] && s[i] != s[COMPLEX_EPS + 1])
+                return "On position " + to_string(i) + " of " + to_string(len) + " not dimeric nucleo";
+        }
+        return "";
+    }
+
+
     string GenerateConsensus(Logger & logger){
         io:stringstream ss;
         vector<int> quantities(256);
@@ -222,21 +303,39 @@ struct ContigInfo {
         debug.open(debug_f + name);
         debug << name << endl;
         size_t total_count = 0 ;
-        for (size_t i = 0; i < len; i++) {
-            int cov = 1;
-            if (quantity[i] == 0) {
-                zero_covered ++;
-            }
+        for (size_t i = 0; i < len; ) {
+            if (complexStartPosition(i))
+            {
+                auto consensus = MSAConsensus(complex_strings[i]);
+                auto check = checkMSAConsensus(consensus);
+                logger.info() << "consensus of " << complex_strings[i].size() << ": " << consensus.length()
+                << endl << "At position " << ss.str().length() << endl;
+                if (check != ""){
+                    logger.info() << "SUSPICIOUS CONS " << check << endl;
+                    for (auto s: complex_strings[i]) {
+                        logger.info() << s << endl;
+                    }
+                }
+                logger.info() << consensus << endl;
+                ss << consensus;
+                i += complex_regions[i];
+            } else {
 
-            else {
-                cov = int (round(sum[i] * 1.0 / quantity[i]));
-            }
+                int cov = 1;
+                if (quantity[i] == 0) {
+                    zero_covered++;
+                } else {
+                    cov = int(round(sum[i] * 1.0 / quantity[i]));
+                }
 
-            quantities[quantity[i]] ++;
-            for (size_t j = 0; j < cov; j++) {
-                ss << sequence[i];
-                debug << total_count << " " << sum[i] << " " << int(quantity[i]) << " " <<cov << " " << sequence[i] << endl;
-                total_count ++;
+                quantities[quantity[i]]++;
+                for (size_t j = 0; j < cov; j++) {
+                    ss << sequence[i];
+                    debug << total_count << " " << sum[i] << " " << int(quantity[i]) << " " << cov << " " << sequence[i]
+                          << endl;
+                    total_count++;
+                }
+                i++;
             }
         }
         logger.info() <<" Contig " << name << " " << sequence.length() << endl;
@@ -269,6 +368,7 @@ struct AssemblyInfo {
 //TODO paths;
         logging::LoggerStorage ls("/home/lab44/work/homo_compress/", "homopolish");
         logger.addLogFile(ls.newLoggerFile());
+        logger.info() <<"reading contigs";
         std::vector<Contig> assembly = io::SeqReader(parser.getValue("contigs")).readAllContigs();
         string debug_f = parser.getValue("debug");
         for (auto contig: assembly) {
@@ -423,6 +523,9 @@ struct AssemblyInfo {
         size_t matches = 0;
         size_t mismatches = 0;
         size_t indels = 0;
+        size_t complex_start = -1;
+        size_t contig_finish = -1;
+        size_t complex_id = -1;
 //        logger.info() << "quantities_calc\n";
         for (auto it = minimapaln[0].begin(); it != minimapaln[0].end(); ++it) {
             if ((*it).type == 1) {
@@ -430,6 +533,7 @@ struct AssemblyInfo {
                 indels += (*it).length;
             } else if ((*it).type == 2) {
                 cont_coords += (*it).length;
+//TODO do not forget add complex regions here
                 indels += (*it).length;
             } else {
                 for (size_t i = 0; i < (*it).length; i++) {
@@ -441,6 +545,19 @@ struct AssemblyInfo {
                         matches ++;
                     } else {
                         mismatches ++;
+                    }
+//Only complete traversion of complex regions taken in account;
+                    if (contigs[aln.contig_id].complex_regions.find(coord) != contigs[aln.contig_id].complex_regions.end()) {
+                        size_t complex_len = contigs[aln.contig_id].complex_regions[coord];
+                        if (read_coords + complex_len < minimapaln[0].seg_from.right) {
+                            complex_start = read_coords + i;
+                            contig_finish = coord + complex_len;
+                            complex_id = coord;
+                        }
+                    }
+                    if (coord == contig_finish) {
+                        contigs[aln.contig_id].complex_strings[complex_id].push_back(uncompress(complex_start, read_coords + i, read_seq.str()));
+                        contig_finish = -1;
                     }
                 }
                 read_coords += (*it).length;
@@ -660,18 +777,24 @@ struct AssemblyInfo {
  *
  */
 int main(int argc, char **argv) {
-    CLParser parser({"aligned=", "contigs=", "output=", "debug=", "dinucleo="}, {"reads"},
+    std::cout <<"WTF";
+    CLParser parser({"aligned=", "contigs=", "output=", "debug="}, {"reads"},
                     {});
+
     parser.parseCL(argc, argv);
+
     if (!parser.check().empty()) {
         std::cout << "Incorrect parameters" << std::endl;
         std::cout << parser.check() << std::endl;
         return 1;
     }
 
-    AssemblyInfo assemblyInfo(parser);
-    if (parser.getValue("dinucleo") == "true")
-        assemblyInfo.processDinucleo();
-    else
-        assemblyInfo.process();
-}
+    cout << " parsed";
+
+     AssemblyInfo assemblyInfo(parser);
+//    if (parser.getValue("dinucleo") == "true")
+//        assemblyInfo.processDinucleo();
+//    else
+     assemblyInfo.process();
+
+ }

@@ -1,3 +1,6 @@
 [submodule "src/lib/libgaba"]
 	path = src/lib/libgaba
 	url = https://github.com/ocxtal/libgaba/
+[submodule "src/lib/spoa"]
+	path = src/lib/spoa
+	url = https://github.com/rvaser/spoa.git
