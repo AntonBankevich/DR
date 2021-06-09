@@ -62,10 +62,19 @@ public:
         for(auto &it : alignments) {
             const Edge &edge = *it.first;
             os << edge.id << std::endl;
-            os << labeler()(edge);
+            if (alignments.find(&edge) == alignments.end())
+                return;
+            const std::vector<PerfectAlignment<Contig, Edge>> &als = alignments.find(&edge)->second;
+            if (als.empty()) {
+                return;
+            }
+            os << als[0].seg_from << "->" << als[0].seg_to;
+            for (size_t i = 1; i < als.size(); i++) {
+                const PerfectAlignment<Contig, Edge> &al = als[i];
+                os << "\n" << al.seg_from << "->" << al.seg_to;
+            }
         }
     }
-
 
     std::function<std::string(const Edge &edge)> labeler() const {
         std::function<std::string(const Edge &edge)> res = [this](const Edge &edge) {
@@ -80,7 +89,7 @@ public:
             ss << als[0].seg_from << "->" << als[0].seg_to;
             for (size_t i = 1; i < num; i++) {
                 const PerfectAlignment<Contig, Edge> &al = als[i];
-                ss << "\n" << al.seg_from << "->" << al.seg_to;
+                ss << "\\n" << al.seg_from << "->" << al.seg_to;
             }
             return ss.str();
         };

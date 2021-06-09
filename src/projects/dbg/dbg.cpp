@@ -304,7 +304,7 @@ int main(int argc, char **argv) {
             std::ofstream coordinates_dot;
             Component comp = Component::neighbourhood(dbg, contig, dbg.hasher().k + 100);
             coordinates_dot.open(seg_file);
-            printDot(coordinates_dot, Component(dbg), storage.labeler());
+            printDot(coordinates_dot, Component(comp), storage.labeler());
             coordinates_dot.close();
         }
     }
