@@ -74,14 +74,26 @@ public:
         return path.size();
     }
 
-
-
     size_t length() const {
         size_t res = 0;
         for(auto & p : path) {
             res += std::max(p.first->size(), p.second->size());
         }
         return res;
+    }
+
+    std::string str() const {
+        std::stringstream ss;
+        ss << start().label();
+        for(const auto &p : path) {
+            if(p.first == p.second) {
+                ss << "-" << p.first->size() << "ACGT"[p.first->seq[0]] << "-" << p.first->end()->label();
+            } else {
+                ss << "-(" << p.first->size() << "ACGT"[p.first->seq[0]] << "," <<
+                        p.second->size() << "ACGT"[p.second->seq[0]] << ")-" << p.first->end()->label();
+            }
+        }
+        return ss.str();
     }
 };
 
@@ -105,7 +117,7 @@ private:
             res.extend();
             cur = &res.finish();
         }
-        return {std::move(res)};
+        return std::move(res);
     }
 
     dbg::SparseDBG &dbg;
@@ -118,7 +130,12 @@ public:
             if(visited.find(&it.second) != visited.end())
                 continue;
             if(checkVertex(it.second)) {
-                BulgePath new_path = forwardPath(it.second.rc()).RC() + forwardPath(it.second);
+                BulgePath p1 = forwardPath(it.second.rc());
+                BulgePath new_path = p1.RC();
+                if(new_path.start() != new_path.finish()) {
+                    BulgePath p3 = forwardPath(it.second);
+                    new_path = new_path + p3;
+                }
                 if(new_path.length() < min_len)
                     continue;
                 for(size_t i = 1; i + 1 <= new_path.size(); i++) {

@@ -223,12 +223,12 @@ int main(int argc, char **argv) {
         }
     }
 
-    if(parser.getCheck("mult-correct")) {
+    if(parser.getCheck("mult-analyse")) {
         NewMultCorrect(dbg, logger, dir, reads_lib, 70000,threads,
                     w + k - 1, parser.getCheck("dump"));
     }
 
-    if(parser.getCheck("mult-analyse")) {
+    if(parser.getCheck("mult-correct")) {
         MultCorrect(dbg, logger, dir, reads_lib, 50000,threads,
                     w + k - 1, parser.getCheck("dump"));
     }
