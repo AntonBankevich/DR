@@ -11,11 +11,12 @@
 #include <sstream>
 #include <string>
 #include <ssw/ssw_cpp.h>
-
+#include <cassert>
 using namespace std;
 using logging::Logger;
 
 int main(int argc, char **argv) {
+//polished assembly as reference
     CLParser parser({"ref=", "snps=", "cutoff="}, {},
                     {});
     parser.parseCL(argc, argv);
@@ -42,10 +43,9 @@ int main(int argc, char **argv) {
             continue;
         }
         iss>>name >> aux1 >> aux2 >> aux3 >> pos;
-//        cout << name << " " << pos;
         size_t pos_name = 0;
         for (; pos_name < assembly.size(); pos_name ++) {
-//        cout << assembly[pos_name].id <<  " " << name << endl;
+//            cout << assembly[pos_name].id <<  " " << name << endl;
             if (name == assembly[pos_name].id){
                 break;
             }
@@ -54,6 +54,8 @@ int main(int argc, char **argv) {
         size_t min_dimer = 0;
         for (int dir = -1; dir < 2; dir +=2) {
             size_t next_pos = pos;
+            assert(pos < assembly[pos_name].size());
+//            cout << pos <<" " << assembly[pos_name].size();
             for (; next_pos < cont_length && next_pos >= 0; next_pos+= dir) {
                 if (assembly[pos_name][next_pos] != assembly[pos_name][pos])
                     break;

@@ -118,8 +118,8 @@ struct DinucleotideInfo {
                 logger.info() << ss.str() << endl;
                 size_t count = 0;
                 for (auto s : dinucleotide_strings[i]) {
-                    cout << ">" << count << endl;
-                    cout << s << endl;
+                    logger.info() << ">" << count << endl;
+                    logger.info() << s << endl;
                     count ++;
                 }
 
@@ -213,9 +213,7 @@ struct ContigInfo {
             size_t cur_start = get_start(dinucl.dinucleotide_coords[current_id]);
             size_t cur_finish = get_finish(dinucl.dinucleotide_coords[current_id]);
             size_t next_id = current_id + 1;
-            cerr << cur_start << " " << cur_finish << " " << current_id <<endl;
             while ((next_id) < total_d && get_start(dinucl.dinucleotide_coords[next_id]) <= cur_finish) {
-                cerr << next_id << " " << total_d << endl;
                 cur_finish = std::max(cur_finish, get_finish(dinucl.dinucleotide_coords[next_id]));
                 next_id ++;
 
@@ -318,6 +316,12 @@ struct ContigInfo {
                 }
                 logger.info() << consensus << endl;
                 ss << consensus;
+
+                for (size_t j = 0; j < consensus.length(); j++) {
+                    debug << total_count << " 0 0 0" << consensus[j] << endl;
+                    total_count ++;
+                }
+
                 i += complex_regions[i];
             } else {
 
@@ -777,7 +781,6 @@ struct AssemblyInfo {
  *
  */
 int main(int argc, char **argv) {
-    std::cout <<"WTF";
     CLParser parser({"aligned=", "contigs=", "output=", "debug="}, {"reads"},
                     {});
 
