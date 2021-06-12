@@ -116,9 +116,11 @@ private:
     static BulgePath forwardPath(dbg::Vertex &start) {
         BulgePath res(start);
         dbg::Vertex * cur = &start;
-        while(checkVertex(*cur) && cur != &start) {
+        while(checkVertex(*cur)) {
             res.extend();
             cur = &res.finish();
+            if(cur == &start)
+                return std::move(res);
         }
         return std::move(res);
     }
