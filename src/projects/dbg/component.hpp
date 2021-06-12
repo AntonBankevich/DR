@@ -131,7 +131,6 @@ namespace dbg {
             std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<StoredValue>> queue;
             std::vector<PerfectAlignment<Contig, Edge>> als1 = graph.carefulAlign(contig);
             Contig rc_contig = contig.RC();
-            std::vector<PerfectAlignment<Contig, Edge>> als2 = graph.carefulAlign(rc_contig);
 //        TODO Every edge must have a full sequence stored as a composite sequence
             for (PerfectAlignment<Contig, Edge> &al : als1) {
                 if(al.seg_to.left < radius)

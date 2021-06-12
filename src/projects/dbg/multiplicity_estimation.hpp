@@ -242,9 +242,6 @@ private:
     SparseDBG &dbg;
 public:
     const RecordStorage &reads_storage;
-    explicit UniqueClassificator(SparseDBG &dbg, const RecordStorage &reads_storage) : dbg(dbg), reads_storage(reads_storage) {
-    }
-
     void classify(logging::Logger &logger, size_t unique_len, const std::experimental::filesystem::path &dir) {
         Component graph(dbg);
         std::vector<Component> split = LengthSplitter(unique_len).split(Component(dbg));
@@ -264,6 +261,9 @@ public:
             std::vector<const Edge *> new_unique = processComponent(logger, component, unique_len, out_file);
             addUnique(new_unique.begin(), new_unique.end());
         }
+    }
+
+    explicit UniqueClassificator(SparseDBG &dbg, const RecordStorage &reads_storage) : dbg(dbg), reads_storage(reads_storage) {
     }
 
     std::vector<const dbg::Edge *> ProcessUsingCoverage(logging::Logger &logger, const Component &subcomponent,

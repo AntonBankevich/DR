@@ -201,15 +201,30 @@ public:
 };
 
 class StringContig {
+private:
+    static std::string extractId(const std::string &s) {
+        if(s.find(" ") == size_t(-1))
+            return s;
+        else
+            return s.substr(0, s.find(" "));
+    }
+
+    static std::string extractComment(const std::string &s) {
+        if(s.find(" ") == size_t(-1))
+            return "";
+        else
+            return s.substr(s.find(" ") + 1);
+    }
 public:
     std::string id;
+    std::string comment;
     std::string seq;
     static bool needs_compressing;
 
-    StringContig() : id(""), seq("") {
+    StringContig() : id(""), comment(""), seq("") {
     }
 
-    StringContig(std::string && _seq, std::string &&_id) : id(_id), seq(_seq) {
+    StringContig(std::string && _seq, std::string &&_id) : id(extractId(_id)), comment(extractComment(_id)), seq(_seq) {
     }
 
     StringContig(StringContig && other) = default;
