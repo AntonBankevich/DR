@@ -134,26 +134,29 @@ namespace dbg {
             std::vector<PerfectAlignment<Contig, Edge>> als2 = graph.carefulAlign(rc_contig);
 //        TODO Every edge must have a full sequence stored as a composite sequence
             for (PerfectAlignment<Contig, Edge> &al : als1) {
-                queue.emplace(0, al.seg_to.contig().end()->hash());
-                queue.emplace(0, al.seg_to.contig().start()->hash());
+                if(al.seg_to.left < radius)
+                    queue.emplace(0, al.seg_to.contig().start()->hash());
+                VERIFY(al.seg_to.right <= al.seg_to.contig().size());
+                if(al.seg_to.contig().size() - al.seg_to.right < radius)
+                    queue.emplace(0, al.seg_to.contig().end()->hash());
+            }
+            if(queue.empty()) {
+                for (PerfectAlignment<Contig, Edge> &al : als1) {
+                    queue.emplace(0, al.seg_to.contig().start()->hash());
+                    queue.emplace(0, al.seg_to.contig().end()->hash());
+                }
             }
             while (!queue.empty()) {
                 std::pair<size_t, htype> val = queue.top();
                 queue.pop();
-                if (v.find(val.second) != v.end())
+                if (v.find(val.second) != v.end() || val.first > radius)
                     continue;
                 v.insert(val.second);
-                if (val.first > radius)
-                    continue;
-                Vertex &vert = graph.getVertex(val.second);
-                for (Edge &edge : vert) {
-                    if (edge.getCoverage() >= min_coverage)
-                        queue.emplace(val.first + edge.size(), edge.end()->hash());
-                }
-                for (Edge &edge : vert.rc()) {
-                    if (edge.getCoverage() >= min_coverage)
-                        queue.emplace(val.first + edge.size(), edge.end()->hash());
-                }
+                for(Vertex *vit : graph.getVertices(val.second))
+                    for (Edge &edge : *vit) {
+                        if (edge.getCoverage() >= min_coverage)
+                            queue.emplace(val.first + edge.size(), edge.end()->hash());
+                    }
             }
             return Component(graph, v.begin(), v.end());
         }
