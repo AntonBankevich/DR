@@ -31,7 +31,7 @@ public:
     }
 
     void extend() {
-        dbg::Vertex &last = *path.back().first->end();
+        dbg::Vertex &last = finish();
         size_t deg = last.outDeg();
         VERIFY(deg == 1 || deg == 2);
         path.emplace_back(&last[0], &last[deg - 1]);
