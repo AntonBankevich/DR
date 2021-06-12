@@ -17,7 +17,9 @@ public:
         path.emplace_back(&edge, &edge);
     }
 
-    BulgePath(std::vector<std::pair<dbg::Edge *, dbg::Edge *>> &&path_) : path(path_), start_(path[0].first->start()) {
+    BulgePath(std::vector<std::pair<dbg::Edge *, dbg::Edge *>> &&path_) : path(path_), start_(nullptr) {
+        VERIFY(path.size() > 0);
+        start_ = path.front().first->start();
     }
 
     dbg::Vertex &finish() const {
