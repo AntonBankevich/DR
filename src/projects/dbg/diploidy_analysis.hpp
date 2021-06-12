@@ -45,7 +45,7 @@ public:
         for(size_t i = 0; i < path.size(); i++) {
             rc.emplace_back(&path[path.size() - 1 - i].first->rc(), &path[path.size() - 1 - i].second->rc());
         }
-        return {std::move(rc)};
+        return BulgePath(std::move(rc));
     }
 
     BulgePath operator+(const BulgePath &other) const {
@@ -55,7 +55,7 @@ public:
         return {std::move(sum)};
     }
 
-    std::pair<dbg::Edge *, dbg::Edge *> operator[](size_t ind) const {
+    const std::pair<dbg::Edge *, dbg::Edge *> &operator[](size_t ind) const {
         return path[ind];
     }
 
