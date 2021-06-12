@@ -38,6 +38,9 @@ public:
     }
 
     BulgePath RC() {
+        if(path.empty()) {
+            return BulgePath(start_->rc());
+        }
         std::vector<std::pair<dbg::Edge *, dbg::Edge *>> rc;
         for(size_t i = 0; i < path.size(); i++) {
             rc.emplace_back(&path[path.size() - 1 - i].first->rc(), &path[path.size() - 1 - i].second->rc());
@@ -130,11 +133,12 @@ public:
             if(visited.find(&it.second) != visited.end())
                 continue;
             if(checkVertex(it.second)) {
-                BulgePath p1 = forwardPath(it.second.rc());
-                BulgePath new_path = p1.RC();
+                BulgePath new_path = forwardPath(it.second);
+                VERIFY(new_path.size() > 0);
                 if(new_path.start() != new_path.finish()) {
-                    BulgePath p3 = forwardPath(it.second);
-                    new_path = new_path + p3;
+                    BulgePath p2 = forwardPath(it.second.rc());
+                    BulgePath p3 = p2.RC();
+                    new_path = p3 + new_path;
                 }
                 if(new_path.length() < min_len)
                     continue;

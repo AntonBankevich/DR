@@ -180,12 +180,7 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
             }
             return ss.str();
         };
-        std::function<std::string(Edge &)> colorer = [&classificator](Edge &edge){
-            if(classificator.isUnique(edge))
-                return "red";
-            else
-                return "black";
-        };
+        std::function<std::string(Edge &)> colorer = classificator.colorer();
         {
             std::ofstream os;
             os.open(fig_before);

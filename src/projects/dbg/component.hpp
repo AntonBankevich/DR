@@ -1,5 +1,8 @@
 #pragma once
 
+#include <utility>
+
+
 #include "sparse_dbg.hpp"
 
 namespace dbg {
@@ -163,17 +166,17 @@ namespace dbg {
     class AbstractSplitter {
     public:
         virtual std::vector<Component> split(Component component) const = 0;
-        std::vector<Component> split(SparseDBG &dbg) {
+        std::vector<Component> split(SparseDBG &dbg) const {
             return split(Component(dbg));
         }
     };
 
     class ConditionSplitter : public AbstractSplitter {
     private:
-        const std::function<bool(const Edge &)> &splitEdge;
+        std::function<bool(const Edge &)> splitEdge;
 
     public:
-        explicit ConditionSplitter(const std::function<bool(const Edge &)> &splitEdge) : splitEdge(splitEdge) {
+        explicit ConditionSplitter(std::function<bool(const Edge &)> splitEdge) : splitEdge(std::move(splitEdge)) {
         }
 
         std::vector<Component> split(Component comp) const override {
