@@ -939,22 +939,28 @@ namespace dbg {
             EdgeIterator& operator++() {
                 e_num += 1;
                 {
-                    const Vertex &v = rc ? it->second.rc() : it->second;
-                    if (e_num < v.outDeg()) {
+                    const Vertex &vert = rc ? it->second.rc() : it->second;
+                    if (e_num < vert.outDeg()) {
                         return *this;
                     }
                 }
                 e_num = 0;
+                if(rc) {
+                    rc = false;
+                    ++it;
+                } else {
+                    rc = true;
+                }
                 while(it != end) {
+                    const Vertex &vert = rc ? it->second.rc() : it->second;
+                    if (e_num < vert.outDeg()) {
+                        return *this;
+                    }
                     if(rc) {
                         rc = false;
                         ++it;
                     } else {
                         rc = true;
-                    }
-                    const Vertex &v = rc ? it->second.rc() : it->second;
-                    if (e_num < v.outDeg()) {
-                        return *this;
                     }
                 }
                 return *this;
@@ -963,7 +969,7 @@ namespace dbg {
             EdgeIterator operator++(int) const {
                 EdgeIterator other = *this;
                 ++other;
-                return std::move(other);
+                return other;
             }
 
             bool operator==(const EdgeIterator &other) const {
@@ -1412,7 +1418,7 @@ namespace dbg {
         }
 
         EdgeStorage edges() const {
-            return EdgeStorage(*this);
+            return {*this};
         }
 
         void printStats(logging::Logger &logger) {
