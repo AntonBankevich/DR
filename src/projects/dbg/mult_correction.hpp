@@ -14,27 +14,43 @@ void printAl(logging::Logger &logger, std::unordered_map<const Edge *, CompactPa
 std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger, SparseDBG &dbg,
                                                                   const RecordStorage &reads_storage, const UniqueClassificator &classificator) {
     std::unordered_map<const Edge *, CompactPath> unique_extensions;
-    for(const Edge &edge : dbg.edges()) {
-        if(!classificator.isUnique(edge))
+    for(Edge &edge : dbg.edges()) {
+        if(!classificator.isUnique(edge) || unique_extensions.find(&edge) != unique_extensions.end())
             continue;
         const VertexRecord &rec = reads_storage.getRecord(*edge.start());
         Sequence seq = edge.seq.Subseq(0, 1);
+        if(unique_extensions.find(&edge) != unique_extensions.end()) {
+            seq = seq + unique_extensions[&edge].cpath();
+        }
+        dbg::Path path(*edge.start());
+        path += edge;
         while(true) {
             Sequence best;
             size_t best_val = 0;
+            Edge *next_edge = nullptr;
             for(char c = 0; c < char(4); c++) {
                 Sequence next = seq + Sequence(std::vector<char>({c}));
                 size_t val = rec.countStartsWith(next);
                 if(val > best_val) {
                     best_val = val;
                     best = next;
+                    next_edge = &path.finish().getOutgoing(c);
                 }
             }
             if(best_val == 0)
                 break;
             seq = best;
+            path += *next_edge;
+            if(classificator.isUnique(*next_edge))
+                break;
         }
+        CompactPath res(*edge.end(), seq.Subseq(1), 0, 0);
         unique_extensions.emplace(&edge, CompactPath(*edge.end(), seq.Subseq(1), 0, 0));
+        if(classificator.isUnique(path.back())) {
+            Edge &last_rc_edge = path.back().rc();
+            CompactPath res1(path.RC().subPath(1, path.size()));
+            unique_extensions.emplace(&last_rc_edge, res1);
+        }
         logger << "Unique extension for edge " << edge.str() << " " << seq.Subseq(1) << std::endl;
     }
     return std::move(unique_extensions);
@@ -60,6 +76,12 @@ GraphAlignment correctRead(logging::Logger &logger, std::string &read_id,
         GraphAlignment new_al = al.subPath(0, i + 1);
         size_t corrected_len = al.subPath(i + 1, al.size()).len();
         GraphAlignment replacement = compactPath.getAlignment();
+        logger << replacement.len() << " " << corrected_len << std::endl;
+        while(replacement.len() < corrected_len &&
+                    unique_extensions.find(&replacement.back().contig()) != unique_extensions.end()) {
+            replacement += unique_extensions[&replacement.back().contig()].getAlignment();
+        }
+        logger << CompactPath(replacement) << " " << CompactPath(al.subPath(i + 1, al.size())) << std::endl;
         logger << replacement.len() << " " << corrected_len << std::endl;
         if(replacement.len() < corrected_len) {
             size_t deficite = corrected_len - replacement.len();
