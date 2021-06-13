@@ -110,7 +110,7 @@ struct BoundRecord {
     }
 
     size_t updateUpperBound(size_t val) {
-        upperBound = std::max(upperBound, val);
+        upperBound = std::min(upperBound, val);
         return upperBound;
     }
 };
