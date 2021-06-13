@@ -432,6 +432,12 @@ public:
 
     template<class I>
     void fill(I begin, I end, size_t min_read_size, logging::Logger &logger, size_t threads) {
+        if (track_cov) {
+            logger.info() << "Cleaning edge coverages" << std::endl;
+            for(Edge & edge: dbg.edges()) {
+                edge.incCov(-edge.intCov());
+            }
+        }
         logger.info() << "Collecting alignments of sequences to the graph" << std::endl;
         ParallelRecordCollector<AlignedRead> tmpReads(threads);
         ParallelCounter cnt(threads);
