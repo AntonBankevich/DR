@@ -9,7 +9,7 @@ MappedNetwork::MappedNetwork(const Component &component, const std::function<boo
         for(dbg::Vertex *v_it : {&graph.getVertex(hash), &graph.getVertex(hash).rc()}) {
             dbg::Vertex &v = *v_it;
             vertex_mapping[&v] = addVertex();
-            std::cout << vertices.size() - 1 << " " << v.hash() << " " << v.isCanonical() << std::endl;
+            std::cout << vertices.size() << " " << v.hash() << " " << v.isCanonical() << std::endl;
         }
     }
     for(htype hash : component.v) {

@@ -226,8 +226,12 @@ public:
             if(component.size() <= 2)
                 continue;
             cnt += 1;
-            std::experimental::filesystem::path out_file = dir / (std::to_string(cnt) + ".dot");
+            std::ofstream os1;
+            os1.open(dir / (std::to_string(cnt) + "_before.dot"));
+            printDot(os1, component, bounds.labeler(), bounds.colorer());
+            os1.close();
             updateComponent(logger, component, bounds, rel_coverage);
+            std::experimental::filesystem::path out_file = dir / (std::to_string(cnt) + ".dot");
             logger << "Printing component to " << out_file << std::endl;
             std::ofstream os;
             os.open(out_file);

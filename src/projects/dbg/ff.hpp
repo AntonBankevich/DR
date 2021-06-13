@@ -28,9 +28,9 @@ public:
     };
 
 private:
-    int innerAddEdge(size_t from, size_t to, size_t min_capacity, size_t max_capacity = 0) {
+    int innerAddEdge(size_t from, size_t to, size_t max_capacity, size_t flow = 0) {
         int eid = edges.size() + 1;
-        edges.emplace_back(eid, from, to, max_capacity, min_capacity);
+        edges.emplace_back(eid, from, to, max_capacity, flow);
         back_edges.emplace_back(-eid, to, from, 0);
         vertices[from].out.push_back(eid);
         vertices[to].inc.push_back(eid);
@@ -74,15 +74,15 @@ public:
             addSink(from, min_capacity);
             max_capacity -= min_capacity;
         }
-        return innerAddEdge(from, to, min_capacity, max_capacity);
+        return innerAddEdge(from, to, max_capacity, min_capacity);
     }
 
     void addSource(size_t id, size_t capacity) {
-        innerAddEdge(source, id, capacity, 0);
+        innerAddEdge(source, id, capacity);
     }
 
     void addSink(size_t id, size_t capacity) {
-        innerAddEdge(id, sink, capacity, 0);
+        innerAddEdge(id, sink, capacity);
     }
 
 private:
@@ -172,7 +172,7 @@ public:
 
     size_t maxFlow(int edgeId) {
         if(isInLoop(edgeId)) {
-            return getEdge(edgeId).capacity + getEdge(-edgeId).capacity;
+            return getEdge(edgeId).capacity + getFlow(edgeId);
         } else {
             return getFlow(edgeId);
         }
