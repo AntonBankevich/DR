@@ -165,6 +165,16 @@ public:
         return paths.end();
     }
 
+    bool isDisconnected(const Edge &edge) const {
+        if(edge.end()->outDeg() == 0)
+            return false;
+        for(const std::pair<Sequence, size_t> &rec : paths) {
+            if(rec.first[0] == edge.seq[0] && rec.second > 0)
+                return false;
+        }
+        return true;
+    }
+
     VertexRecord & operator=(const VertexRecord &) = delete;
 
     void lock() const {

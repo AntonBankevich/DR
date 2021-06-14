@@ -38,9 +38,29 @@ public:
 };
 
 class AbstractUniquenessStorage {
+private:
+    bool checkEdge(const dbg::Edge &edge) const {
+        if(edge.end()->outDeg() + 1 != edge.start()->inDeg())
+            return false;
+        for(const Edge &e : *edge.end()) {
+            if(!isUnique(e))
+                return false;
+        }
+        for(const Edge &e : edge.end()->rc()) {
+            if(e != edge.rc() && !isUnique(e))
+                return false;
+        }
+        return true;
+    }
 public:
     virtual bool isUnique(const dbg::Edge &) const = 0;
     virtual ~AbstractUniquenessStorage() = default;
+
+    bool isError(const dbg::Edge &edge) const {
+        if(isUnique(edge))
+            return false;
+        return checkEdge(edge) || checkEdge(edge.rc());
+    }
 
     std::function<std::string(const Edge &)> colorer(const std::string &unique_color = "black",
                                                      const std::string &repeat_color = "blue") const {
@@ -291,7 +311,7 @@ public:
                 }
             }
         }
-        double threshold = std::max(min_cov * 1.4, max_cov * 1.1);
+        double threshold = std::max(min_cov * 1.4, max_cov * 1.2);
         double rel_threshold = std::min(min_cov * 0.9, max_cov * 0.7);
         logger << "Attempting to use coverage for multiplicity estimation with coverage threshold " << threshold << std::endl;
         logger << "Component: ";

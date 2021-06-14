@@ -19,22 +19,21 @@ std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging:
             continue;
         const VertexRecord &rec = reads_storage.getRecord(*edge.start());
         Sequence seq = edge.seq.Subseq(0, 1);
-        if(unique_extensions.find(&edge) != unique_extensions.end()) {
-            seq = seq + unique_extensions[&edge].cpath();
-        }
         dbg::Path path(*edge.start());
         path += edge;
         while(true) {
             Sequence best;
             size_t best_val = 0;
             Edge *next_edge = nullptr;
-            for(char c = 0; c < char(4); c++) {
-                Sequence next = seq + Sequence(std::vector<char>({c}));
+            for(Edge &next_candidate : path.finish()) {
+                if(classificator.isError(next_candidate))
+                    continue;
+                Sequence next = seq + next_candidate.seq.Subseq(0, 1);
                 size_t val = rec.countStartsWith(next);
                 if(val > best_val) {
                     best_val = val;
                     best = next;
-                    next_edge = &path.finish().getOutgoing(c);
+                    next_edge = &next_candidate;
                 }
             }
             if(best_val == 0)
@@ -46,12 +45,13 @@ std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging:
         }
         CompactPath res(*edge.end(), seq.Subseq(1), 0, 0);
         unique_extensions.emplace(&edge, CompactPath(*edge.end(), seq.Subseq(1), 0, 0));
+        logger << "Unique extension for edge " << edge.str() << " " << seq.Subseq(1) << std::endl;
         if(classificator.isUnique(path.back())) {
             Edge &last_rc_edge = path.back().rc();
             CompactPath res1(path.RC().subPath(1, path.size()));
             unique_extensions.emplace(&last_rc_edge, res1);
+            logger << "Unique extension for edge " << last_rc_edge.str() << " " << res1.cpath() << std::endl;
         }
-        logger << "Unique extension for edge " << edge.str() << " " << seq.Subseq(1) << std::endl;
     }
     return std::move(unique_extensions);
 }
@@ -217,6 +217,16 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
             os.close();
         }
     }
+    logger.info() << "Collecting bad edges" << std::endl;
+    std::unordered_set<Edge *> bad_edges;
+    for(Edge & edge : sdbg.edges()) {
+        if(edge.size() > k + 5000)
+            continue;
+        if(reads_storage.getRecord(*edge.start()).isDisconnected(edge) ||
+                reads_storage.getRecord(*edge.rc().start()).isDisconnected(edge.rc())) {
+            bad_edges.emplace(&edge);
+        }
+    }
     logger.info() << "Printing corrected reads to disk" << std::endl;
     std::ofstream ors;
     std::ofstream brs;
@@ -226,7 +236,7 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
         GraphAlignment al = alignedRead.path.getAlignment();
         bool ok = true;
         for(Segment<dbg::Edge> &seg : al) {
-            if(seg.contig().getCoverage() < 2) {
+            if(seg.contig().getCoverage() < 2 || bad_edges.find(&seg.contig()) != bad_edges.end()) {
                 ok = false;
                 break;
             }
