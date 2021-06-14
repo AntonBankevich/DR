@@ -2,6 +2,31 @@
 
 size_t BoundRecord::inf = 1000000000000ul;
 
+MappedNetwork::MappedNetwork(const Component &component, const std::function<size_t(const dbg::Edge &)> &min_mult, const std::function<size_t(const dbg::Edge &)> &max_mult) {
+    dbg::SparseDBG &graph = component.graph;
+    for(htype hash : component.v) {
+        for(dbg::Vertex *v_it : {&graph.getVertex(hash), &graph.getVertex(hash).rc()}) {
+            dbg::Vertex &v = *v_it;
+            vertex_mapping[&v] = addVertex();
+            std::cout << vertices.size() << " " << v.hash() << " " << v.isCanonical() << std::endl;
+        }
+    }
+    for(htype hash : component.v) {
+        for(dbg::Vertex *v_it : graph.getVertices(hash)) {
+            dbg::Vertex &v = *v_it;
+            for(dbg::Edge &edge : v) {
+                if(min_mult(edge) == 1 && max_mult(edge) == 1) {
+                    addSink(vertex_mapping[&v], 1);
+                    addSource(vertex_mapping[&v.rc()], 1);
+                } else {
+                    int eid = addEdge(vertex_mapping[&v], vertex_mapping[edge.end()], min_mult(edge), max_mult(edge));
+                    edge_mapping[eid] = &edge;
+                }
+            }
+        }
+    }
+}
+
 MappedNetwork::MappedNetwork(const Component &component, const std::function<bool(const dbg::Edge &)> &unique,
                              double rel_coverage) {
     dbg::SparseDBG &graph = component.graph;
