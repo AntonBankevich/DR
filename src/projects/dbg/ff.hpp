@@ -159,7 +159,7 @@ public:
     }
 
     bool isInLoop(int edgeId) {
-        return !findLoop(edgeId).empty();
+        return getEdge(edgeId).capacity > 0 && !findLoop(edgeId).empty();
     }
 
     std::vector<int> findLoop(int edgeId) {
