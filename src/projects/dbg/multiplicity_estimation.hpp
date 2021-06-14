@@ -345,8 +345,8 @@ public:
             logger << "Relaxing flow conditions" << std::endl;
             rel_coverage = 20;
             MappedNetwork net1(component, is_unique, rel_coverage);
-            bool res1 = net1.fillNetwork();
-            if(res1) {
+            res = net1.fillNetwork();
+            if(res) {
                 logger << "Found unique edges in component" << std::endl;
                 for(Edge * edge : net1.getUnique(logger)) {
                     unique_in_component.emplace(edge);
