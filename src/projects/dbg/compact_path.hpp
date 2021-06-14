@@ -169,7 +169,7 @@ public:
         if(edge.end()->outDeg() == 0)
             return false;
         for(const std::pair<Sequence, size_t> &rec : paths) {
-            if(rec.first[0] == edge.seq[0] && rec.second > 0)
+            if(rec.second > 0 && rec.first[0] == edge.seq[0] && rec.first.size() > 1)
                 return false;
         }
         return true;
