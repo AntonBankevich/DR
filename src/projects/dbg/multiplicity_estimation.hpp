@@ -40,7 +40,7 @@ public:
 class AbstractUniquenessStorage {
 private:
     bool checkEdge(const dbg::Edge &edge) const {
-        if(edge.end()->outDeg() + 1 != edge.start()->inDeg())
+        if(edge.end()->outDeg() + 1 != edge.end()->inDeg())
             return false;
         for(const Edge &e : *edge.end()) {
             if(!isUnique(e))
