@@ -292,6 +292,7 @@ public:
             }
         }
         double threshold = std::max(min_cov * 1.4, max_cov * 1.1);
+        double rel_threshold = std::min(min_cov * 0.9, max_cov * 0.7);
         const std::function<bool(const dbg::Edge &)> &new_unique = [&is_unique, threshold](const dbg::Edge &edge) {
             return is_unique(edge) || edge.getCoverage() < threshold;
         };
@@ -301,7 +302,7 @@ public:
             logger << " " << hash % 100000;
         }
         logger << std::endl;
-        MappedNetwork net2(subcomponent, is_unique, rel_coverage);
+        MappedNetwork net2(subcomponent, new_unique, rel_coverage);
         bool res2 = net2.fillNetwork();
         std::vector<const dbg::Edge *> extra_unique;
         if (res2) {
@@ -311,6 +312,17 @@ public:
             }
         } else {
             logger << "Failed to use coverage for multiplicity estimation" << std::endl;
+            if(rel_coverage == 0) {
+                logger << "Increasing reliable edge threshold to " << rel_threshold << std::endl;
+                MappedNetwork net3(subcomponent, new_unique, rel_threshold);
+                bool res3 = net3.fillNetwork();
+                if (res3) {
+                    logger << "Succeeded to use coverage for multiplicity estimation" << std::endl;
+                    for (Edge *edge : net3.getUnique(logger)) {
+                        extra_unique.emplace_back(edge);
+                    }
+                }
+            }
         }
         return std::move(extra_unique);
     }
