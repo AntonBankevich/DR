@@ -13,9 +13,7 @@ public:
     std::unordered_map<int, dbg::Edge *> edge_mapping;
     std::unordered_map<dbg::Vertex *, int> vertex_mapping;
 
-    MappedNetwork(const Component &component, const std::function<bool(const dbg::Edge &)> &unique, double rel_coverage = 1000);
-
-    MappedNetwork(const Component &component, const std::function<size_t(const dbg::Edge &)> &min_mult, const std::function<size_t(const dbg::Edge &)> &max_mult);
+    MappedNetwork(const Component &component, const std::function<bool(const dbg::Edge &)> &unique, double rel_coverage = 1000, double unique_coverage = 0);
 
     size_t addTipSinks() {
         size_t res = 0;
@@ -316,19 +314,7 @@ public:
             logger << "Failed to use coverage for multiplicity estimation" << std::endl;
             if(rel_coverage == 0) {
                 logger << "Increasing reliable edge threshold to " << rel_threshold << std::endl;
-                std::function<size_t(const dbg::Edge &)> min_mult = [rel_threshold, &is_unique](const dbg::Edge &edge) {
-                    if(edge.getCoverage() >= rel_threshold || is_unique(edge))
-                        return 1;
-                    else
-                        return 0;
-                };
-                std::function<size_t(const dbg::Edge &)> max_mult = [threshold, &is_unique](const dbg::Edge &edge) {
-                    if(edge.getCoverage() <= threshold || is_unique(edge))
-                        return 1;
-                    else
-                        return 1000000000;
-                };
-                MappedNetwork net3(subcomponent, min_mult, max_mult);
+                MappedNetwork net3(subcomponent, is_unique, rel_threshold, threshold);
                 bool res3 = net3.fillNetwork();
                 if (res3) {
                     logger << "Succeeded to use coverage for multiplicity estimation" << std::endl;
