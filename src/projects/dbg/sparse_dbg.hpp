@@ -925,23 +925,14 @@ namespace dbg {
             iterator end;
             bool rc;
             size_t e_num;
-        public:
-            EdgeIterator(iterator it, iterator end, bool rc, size_t e_num) : it(it), end(end), rc(rc), e_num(e_num) {
-            }
 
-            Edge &operator*() const {
-                if(rc)
-                    return it->second.rc()[e_num];
-                else
-                    return it->second[e_num];
-            }
-
-            EdgeIterator& operator++() {
-                e_num += 1;
+            void seek() {
+                if(it == end)
+                    return;
                 {
                     const Vertex &vert = rc ? it->second.rc() : it->second;
                     if (e_num < vert.outDeg()) {
-                        return *this;
+                        return;
                     }
                 }
                 e_num = 0;
@@ -954,7 +945,7 @@ namespace dbg {
                 while(it != end) {
                     const Vertex &vert = rc ? it->second.rc() : it->second;
                     if (e_num < vert.outDeg()) {
-                        return *this;
+                        return;
                     }
                     if(rc) {
                         rc = false;
@@ -963,6 +954,25 @@ namespace dbg {
                         rc = true;
                     }
                 }
+            }
+
+        public:
+            EdgeIterator(iterator it, iterator end, bool rc, size_t e_num) : it(it), end(end), rc(rc), e_num(e_num) {
+                seek();
+            }
+
+            Edge &operator*() const {
+                Edge *res = nullptr;
+                if(rc)
+                    res = &it->second.rc()[e_num];
+                else
+                    res = &it->second[e_num];
+                return *res;
+            }
+
+            EdgeIterator& operator++() {
+                e_num += 1;
+                seek();
                 return *this;
             }
 
