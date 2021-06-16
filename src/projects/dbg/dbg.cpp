@@ -148,7 +148,7 @@ int main(int argc, char **argv) {
                      "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
                      "correct", "simplify", "coverage", "cov-threshold=2", "rel-threshold=10", "tip-correct", "crude-correct", "initial-correct",
                      "mult-correct", "mult-analyse", "compress", "help", "genome-path", "dump", "extension-size=none", "print-all",
-                     "extract-subdatasets", "print-alignments", "subdataset-radius=10000"},
+                     "extract-subdatasets", "print-alignments", "subdataset-radius=10000", "split"},
                     {"reads", "align", "paths", "print-segment"},
                     {"h=help", "o=output-dir", "t=threads", "k=k-mer-size","w=window"},
                     constructMessage());
@@ -309,10 +309,45 @@ int main(int argc, char **argv) {
         }
     }
 
+    if(parser.getCheck("split")) {
+        std::experimental::filesystem::path subdatasets_dir = dir / "subdatasets";
+        ensure_dir_existance(subdatasets_dir);
+        logger.info() << "Extracting subdatasets for connected components" << std::endl;
+        std::vector<Component> comps = LengthSplitter(4000000000ul).split(dbg);
+        std::vector<std::ofstream *> os;
+        for(size_t i = 0; i < comps.size(); i++) {
+            os.emplace_back(new std::ofstream());
+            os.back()->open(subdatasets_dir / (std::to_string(i + 1) + ".fasta"));
+        }
+        io::SeqReader read_reader(reads_lib);
+        std::function<void(StringContig &)> task = [&dbg, &comps, &os, &hasher, w, &logger](StringContig & scontig) {
+            string initial_seq = scontig.seq;
+            Contig contig = scontig.makeContig();
+            if(contig.size() < hasher.k + w - 1)
+                return;
+            GraphAlignment al = dbg.align(contig.seq);
+            for(size_t j = 0; j < comps.size(); j++) {
+                for(size_t i = 0; i <= al.size(); i++) {
+                    if(comps[j].v.find(al.getVertex(i).hash()) != comps[j].v.end()) {
+#pragma omp critical
+                        *os[j] << ">" << contig.id << "\n" <<initial_seq << "\n";
+                        break;
+                    }
+                }
+            }
+        };
+        processRecords(read_reader.begin(), read_reader.end(), logger, threads, task);
+        for(size_t j = 0; j < comps.size(); j++) {
+            os[j]->close();
+            delete os[j];
+            os[j] = nullptr;
+        }
+    }
+
     if(parser.getCheck("extract-subdatasets")) {
         std::experimental::filesystem::path subdatasets_dir = dir / "subdatasets";
         ensure_dir_existance(subdatasets_dir);
-        logger.info() << "Extracting subdatasets" << std::endl;
+        logger.info() << "Extracting subdatasets around contigs" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
         std::vector<Component> comps;
         std::vector<std::ofstream *> os;
