@@ -10,6 +10,6 @@ int main(int argc, char **argv) {
     for(StringContig s : reader) {
         Contig c = s.makeContig();
         if(c.seq <= !c.seq)
-            std::cout << c.id << "\n" << c.seq << "\n";
+            std::cout << ">" << c.id << "\n" << c.seq << "\n";
     }
 }

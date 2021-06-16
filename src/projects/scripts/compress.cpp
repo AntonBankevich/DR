@@ -8,6 +8,6 @@ int main(int argc, char **argv) {
     io::SeqReader reader(libReads);
     for(StringContig s : reader) {
         Contig c = s.makeContig();
-        std::cout << c.id << "\n" << c.seq << "\n";
+        std::cout << ">" << c.id << "\n" << c.seq << "\n";
     }
 }
