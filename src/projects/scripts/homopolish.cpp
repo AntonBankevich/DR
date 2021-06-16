@@ -10,7 +10,7 @@
 #include <iostream>
 #include <ssw/ssw_cpp.h>
 #include <spoa/spoa.hpp>
-
+#include "minimap2/ksw2.h"
 
 using namespace std;
 using logging::Logger;
@@ -32,6 +32,7 @@ struct AlignmentInfo {
         return ss.str();
     }
 };
+
 
 struct dinucleotide {
     size_t start, multiplicity;
@@ -318,7 +319,7 @@ struct ContigInfo {
                 ss << consensus;
 
                 for (size_t j = 0; j < consensus.length(); j++) {
-                    debug << total_count << " 0 0 0" << consensus[j] << endl;
+                    debug << total_count << " 0 0 0 " << consensus[j] << endl;
                     total_count ++;
                 }
 
@@ -476,7 +477,31 @@ struct AssemblyInfo {
         }
 
     }
+    bool verifyCigar(vector<cigar_pair> &cigars) {
+        for(size_t i = 0; i + 1 < cigars.size(); i++) {
+            if (cigars[i].type != 'M' && cigars[i+1].type != 'M') {
+                return false;
+            }
+        }
+        return true;
+    }
 
+    string str(vector<cigar_pair> &cigars) {
+        stringstream ss;
+        for(size_t i = 0; i < cigars.size(); i++) {
+            ss << cigars[i].length << cigars[i].type;
+        }
+        return ss.str();
+    }
+
+    size_t matchedLength(vector<cigar_pair> &cigars) {
+        size_t res = 0;
+        for(size_t i = 0; i < cigars.size(); i++) {
+            if (cigars[i].type == 'M')
+                res += cigars[i].length;
+        }
+        return res;
+    }
     void processReadPair (StringContig& read, AlignmentInfo& aln) {
         logger.info() << read.id << endl;
         Sequence read_seq = read.makeSequence();
@@ -499,16 +524,28 @@ struct AssemblyInfo {
 //        logger.trace() << contig_seq << endl;
 //        logger.trace() << compressed_read << endl;
         Contig cread(compressed_read, "read");
-        std::vector<Contig > reads = {cread};
+
 //map-hifi
 //asm10
         RawAligner<Contig> minimapaligner(ref, 1, "ava-hifi");
         auto minimapaln = minimapaligner.align(cread);
-//        logger.info() << "Aligned " << minimapaln.size()<<"\n";
-        if (minimapaln.size() == 0) {
-            return;
+
+//strings, match, mismatch, gap_open, gap_extend, width
+        auto cigars = align_example( contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, 150);
+        logger.info() << str(cigars) << endl;
+        auto str_cigars = str(cigars);
+        if (str_cigars.find(minimapaln[0].cigarString()) == string::npos) {
+            logger.info() << minimapaln[0].cigarString() << endl;
+            logger.info()<<"Different alignment!" << endl;
         }
-        logger.info() << "Shift_to " << minimapaln[0].seg_to.left << " shift from " << minimapaln[0].seg_from.left << " " << minimapaln[0].cigarString()<< endl;
+        if (!verifyCigar(cigars)) {
+            logger.info() <<"BAD CIGAR" << endl;
+        }
+//        logger.info() << "Aligned " << minimapaln.size()<<"\n";
+//        if (minimapaln.size() == 0) {
+//            return;
+//        }
+//        logger.info() << "Shift_to " << minimapaln[0].seg_to.left << " shift from " << minimapaln[0].seg_from.left << " rc" << aln.rc << " " << minimapaln[0].cigarString()<< endl;
 
         int cur_ind = 0;
         std:vector<size_t> quantities;
@@ -522,8 +559,8 @@ struct AssemblyInfo {
             }
             quantities[i] = count;
         }
-        size_t cont_coords = minimapaln[0].seg_to.left;
-        size_t read_coords = minimapaln[0].seg_from.left;
+        size_t cont_coords = 0; //minimapaln[0].seg_to.left;
+        size_t read_coords = 0; //minimapaln[0].seg_from.left;
         size_t matches = 0;
         size_t mismatches = 0;
         size_t indels = 0;
@@ -531,11 +568,12 @@ struct AssemblyInfo {
         size_t contig_finish = -1;
         size_t complex_id = -1;
 //        logger.info() << "quantities_calc\n";
-        for (auto it = minimapaln[0].begin(); it != minimapaln[0].end(); ++it) {
-            if ((*it).type == 1) {
+//        for (auto it = minimapaln[0].begin(); it != minimapaln[0].end(); ++it) {
+        for (auto it = cigars.begin(); it != cigars.end(); ++it) {
+            if ((*it).type == 'I') {
                 read_coords += (*it).length;
                 indels += (*it).length;
-            } else if ((*it).type == 2) {
+            } else if ((*it).type == 'D') {
                 cont_coords += (*it).length;
 //TODO do not forget add complex regions here
                 indels += (*it).length;
@@ -553,7 +591,7 @@ struct AssemblyInfo {
 //Only complete traversion of complex regions taken in account;
                     if (contigs[aln.contig_id].complex_regions.find(coord) != contigs[aln.contig_id].complex_regions.end()) {
                         size_t complex_len = contigs[aln.contig_id].complex_regions[coord];
-                        if (read_coords + complex_len < minimapaln[0].seg_from.right) {
+                        if (read_coords + complex_len < matchedLength(cigars)) { //minimapaln[0].seg_from.right) {
                             complex_start = read_coords + i;
                             contig_finish = coord + complex_len;
                             complex_id = coord;
