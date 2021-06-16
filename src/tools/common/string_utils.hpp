@@ -6,6 +6,7 @@
 #include <sstream>
 #include <string>
 #include <algorithm>
+#include <vector>
 
 static bool endsWith(const std::string& str, const std::string& suffix)
 {
