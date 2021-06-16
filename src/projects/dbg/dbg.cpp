@@ -211,7 +211,8 @@ int main(int argc, char **argv) {
             parser.getCheck("initial-correct") || parser.getCheck("mult-correct") || !paths_lib.empty();
 
     if (!parser.getListValue("align").empty() || parser.getCheck("print-alignments") ||
-                parser.getCheck("mult-correct") || parser.getCheck("mult-analyse") || calculate_coverage) {
+                parser.getCheck("mult-correct") || parser.getCheck("mult-analyse") ||
+                parser.getCheck("split")|| calculate_coverage) {
         dbg.fillAnchors(w, logger, threads);
     }
 
