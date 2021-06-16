@@ -2,9 +2,9 @@
 #include <sequences/seqio.hpp>
 
 int main(int argc, char **argv) {
-    VERIFY(argc == 1);
+    VERIFY(argc == 2);
     StringContig::needs_compressing = true;
-    io::Library libReads = {std::experimental::filesystem::path(argv[0])};
+    io::Library libReads = {std::experimental::filesystem::path(argv[1])};
     io::SeqReader reader(libReads);
     for(StringContig s : reader) {
         Contig c = s.makeContig();
