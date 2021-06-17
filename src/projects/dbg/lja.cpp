@@ -36,7 +36,7 @@ std::experimental::filesystem::path InitialCorrection(logging::Logger &logger, c
     std::function<void()> ic_task = [&dir, &logger, &hasher, k, w, &reads_lib, threads, threshold, reliable_coverage, dump] {
         SparseDBG dbg = DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
-        size_t extension_size = std::max<size_t>(k * 5 / 2, 2000);
+        size_t extension_size = std::max<size_t>(k * 5 / 2, 3000);
         initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta", dir / "good.fasta",
                        dir / "bad.fasta", dir / "new_reliable.fasta", reads_lib, {},
                        threshold, 2 * threshold, reliable_coverage, threads,

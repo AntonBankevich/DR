@@ -520,7 +520,7 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
     logger.info() << "Correcting low covered regions in reads" << std::endl;
     if(dump)
         omp_set_num_threads(1);
-    size_t max_size = 1800;
+    size_t max_size = std::min<size_t>(k * 2 + 500, 4000);
 #pragma omp parallel for default(none) shared(std::cout, reads_storage, ref_storage, results, threshold, k, max_size, logger, simple_bulge_cnt, bulge_cnt, dump, reliable_threshold)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;

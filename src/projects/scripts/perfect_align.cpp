@@ -9,7 +9,8 @@
 #include <vector>
 
 int main(int argc, char **argv) {
-    CLParser parser({"ref=", "kmer-size=", "width=", "output-dir="}, {"reads"}, {"k=kmer-size", "w=width", "o=output-dir"});
+    CLParser parser({"ref=", "kmer-size=", "width=", "output-dir="}, {"reads"},
+                    {"k=kmer-size", "w=width", "o=output-dir"});
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
         std::cout << "Incorrect parameters" << std::endl;

@@ -237,7 +237,7 @@ int main(int argc, char **argv) {
     if(parser.getCheck("initial-correct")) {
         size_t threshold = std::stoull(parser.getValue("cov-threshold"));
         size_t reliable = std::stoull(parser.getValue("rel-threshold"));
-        size_t extension_size = k * 5 / 2;
+        size_t extension_size = std::max<size_t>(k * 5 / 2, 3000);
         if(parser.getValue("extension-size") != "none")
             extension_size = std::stoull(parser.getValue("extension-size"));
         std::vector<StringContig> ref_vector;

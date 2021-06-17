@@ -220,6 +220,7 @@ public:
     std::string comment;
     std::string seq;
     static bool needs_compressing;
+    static bool at_compressing;
 
     StringContig() : id(""), comment(""), seq("") {
     }
@@ -237,6 +238,21 @@ public:
         seq.erase(std::unique(seq.begin(), seq.end()), seq.end());
     }
 
+//    void atCompress() {
+//        size_t cur = 0;
+//        size_t at_len = 0;
+//        bool start = true;
+//        for(size_t i = 0; i < seq.size(); i++) {
+//            if(i >= 2) {
+//                if (seq[i] == seq[cur - 2])
+//                    at_len += 1;
+//                else
+//                    start = false;
+//            }
+//        }
+//        seq.erase(std::unique(seq.begin(), seq.end()), seq.end());
+//    }
+
     Contig makeContig() {
         if(needs_compressing)
             compress();
@@ -251,6 +267,8 @@ public:
     Sequence makeSequence() {
         if(needs_compressing)
             compress();
+//        if(at_compressing)
+//            atCompress();
         return Sequence(seq);
     }
 
