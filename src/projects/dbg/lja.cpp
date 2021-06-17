@@ -97,6 +97,91 @@ std::experimental::filesystem::path MultCorrection(logging::Logger &logger, cons
     return res;
 }
 
+std::experimental::filesystem::path SplitDataset(logging::Logger &logger, const std::experimental::filesystem::path &dir,
+                                                   const io::Library &reads_lib, size_t threads, size_t k, size_t w, bool dump) {
+    logger.info() << "Performing dataset splitting with k = " << k << std::endl;
+    if (k % 2 == 0) {
+        logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
+        k += 1;
+    }
+    ensure_dir_existance(dir);
+    RollingHash hasher(k, 239);
+    std::experimental::filesystem::path res = dir/"split";
+    recreate_dir(res);
+    std::function<void()> split_task = [&dir, &logger, &hasher, k, w, &reads_lib, threads, &res, dump] {
+        SparseDBG dbg = DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
+        dbg.fillAnchors(w, logger, threads);
+        std::vector<Component> comps = LengthSplitter(4000000000ul).split(dbg);
+        std::vector<std::ofstream *> os;
+        std::vector<std::experimental::filesystem::path> result;
+        for(size_t i = 0; i < comps.size(); i++) {
+            os.emplace_back(new std::ofstream());
+            result.emplace_back(res / std::to_string(i + 1));
+            ensure_dir_existance(result.back());
+            os.back()->open(result.back() / "corrected.fasta");
+        }
+        io::SeqReader read_reader(reads_lib);
+        for(StringContig scontig : read_reader) {
+            string initial_seq = scontig.seq;
+            Contig contig = scontig.makeContig();
+            if(contig.size() < hasher.k + w - 1)
+                return;
+            GraphAlignment al = dbg.align(contig.seq);
+            for(size_t j = 0; j < comps.size(); j++) {
+                for(size_t i = 0; i <= al.size(); i++) {
+                    if(comps[j].v.find(al.getVertex(i).hash()) != comps[j].v.end()) {
+                        *os[j] << ">" << contig.id << "\n" << initial_seq << "\n";
+                        break;
+                    }
+                }
+            }
+        };
+        for(size_t j = 0; j < comps.size(); j++) {
+            os[j]->close();
+            delete os[j];
+            os[j] = nullptr;
+        }
+    };
+    runInFork(split_task);
+    logger.info() << "Splitted datasets with k = " << k << " were printed to " << dir << std::endl;
+    return res;
+}
+
+void ConstructSubdataset(logging::Logger &logger, const std::experimental::filesystem::path &subdir,
+                                                 size_t threads, size_t k, size_t w, bool dump) {
+    logger.info() << "Constructing subdataset graphs with k = " << k << std::endl;
+    if (k % 2 == 0) {
+        logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
+        k += 1;
+    }
+    RollingHash hasher(k, 239);
+    std::function<void()> split_task = [&subdir, &logger, &hasher, k, w, threads, dump] {
+        logger.info() << "Constructing subdataset graphs" << std::endl;
+        io::Library sublib = {subdir/"corrected.fasta"};
+        SparseDBG subdbg = DBGPipeline(logger, hasher, w, sublib, subdir, threads);
+        subdbg.fillAnchors(w, logger, threads);
+        CalculateCoverage(subdir, hasher, w, sublib, threads, logger, subdbg);
+        RecordStorage reads_storage(subdbg, 0, 100000, true);
+        io::SeqReader readReader(sublib);
+        reads_storage.fill(readReader.begin(), readReader.end(), hasher.k + w - 1, logger, threads);
+        reads_storage.printAlignments(logger, subdir/"alignments.txt");
+        std::ofstream edges;
+        edges.open(subdir / "graph.fasta");
+        subdbg.printFasta(edges);
+        edges.close();
+        std::ofstream gfa;
+        gfa.open(subdir / "graph.gfa");
+        subdbg.printGFA(gfa, true);
+        gfa.close();
+        std::ofstream dot;
+        dot.open(subdir / "graph.dot");
+        subdbg.printDot(dot, true);
+        dot.close();
+    };
+    runInFork(split_task);
+    logger.info() << "Splitted dataset with k = " << k << " were printed to " << subdir << std::endl;
+}
+
 
 int main(int argc, char **argv) {
     CLParser parser({"output-dir=", "threads=16", "k-mer-size=511", "window=2000", "K-mer-size=5001", "Window=500",
@@ -153,7 +238,15 @@ int main(int argc, char **argv) {
     std::experimental::filesystem::path corrected4 =
             MultCorrection(logger, dir / "mult", {corrected3}, threads, K, W, unique_threshold, dump);
 
+    std::experimental::filesystem::path split_dir =
+            SplitDataset(logger, dir / "subdatasets", {corrected4}, threads, K, W, dump);
+
+    for(auto & subdir : std::experimental::filesystem::directory_iterator(split_dir)) {
+        ConstructSubdataset(logger, subdir, threads, K, W, dump);
+    }
+
     logger.info() << "Final corrected reads can be hound here: " << corrected4 << std::endl;
+    logger.info() << "Subdatasets for connected components can be found here: " << split_dir << std::endl;
     logger.info() << "LJA pipeline finished" << std::endl;
     return 0;
 }
