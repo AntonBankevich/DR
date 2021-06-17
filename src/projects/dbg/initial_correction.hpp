@@ -475,9 +475,9 @@ processTip(logging::Logger &logger, std::ostream &out, const GraphAlignment &tip
     for(const GraphAlignment &al : read_alternatives_filtered) {
         trunc_alignments.emplace_back(BestAlignmentPrefix(al, old));
     }
-    if(read_alternatives_filtered.size() > 1) {
+    if(trunc_alignments.size() > 1) {
         if(dump)
-            logger << "Multiple choice for tip " << read_alternatives_filtered.size() << std::endl << tip.truncSeq() << std::endl;
+            logger << "Multiple choice for tip " << trunc_alignments.size() << std::endl << tip.truncSeq() << std::endl;
         std::vector<Sequence> candidates;
         for(GraphAlignment &cand : trunc_alignments) {
             if(dump)
@@ -489,23 +489,22 @@ processTip(logging::Logger &logger, std::ostream &out, const GraphAlignment &tip
         if(dump)
             logger << "Winner found " << winner << std::endl;
         if(winner != size_t(-1)) {
-            read_alternatives_filtered = {read_alternatives_filtered[winner]};
+            trunc_alignments = {trunc_alignments[winner]};
         }
     }
     if(dump)
-        logger << "Result " << read_alternatives_filtered.size() << std::endl;
+        logger << "Result " << trunc_alignments.size() << std::endl;
     filtered_genome_support = 0;
-    for(const GraphAlignment & al : read_alternatives_filtered) {
+    for(const GraphAlignment & al : trunc_alignments) {
         if(rec.countStartsWith(CompactPath(al).seq()) > 0) {
             filtered_genome_support += 1;
         }
     }
-    out << " " << read_alternatives_filtered.size() << " " << filtered_genome_support;
-    out << " " << (read_alternatives_filtered.size() == 1 ? "+" : "-");
+    out << " " << trunc_alignments.size() << " " << filtered_genome_support;
+    out << " " << (trunc_alignments.size() == 1 ? "+" : "-");
     out << std::endl;
-    if(read_alternatives_filtered.size() == 1) {
-        GraphAlignment res(read_alternatives_filtered[0].start());
-        return std::move(read_alternatives_filtered[0]);
+    if(trunc_alignments.size() == 1) {
+        return std::move(trunc_alignments[0]);
     } else {
         return std::move(tip);
     }
