@@ -203,24 +203,24 @@ public:
 class StringContig {
 private:
     static std::string extractId(const std::string &s) {
-        if(s.find(" ") == size_t(-1))
+        if(s.find(' ') == size_t(-1))
             return s;
         else
-            return s.substr(0, s.find(" "));
+            return s.substr(0, s.find(' '));
     }
 
     static std::string extractComment(const std::string &s) {
-        if(s.find(" ") == size_t(-1))
+        if(s.find(' ') == size_t(-1))
             return "";
         else
-            return s.substr(s.find(" ") + 1);
+            return s.substr(s.find(' ') + 1);
     }
 public:
     std::string id;
     std::string comment;
     std::string seq;
-    static bool needs_compressing;
-    static bool at_compressing;
+    static bool homopolymer_compressing;
+    static size_t dimer_compressing;
 
     StringContig() : id(""), comment(""), seq("") {
     }
@@ -235,7 +235,28 @@ public:
     StringContig& operator=(StringContig && other) = default;
 
     void compress() {
+        VERIFY(dimer_compressing >= 4);
+        if(!homopolymer_compressing)
+            return;
         seq.erase(std::unique(seq.begin(), seq.end()), seq.end());
+        if(dimer_compressing >= seq.size())
+            return;
+        size_t cur = 2;
+        size_t at_len = 2;
+        for(size_t i = 2; i < seq.size(); i++) {
+            if (seq[i] == seq[cur - 2])
+                at_len += 1;
+            else {
+                at_len = 2;
+            }
+            if(at_len <= dimer_compressing) {
+                seq[cur] = seq[i];
+                cur++;
+            } else {
+                cur -= 1;
+            }
+        }
+        seq.erase(seq.begin() + cur, seq.end());
     }
 
 //    void atCompress() {
@@ -254,8 +275,7 @@ public:
 //    }
 
     Contig makeContig() {
-        if(needs_compressing)
-            compress();
+        compress();
         return Contig(Sequence(seq), id);
     }
 
@@ -265,10 +285,7 @@ public:
 //    }
 
     Sequence makeSequence() {
-        if(needs_compressing)
-            compress();
-//        if(at_compressing)
-//            atCompress();
+        compress();
         return Sequence(seq);
     }
 

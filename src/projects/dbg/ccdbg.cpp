@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
         return 1;
     }
     if(parser.getCheck("compress"))
-        StringContig::needs_compressing = true;
+        StringContig::homopolymer_compressing = true;
     const std::experimental::filesystem::path dir(parser.getValue("output-dir"));
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");

@@ -4,5 +4,5 @@
 
 #include "contigs.hpp"
 
-bool StringContig::needs_compressing = false;
-bool StringContig::at_compressing = false;
+bool StringContig::homopolymer_compressing = false;
+size_t StringContig::dimer_compressing = 1000000;

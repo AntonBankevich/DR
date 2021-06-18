@@ -133,7 +133,7 @@ int main(int argc, char **argv) {
     logging::Logger logger;
     logger.addLogFile(ls.newLoggerFile());
     logger.info() << "Reading genome" << std::endl;
-    StringContig::needs_compressing = true;
+    StringContig::homopolymer_compressing = true;
     std::vector<Contig> ref = io::SeqReader(parser.getValue("reference")).readAllContigs();
     SequenceBuilder sb;
     sb.appendAll(ref.begin(), ref.end());

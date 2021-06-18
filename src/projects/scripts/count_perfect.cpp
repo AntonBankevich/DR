@@ -88,7 +88,7 @@ int main(int argc, char **argv) {
     omp_set_num_threads(threads);
     logging::Logger logger;
     logger.info() << "Reading genome" << std::endl;
-    StringContig::needs_compressing = true;
+    StringContig::homopolymer_compressing = true;
     std::vector<Contig> ref = io::SeqReader(parser.getValue("reference")).readAllContigs();
     SequenceBuilder sb;
     sb.appendAll(ref.begin(), ref.end());

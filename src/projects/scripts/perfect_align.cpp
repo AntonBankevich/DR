@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
     const std::experimental::filesystem::path reff(parser.getValue("ref"));
     std::unordered_map<htype, std::vector<std::pair<Contig *, size_t>>, alt_hasher<htype>> position_map;
 
-    StringContig::needs_compressing = true;
+    StringContig::homopolymer_compressing = true;
     std::vector<Contig> ref;
     io::SeqReader reader(reff);
     std::ofstream refos;

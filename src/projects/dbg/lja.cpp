@@ -186,7 +186,7 @@ void ConstructSubdataset(logging::Logger &logger, const std::experimental::files
 int main(int argc, char **argv) {
     CLParser parser({"output-dir=", "threads=16", "k-mer-size=511", "window=2000", "K-mer-size=5001", "Window=500",
                      "cov-threshold=2", "rel-threshold=7", "Cov-threshold=2", "Rel-threshold=7", "crude-threshold=3",
-                     "unique-threshold=50000", "dump"},
+                     "unique-threshold=50000", "dump", "dimer-compress=1000000"},
                     {"reads"},
                     {"o=output-dir", "t=threads", "k=k-mer-size","w=window", "K=K-mer-size","W=Window"},
                     "Error message not implemented");
@@ -197,7 +197,8 @@ int main(int argc, char **argv) {
         std::cout << parser.message() << std::endl;
         return 1;
     }
-    StringContig::needs_compressing = true;
+    StringContig::homopolymer_compressing = true;
+    StringContig::dimer_compressing = std::stoull(parser.getValue("dimer-compress"));
     const std::experimental::filesystem::path dir(parser.getValue("output-dir"));
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");

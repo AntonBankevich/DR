@@ -146,9 +146,10 @@ std::string constructMessage() {
 int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "coverages=none", "dbg=none", "output-dir=",
                      "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
-                     "correct", "simplify", "coverage", "cov-threshold=2", "rel-threshold=10", "tip-correct", "crude-correct", "initial-correct",
-                     "mult-correct", "mult-analyse", "compress", "help", "genome-path", "dump", "extension-size=none", "print-all",
-                     "extract-subdatasets", "print-alignments", "subdataset-radius=10000", "split"},
+                     "correct", "simplify", "coverage", "cov-threshold=2", "rel-threshold=10", "tip-correct", "crude-correct",
+                     "initial-correct", "mult-correct", "mult-analyse", "compress", "dimer-compress=1000000", "help", "genome-path",
+                     "dump", "extension-size=none", "print-all", "extract-subdatasets", "print-alignments", "subdataset-radius=10000",
+                     "split"},
                     {"reads", "align", "paths", "print-segment"},
                     {"h=help", "o=output-dir", "t=threads", "k=k-mer-size","w=window"},
                     constructMessage());
@@ -163,10 +164,8 @@ int main(int argc, char **argv) {
         std::cout << parser.message() << std::endl;
         return 1;
     }
-    if(parser.getCheck("compress"))
-        StringContig::needs_compressing = true;
-    else
-        StringContig::needs_compressing = false;
+    StringContig::homopolymer_compressing = parser.getCheck("compress");
+    StringContig::dimer_compressing = std::stoull(parser.getValue("dimer-compress"));
     const std::experimental::filesystem::path dir(parser.getValue("output-dir"));
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");
