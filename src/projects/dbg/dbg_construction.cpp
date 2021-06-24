@@ -1,3 +1,4 @@
+#include "graph_stats.hpp"
 #include "dbg_construction.hpp"
 
 std::vector<htype>
@@ -114,7 +115,7 @@ constructDBG(logging::Logger &logger, const std::vector<htype> &vertices, const 
 //    dbg.checkConsistency(threads, logger);
     logger.info() << "Ended merging edges. Resulting size " << dbg.size() << std::endl;
     logger.info() << "Statistics for de Bruijn graph:" << std::endl;
-    dbg.printStats(logger);
+    printStats(logger, dbg);
     return std::move(dbg);
 }
 

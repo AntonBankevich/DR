@@ -1,4 +1,5 @@
 #include "dbg_disjointigs.hpp"
+#include "graph_stats.hpp"
 
 Sequence buildDisjointig(Path &path) {
     Sequence disjointig = path.Seq();
@@ -155,7 +156,7 @@ std::vector<Sequence> constructDisjointigs(const RollingHash &hasher, size_t w, 
     tieTips(logger, sdbg, w, threads);
     sdbg.checkSeqFilled(threads, logger);
     logger.info() << "Statistics for sparse de Bruijn graph:" << std::endl;
-    sdbg.printStats(logger);
+    printStats(logger, sdbg);
 //    std::ofstream os;
 //    os.open("sdbg.fasta");
 //    sdbg.printFasta(os);
