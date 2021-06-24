@@ -266,10 +266,10 @@ bool checkComponent(Vertex *start, Vertex *end, const std::vector<Edge *> &path,
         if(ok || next == start) {
             good.emplace(next);
             if(next == end) {
-                break;
+                continue;
             }
             for(Edge & edge : *next) {
-                if(edge.size() > start->seq.size() * 2)
+                if(edge.size() > start->seq.size() * 2 || edge.end() == start)
                     return false;
                 queue.push_back(edge.end());
             }
