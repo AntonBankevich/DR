@@ -84,6 +84,6 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
         if (i % 5 == 4)
             logger << std::endl;
     }
-    logger << "Number of connected components: " << dbg::LengthSplitter(1000000).split(dbg).size() << std::endl;
+    logger << "Number of connected components: " << dbg::LengthSplitter(1000000000).split(dbg).size() << std::endl;
 }
 
