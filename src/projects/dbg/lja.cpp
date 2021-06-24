@@ -25,7 +25,7 @@
 std::experimental::filesystem::path InitialCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
                                                             const io::Library &reads_lib, size_t threads, size_t k, size_t w,
                                                             double threshold, double reliable_coverage,
-                                                            bool remove_bad, bool dump) {
+                                                            bool remove_bad, bool skip, bool dump) {
     logger.info() << "Performing initial correction with k = " << k << std::endl;
     if (k % 2 == 0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
@@ -44,7 +44,8 @@ std::experimental::filesystem::path InitialCorrection(logging::Logger &logger, c
         Component comp(dbg);
         DrawSplit(comp, dir / "split");
     };
-    runInFork(ic_task);
+    if(!skip)
+        runInFork(ic_task);
     std::experimental::filesystem::path res;
     if(remove_bad) {
         res = dir / "good.fasta";
@@ -57,7 +58,7 @@ std::experimental::filesystem::path InitialCorrection(logging::Logger &logger, c
 
 std::experimental::filesystem::path CrudeCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
                      const io::Library &reads_lib, size_t threads, size_t k, size_t w,
-                     double threshold) {
+                     double threshold, bool skip) {
     logger.info() << "Performing crude correction with k = " << k << std::endl;
     if (k % 2 == 0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
@@ -71,14 +72,15 @@ std::experimental::filesystem::path CrudeCorrection(logging::Logger &logger, con
         CalculateCoverage(dir, hasher, w, reads_lib, threads, logger, dbg);
         CrudeCorrect(logger, dbg, dir, w, reads_lib, threads, threshold);
     };
-    runInFork(cc_task);
+    if(!skip)
+        runInFork(cc_task);
     std::experimental::filesystem::path res = dir / "corrected.fasta";
     logger.info() << "Crude correction results with k = " << k << " printed to " << res << std::endl;
     return res;
 }
 
 std::experimental::filesystem::path MultCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
-                     const io::Library &reads_lib, size_t threads, size_t k, size_t w, size_t unique_threshold, bool dump) {
+                     const io::Library &reads_lib, size_t threads, size_t k, size_t w, size_t unique_threshold, bool skip, bool dump) {
     logger.info() << "Performing multiplicity-based correction with k = " << k << std::endl;
     if (k % 2 == 0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
@@ -91,14 +93,15 @@ std::experimental::filesystem::path MultCorrection(logging::Logger &logger, cons
         dbg.fillAnchors(w, logger, threads);
         MultCorrect(dbg, logger, dir, reads_lib, unique_threshold, threads, w + k - 1, dump);
     };
-    runInFork(mc_task);
+    if(!skip)
+        runInFork(mc_task);
     std::experimental::filesystem::path res = dir / "corrected.fasta";
     logger.info() << "Multiplicity-based correction results with k = " << k << " printed to " << res << std::endl;
     return res;
 }
 
 std::experimental::filesystem::path SplitDataset(logging::Logger &logger, const std::experimental::filesystem::path &dir,
-                                                   const io::Library &reads_lib, size_t threads, size_t k, size_t w, bool dump) {
+                                                   const io::Library &reads_lib, size_t threads, size_t k, size_t w, bool skip, bool dump) {
     logger.info() << "Performing dataset splitting with k = " << k << std::endl;
     if (k % 2 == 0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
@@ -142,13 +145,14 @@ std::experimental::filesystem::path SplitDataset(logging::Logger &logger, const 
             os[j] = nullptr;
         }
     };
-    runInFork(split_task);
+    if(!skip)
+        runInFork(split_task);
     logger.info() << "Splitted datasets with k = " << k << " were printed to " << dir << std::endl;
     return res;
 }
 
 void ConstructSubdataset(logging::Logger &logger, const std::experimental::filesystem::path &subdir,
-                                                 size_t threads, size_t k, size_t w, bool dump) {
+                                                 size_t threads, size_t k, size_t w, bool skip, bool dump) {
     logger.info() << "Constructing subdataset graphs with k = " << k << std::endl;
     if (k % 2 == 0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
@@ -178,7 +182,8 @@ void ConstructSubdataset(logging::Logger &logger, const std::experimental::files
         subdbg.printDot(dot, true);
         dot.close();
     };
-    runInFork(split_task);
+    if (!skip)
+        runInFork(split_task);
     logger.info() << "Splitted dataset with k = " << k << " were printed to " << subdir << std::endl;
 }
 
@@ -186,7 +191,7 @@ void ConstructSubdataset(logging::Logger &logger, const std::experimental::files
 int main(int argc, char **argv) {
     CLParser parser({"output-dir=", "threads=16", "k-mer-size=511", "window=2000", "K-mer-size=5001", "Window=500",
                      "cov-threshold=2", "rel-threshold=7", "Cov-threshold=2", "Rel-threshold=7", "crude-threshold=3",
-                     "unique-threshold=50000", "dump", "dimer-compress=1000000"},
+                     "unique-threshold=50000", "dump", "dimer-compress=1000000", "restart-from=none"},
                     {"reads"},
                     {"o=output-dir", "t=threads", "k=k-mer-size","w=window", "K=K-mer-size","W=Window"},
                     "Error message not implemented");
@@ -208,6 +213,8 @@ int main(int argc, char **argv) {
         logger << argv[i] << " ";
     }
     logger << std::endl;
+    std::string first_stage = parser.getValue("restart-from");
+    bool skip = first_stage != "none";
     logger.info() << "LJA pipeline started" << std::endl;
 
     size_t threads = std::stoi(parser.getValue("threads"));
@@ -219,31 +226,45 @@ int main(int argc, char **argv) {
     size_t w = std::stoi(parser.getValue("window"));
     double threshold = std::stod(parser.getValue("cov-threshold"));
     double reliable_coverage = std::stod(parser.getValue("rel-threshold"));
+    if(first_stage == "initial1")
+        skip = false;
     std::experimental::filesystem::path corrected1 =
             InitialCorrection(logger, dir / "initial1", lib, threads, k, w,
-                              threshold, reliable_coverage, false, dump);
+                              threshold, reliable_coverage, false, skip, dump);
 
     size_t K = std::stoi(parser.getValue("K-mer-size"));
     size_t W = std::stoi(parser.getValue("Window"));
+
+
     double Threshold = std::stod(parser.getValue("Cov-threshold"));
     double Reliable_coverage = std::stod(parser.getValue("Rel-threshold"));
+    if(first_stage == "initial2")
+        skip = false;
     std::experimental::filesystem::path corrected2 =
             InitialCorrection(logger, dir / "initial2", {corrected1}, threads, K, W,
-                              Threshold, Reliable_coverage, false, dump);
+                              Threshold, Reliable_coverage, false, skip, dump);
 
     double crude_threshold = std::stod(parser.getValue("crude-threshold"));
+    if(first_stage == "crude")
+        skip = false;
     std::experimental::filesystem::path corrected3 =
-            CrudeCorrection(logger, dir / "crude", {corrected2}, threads, K, W, crude_threshold);
+            CrudeCorrection(logger, dir / "crude", {corrected2}, threads, K, W, crude_threshold, skip);
 
     size_t unique_threshold = std::stoi(parser.getValue("unique-threshold"));
+    if(first_stage == "mult")
+        skip = false;
     std::experimental::filesystem::path corrected4 =
-            MultCorrection(logger, dir / "mult", {corrected3}, threads, K, W, unique_threshold, dump);
+            MultCorrection(logger, dir / "mult", {corrected3}, threads, K, W, unique_threshold, skip, dump);
 
+    if(first_stage == "split")
+        skip = false;
     std::experimental::filesystem::path split_dir =
-            SplitDataset(logger, dir / "subdatasets", {corrected4}, threads, K, W, dump);
+            SplitDataset(logger, dir / "subdatasets", {corrected4}, threads, K, W, skip, dump);
 
+    if(first_stage == "sub")
+        skip = false;
     for(auto & subdir : std::experimental::filesystem::directory_iterator(split_dir)) {
-        ConstructSubdataset(logger, subdir, threads, K, W, dump);
+        ConstructSubdataset(logger, subdir, threads, K, W, skip, dump);
     }
 
     logger.info() << "Final corrected reads can be hound here: " << corrected4 << std::endl;
