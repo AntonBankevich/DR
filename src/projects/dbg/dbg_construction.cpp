@@ -5,14 +5,14 @@ std::vector<htype>
 findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs, const RollingHash &hasher,
               size_t threads) {
     bloom_parameters parameters;
-    parameters.projected_element_count = std::max(total_size(disjointigs) - hasher.k * disjointigs.size(), size_t(1000));
+    parameters.projected_element_count = std::max(total_size(disjointigs) - hasher.getK() * disjointigs.size(), size_t(1000));
     std::vector<Sequence> split_disjointigs;
     for(const Sequence &seq : disjointigs) {
-        if(seq.size() > hasher.k * 20) {
+        if(seq.size() > hasher.getK() * 20) {
             size_t cur = 0;
-            while(cur + hasher.k < seq.size()) {
-                split_disjointigs.emplace_back(seq.Subseq(cur, std::min(seq.size(), cur + hasher.k * 20)));
-                cur += hasher.k * 19;
+            while(cur + hasher.getK() < seq.size()) {
+                split_disjointigs.emplace_back(seq.Subseq(cur, std::min(seq.size(), cur + hasher.getK() * 20)));
+                cur += hasher.getK() * 19;
             }
         } else {
             split_disjointigs.emplace_back(seq);
@@ -24,7 +24,7 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
     BloomFilter filter(parameters);
     const RollingHash ehasher = hasher.extensionHash();
     std::function<void(const Sequence &)> task = [&filter, &ehasher](const Sequence & seq) {
-        if (seq.size() < ehasher.k) {
+        if (seq.size() < ehasher.getK()) {
             return;
         }
         KWH kmer(ehasher, seq, 0);

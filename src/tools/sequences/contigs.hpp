@@ -98,6 +98,10 @@ public:
     Segment<T> shrinkLeft(size_t len) const {
         return {*contig_ptr, left + len, right};
     }
+
+    Segment<T> unite(const Segment<T> &other) const {
+        return {*contig_ptr, std::min(left, other.left), std::max(right, other.right)};
+    }
 };
 
 template <class T>

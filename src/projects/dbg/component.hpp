@@ -44,6 +44,18 @@ namespace dbg {
             return v.find(vert.hash()) != v.end();
         }
 
+        bool covers(const Vertex &vert) const {
+            if(contains(vert))
+                return true;
+            for(Edge &edge :vert)
+                if(!contains(*edge.end()))
+                    return false;
+            for(Edge &edge :vert.rc())
+                if(!contains(*edge.end()))
+                    return false;
+            return true;
+        }
+
         Path unbranching(Vertex &vert, Edge &edge, size_t minCov) const {
             std::vector<Edge *> res;
             res.push_back(&edge);

@@ -396,7 +396,7 @@ std::experimental::filesystem::path CrudeCorrect(logging::Logger &logger, Sparse
 
     std::function<void(StringContig &)> task = [&simp_dbg, &dbg, &to_skip, &alignment_results, &hasher, &threshold, w, &edge_map](StringContig & contig) {
         Contig read = contig.makeContig();
-        if(read.size() < w + hasher.k - 1)
+        if(read.size() < w + hasher.getK() - 1)
             return;
         GraphAlignment old_al = dbg.align(read.seq);
         while (old_al.size() > 0 && to_skip.find(&old_al.front().contig()) != to_skip.end()) {
@@ -413,7 +413,7 @@ std::experimental::filesystem::path CrudeCorrect(logging::Logger &logger, Sparse
             }
         }
         Sequence seq = old_al.Seq();
-        if(seq.size() < w + hasher.k - 1)
+        if(seq.size() < w + hasher.getK() - 1)
             return;
         GraphAlignment gal = simp_dbg.align(seq);
         for(Segment<Edge> seg : gal) {

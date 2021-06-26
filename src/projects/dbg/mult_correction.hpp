@@ -181,10 +181,10 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
     const std::experimental::filesystem::path out_reads = dir / "corrected.fasta";
     const std::experimental::filesystem::path out_alignments = dir / "alignments.txt";
     const std::experimental::filesystem::path multiplicity_figures = dir / "figs";
-    size_t k = sdbg.hasher().k;
+    size_t k = sdbg.hasher().getK();
     ensure_dir_existance(multiplicity_figures);
     logger.info() << "Collecting info from reads" << std::endl;
-//    size_t extension_size = std::max(std::min(min_read_size * 3 / 4, sdbg.hasher().k * 11 / 2), sdbg.hasher().k * 3 / 2);
+//    size_t extension_size = std::max(std::min(min_read_size * 3 / 4, sdbg.hasher().getK() * 11 / 2), sdbg.hasher().getK() * 3 / 2);
     RecordStorage reads_storage(sdbg, 0, 100000, true);
     io::SeqReader readReader(reads_lib);
     reads_storage.fill(readReader.begin(), readReader.end(), min_read_size, logger, threads);

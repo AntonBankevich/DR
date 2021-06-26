@@ -127,7 +127,7 @@ std::experimental::filesystem::path SplitDataset(logging::Logger &logger, const 
         for(StringContig scontig : read_reader) {
             string initial_seq = scontig.seq;
             Contig contig = scontig.makeContig();
-            if(contig.size() < hasher.k + w - 1)
+            if(contig.size() < hasher.getK() + w - 1)
                 return;
             GraphAlignment al = dbg.align(contig.seq);
             for(size_t j = 0; j < comps.size(); j++) {
@@ -167,7 +167,7 @@ void ConstructSubdataset(logging::Logger &logger, const std::experimental::files
         CalculateCoverage(subdir, hasher, w, sublib, threads, logger, subdbg);
         RecordStorage reads_storage(subdbg, 0, 100000, true);
         io::SeqReader readReader(sublib);
-        reads_storage.fill(readReader.begin(), readReader.end(), hasher.k + w - 1, logger, threads);
+        reads_storage.fill(readReader.begin(), readReader.end(), hasher.getK() + w - 1, logger, threads);
         reads_storage.printAlignments(logger, subdir/"alignments.txt");
         std::ofstream edges;
         edges.open(subdir / "graph.fasta");

@@ -126,6 +126,14 @@ std::string Edge::str() const {
     return ss.str();
 }
 
+Sequence Edge::kmerSeq(size_t pos, size_t k) const {
+    if (pos >= k)
+        return seq.Subseq(pos - k, pos);
+    else {
+        return start()->seq.Subseq(pos) + seq.Subseq(0, pos);
+    }
+}
+
 Vertex::Vertex(htype hash, Vertex *_rc) : hash_(hash), rc_(_rc), canonical(false) {
     omp_init_lock(&writelock);
 }

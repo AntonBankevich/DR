@@ -23,7 +23,7 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
                 for (dbg::Edge *edge : path) {
                     isolatedSize += edge->size();
                 }
-                isolatedSize += dbg.hasher().k;
+                isolatedSize += dbg.hasher().getK();
             }
         }
         if (tmp.inDeg() == 1 && tmp.outDeg() == 0) {
@@ -33,7 +33,7 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
                 for (dbg::Edge *edge : path) {
                     isolatedSize += edge->size();
                 }
-                isolatedSize += dbg.hasher().k;
+                isolatedSize += dbg.hasher().getK();
             }
         }
         e == tmp.outDeg() + tmp.inDeg();

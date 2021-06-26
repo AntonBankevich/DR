@@ -1,5 +1,6 @@
 #pragma once
 #include "sparse_dbg.hpp"
+#include "graph_algorithms.hpp"
 #include <parallel/algorithm>
 #include <utility>
 using namespace dbg;
@@ -112,19 +113,23 @@ public:
     std::string id;
     CompactPath path;
 
-    AlignedRead(const Contig &read, GraphAlignment &_path) : id(read.id), path(_path) {}
-    AlignedRead(const Contig &read, CompactPath &_path) : id(read.id), path(_path) {}
+    AlignedRead(const string &readId, GraphAlignment &_path) : id(readId), path(_path) {}
+    AlignedRead(const string &readId, CompactPath &_path) : id(readId), path(_path) {}
 
     void invalidate() {
         path = CompactPath();
+    }
+
+    bool valid() const {
+        return path.valid();
     }
 };
 
 class AlignedReadStorage {
 private:
     SparseDBG &dbg;
-    std::vector<AlignedRead> reads;
 public:
+    std::vector<AlignedRead> reads;
     explicit AlignedReadStorage(SparseDBG &_dbg) : dbg(_dbg) {
     }
 
@@ -134,9 +139,13 @@ public:
         while(begin != end) {
             StringContig read = *begin;
             GraphAlignment path = dbg.align(read.makeSequence());
-            reads.emplace_back(read.makeContig(), path);
+            reads.emplace_back(read.id, path);
             ++begin;
         }
+    }
+
+    void add(AlignedRead &&ar) {
+        reads.emplace_back(ar);
     }
 };
 
@@ -353,13 +362,15 @@ inline std::ostream& operator<<(std::ostream  &os, const VertexRecord &rec) {
 
 class RecordStorage {
 private:
-    SparseDBG &dbg;
+    SparseDBG *dbg_it;
     std::vector<AlignedRead> reads;
+    std::unordered_map<const Vertex *, VertexRecord> data;
+public:
     size_t min_len;
     size_t max_len;
     bool track_cov;
-    std::unordered_map<const Vertex *, VertexRecord> data;
 
+private:
     void processPath(const GraphAlignment &path, const std::function<void(Vertex &, const Sequence &)> &task,
                      size_t right = size_t(-1)) {
         CompactPath cpath(path);
@@ -404,8 +415,8 @@ private:
 
 public:
     RecordStorage(SparseDBG &_dbg, size_t _min_len, size_t _max_len, bool _track_cov = false) :
-            dbg(_dbg), min_len(_min_len), max_len(_max_len), track_cov(_track_cov) {
-        for(auto &it : dbg) {
+            dbg_it(&_dbg), min_len(_min_len), max_len(_max_len), track_cov(_track_cov) {
+        for(auto &it : *dbg_it) {
             data.emplace(&it.second, VertexRecord(it.second));
             data.emplace(&it.second.rc(), VertexRecord(it.second.rc()));
         }
@@ -413,6 +424,12 @@ public:
 
     const VertexRecord &getRecord(const Vertex &v) const {
         return data.find(&v)->second;
+    }
+
+    void addRead(AlignedRead &&read) {
+        reads.emplace_back(read);
+        if(read.valid())
+            addSubpath(read.path);
     }
 
     void addSubpath(CompactPath &cpath) {
@@ -444,7 +461,7 @@ public:
     void fill(I begin, I end, size_t min_read_size, logging::Logger &logger, size_t threads) {
         if (track_cov) {
             logger.info() << "Cleaning edge coverages" << std::endl;
-            for(Edge & edge: dbg.edges()) {
+            for(Edge & edge: dbg_it->edges()) {
                 edge.incCov(-edge.intCov());
             }
         }
@@ -455,13 +472,13 @@ public:
             Contig contig = scontig.makeContig();
             if(contig.size() < min_read_size)
                 return;
-            GraphAlignment path = dbg.align(contig.seq);
+            GraphAlignment path = dbg_it->align(contig.seq);
             GraphAlignment rcPath = path.RC();
             CompactPath cpath(path);
             CompactPath crcPath(rcPath);
             addSubpath(cpath);
             addSubpath(crcPath);
-            tmpReads.emplace_back(contig, cpath);
+            tmpReads.emplace_back(contig.id, cpath);
             cnt += cpath.size();
         };
         processRecords(begin, end, logger, threads, read_task);
@@ -531,6 +548,7 @@ public:
         }
         os.close();
     }
+
 };
 
 class CompactPath;
@@ -658,3 +676,61 @@ public:
     }
 };
 
+inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &storage) {
+    ParallelRecordCollector<Segment<dbg::Edge>> segmentStorage(threads);
+    size_t min_len = 10000;
+    for(AlignedRead &rec : storage) {
+        size_t len = 0;
+        for(Segment<dbg::Edge> seg : rec.path.getAlignment()) {
+            len += seg.size();
+            if(seg.contig() < seg.contig().rc())
+                seg = seg.RC();
+            segmentStorage.emplace_back(seg);
+        }
+        if(len > 0)
+            min_len = std::min(min_len, len);
+    }
+    std::vector<Segment<dbg::Edge>> segments = segmentStorage.collect();
+    __gnu_parallel::sort(segments.begin(), segments.end());
+    std::vector<std::pair<Segment<Edge>, size_t>> res;
+    std::vector<Segment<Edge>> segs;
+    for(Segment<Edge> &seg : segments) {
+        if(!res.empty() && res.back().first.contig() == seg.contig() && res.back().first.right >= seg.left) {
+            res.back().second += seg.size();
+            if(seg.right > res.back().first.right)
+                res.back().first = res.back().first.unite(seg);
+        } else {
+            res.emplace_back(seg, seg.size());
+        }
+    }
+    for(auto &rec : res) {
+        segs.emplace_back(rec.first);
+    }
+    SparseDBG subgraph = dbg.Subgraph(segs);
+    std::unordered_set<htype> anchors;
+    for(const auto & vit : subgraph){
+        if(vit.second.inDeg() == 1 && vit.second.outDeg() == 1) {
+            anchors.emplace(vit.first);
+        }
+    }
+    mergeAll(logger, subgraph, threads);
+    subgraph.fillAnchors(min_len, logger, threads, anchors);
+    std::unordered_map<Edge *, Segment<Edge>> embedding;
+    for(Edge &edge : dbg.edges()) {
+        GraphAlignment edge_al = subgraph.align(edge.start()->seq + edge.seq);
+        VERIFY(edge_al.size() == 1);
+        embedding.emplace(std::make_pair(&edge, edge_al[0]));
+    }
+    RecordStorage new_storage(subgraph, storage.min_len, storage.max_len, storage.track_cov);
+    for(AlignedRead &alignedRead : storage) {
+        GraphAlignment al = alignedRead.path.getAlignment();
+        GraphAlignment new_al;
+        for(Segment<Edge> &seg : al) {
+            Segment<Edge> &edge_seg = embedding.find(&seg.contig())->second;
+            new_al += Segment<Edge>(edge_seg.contig(), edge_seg.left + seg.left, edge_seg.left + seg.right);
+        }
+        new_storage.addRead(AlignedRead(alignedRead.id, new_al));
+    }
+    std::swap(dbg, subgraph);
+    std::swap(storage, new_storage);
+}

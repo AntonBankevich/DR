@@ -122,7 +122,7 @@ inline void printDot(std::ostream &os, const Component &component, const std::fu
     for(htype vid : extended) {
         for(Vertex * vit : component.graph.getVertices(vid)) {
             Vertex &vert = *vit;
-            std::string color = component.contains(vert) ? "white" : "yellow";
+            std::string color = component.covers(vert) ? "white" : "yellow";
             os << vert.label() << " [style=filled fillcolor=\"" + color + "\"]\n";
         }
     }

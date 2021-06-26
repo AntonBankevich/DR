@@ -427,6 +427,12 @@ public:
     }
 };
 
+void InitialCorrectionPipeline(logging::Logger &logger, SparseDBG &sdbg, RecordStorage &reads_storage,
+                               RecordStorage &ref_storage, size_t threads,
+                               const std::experimental::filesystem::path &out_file,
+                               const std::experimental::filesystem::path &new_reliable, double reliable_coverage,
+                               double threshold, double bulge_threshold, bool dump);
+
 GraphAlignment BestAlignmentPrefix(const GraphAlignment &al, const Sequence & seq) {
     Sequence candSeq = al.truncSeq();
     Sequence prefix = candSeq.Subseq(0, bestPrefix(seq, candSeq));
@@ -972,9 +978,9 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
                     const io::Library &reads_lib,
                     const std::vector<StringContig> &ref,
                     double threshold, double bulge_threshold, double reliable_coverage, size_t threads, const size_t min_read_size, size_t extension_size, bool dump) {
-    size_t k = sdbg.hasher().k;
+    size_t k = sdbg.hasher().getK();
     logger.info() << "Collecting info from reads" << std::endl;
-//    size_t extension_size = std::max(std::min(min_read_size * 3 / 4, sdbg.hasher().k * 11 / 2), sdbg.hasher().k * 3 / 2);
+//    size_t extension_size = std::max(std::min(min_read_size * 3 / 4, sdbg.hasher().getK() * 11 / 2), sdbg.hasher().getK() * 3 / 2);
     size_t min_extension = 0;
     RecordStorage reads_storage(sdbg, min_extension, extension_size, true);
     io::SeqReader readReader(reads_lib);
@@ -1001,27 +1007,15 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
         }
     }
     logger << "Edge stats " << clow << " " << cerr << " " << both << std::endl;
-    {
-        size_t correctedAT = correctAT(logger, reads_storage, k, threads);
-        logger.info() << "Corrected " << correctedAT << " dinucleotide sequences" << std::endl;
-    }
-    for(size_t i = 0; i < 1; i++){
-        RefillReliable(logger, sdbg, reliable_coverage, new_reliable);
-        size_t corrected_low = correctLowCoveredRegions(logger, reads_storage, ref_storage, out_file, threshold, reliable_coverage, k, threads, dump);
-        logger.info() << "Corrected low covered regions in " << corrected_low << " reads" << std::endl;
-    }
-    {
-        size_t corrected_bulges = collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
-        logger.info() << "Collapsed bulges in " << corrected_bulges << " reads" << std::endl;
-    }
-    for(size_t i = 0; i < 3; i++){
-        size_t correctedAT = correctAT(logger, reads_storage, k, threads);
-        logger.info() << "Corrected " << correctedAT << " dinucleotide sequences" << std::endl;
-    }
-    {
-        size_t corrected_bulges = collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
-        logger.info() << "Collapsed bulges in " << corrected_bulges << " reads" << std::endl;
-    }
+    InitialCorrectionPipeline(logger, sdbg,
+                              reads_storage, ref_storage, threads, out_file, new_reliable, reliable_coverage, threshold,
+                              bulge_threshold, dump);
+    logger.info() << "Applying changes to the graph" << std::endl;
+    RemoveUncovered(logger, threads, sdbg, reads_storage);
+    logger << "Running second round of error correction" << std::endl;
+    InitialCorrectionPipeline(logger, sdbg,
+                              reads_storage, ref_storage, threads, out_file, new_reliable, reliable_coverage, threshold,
+                              bulge_threshold, dump);
     logger.info() << "Printing reads to disk" << std::endl;
     std::ofstream ors;
     std::ofstream brs;
@@ -1047,4 +1041,33 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
     }
     ors.close();
     brs.close();
+}
+
+void InitialCorrectionPipeline(logging::Logger &logger, SparseDBG &sdbg, RecordStorage &reads_storage,
+                               RecordStorage &ref_storage, size_t threads,
+                               const std::experimental::filesystem::path &out_file,
+                               const std::experimental::filesystem::path &new_reliable, double reliable_coverage,
+                               double threshold, double bulge_threshold, bool dump) {
+    size_t k = sdbg.hasher().getK();
+    {
+        size_t correctedAT = correctAT(logger, reads_storage, k, threads);
+        logger.info() << "Corrected " << correctedAT << " dinucleotide sequences" << std::endl;
+    }
+    for(size_t i = 0; i < 1; i++){
+        RefillReliable(logger, sdbg, reliable_coverage, new_reliable);
+        size_t corrected_low = correctLowCoveredRegions(logger, reads_storage, ref_storage, out_file, threshold, reliable_coverage, k, threads, dump);
+        logger.info() << "Corrected low covered regions in " << corrected_low << " reads" << std::endl;
+    }
+    {
+        size_t corrected_bulges = collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
+        logger.info() << "Collapsed bulges in " << corrected_bulges << " reads" << std::endl;
+    }
+    for(size_t i = 0; i < 3; i++){
+        size_t correctedAT = correctAT(logger, reads_storage, k, threads);
+        logger.info() << "Corrected " << correctedAT << " dinucleotide sequences" << std::endl;
+    }
+    {
+        size_t corrected_bulges = collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
+        logger.info() << "Collapsed bulges in " << corrected_bulges << " reads" << std::endl;
+    }
 }

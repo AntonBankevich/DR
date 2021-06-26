@@ -50,6 +50,7 @@ namespace dbg {
         Edge &sparseRcEdge() const;
         Path walkForward();
         void incCov(size_t val) const;
+        Sequence kmerSeq(size_t pos, size_t k) const;
         std::string str() const;
         bool operator==(const Edge &other) const;
         bool operator!=(const Edge &other) const;
@@ -763,6 +764,9 @@ namespace dbg {
         }
 
         void operator+=(const Path &other) {
+            if(!valid()) {
+                start_ = &other.start();
+            }
             VERIFY(finish() == other.getVertex(0));
             for (Edge *edge : other) {
                 operator+=(Segment<Edge>(*edge, 0, edge->size()));
@@ -770,6 +774,9 @@ namespace dbg {
         }
 
         void operator+=(const GraphAlignment &other) {
+            if(!valid()) {
+                start_ = &other.start();
+            }
             VERIFY(finish() == other.getVertex(0));
             for (const Segment<Edge> &al : other) {
                 operator+=(al);
@@ -777,10 +784,13 @@ namespace dbg {
         }
 
         void operator+=(const Segment<Edge> &other) {
-            if (als.size() > 0 && als.back().right < als.back().contig().size()) {
+            if(!valid()) {
+                start_ = other.contig().start();
+            }
+            if (!als.empty() && als.back().right < als.back().contig().size()) {
                 als.back() = als.back() + other;
             } else {
-                VERIFY(als.size() == 0 || other.left == 0);
+                VERIFY(als.empty() || other.left == 0);
                 VERIFY(finish() == *other.contig().start());
                 als.push_back(other);
             }
@@ -957,6 +967,8 @@ namespace dbg {
             }
 
         public:
+            typedef typename dbg::Edge value_type;
+
             EdgeIterator(iterator it, iterator end, bool rc, size_t e_num) : it(it), end(end), rc(rc), e_num(e_num) {
                 seek();
             }
@@ -1011,7 +1023,7 @@ namespace dbg {
 //    TODO: replace with perfect hash map? It is parallel, maybe faster and compact.
         vertex_map_type v;
         anchor_map_type anchors;
-        const RollingHash hasher_;
+        RollingHash hasher_;
 
         std::vector<KWH> extractVertexPositions(const Sequence &seq) const {
             std::vector<KWH> res;
@@ -1048,14 +1060,41 @@ namespace dbg {
         explicit SparseDBG(RollingHash _hasher) : hasher_(_hasher) {
         }
 
-        SparseDBG(SparseDBG &&other) noexcept: hasher_(other.hasher_) {
-            std::swap(v, other.v);
-            std::swap(anchors, other.anchors);
-        }
+        SparseDBG(SparseDBG &&other) = default;
 
+        SparseDBG &operator=(SparseDBG &&other) = default;
+
+//        SparseDBG(SparseDBG &&other) noexcept: hasher_(other.hasher_) {
+//            std::swap(v, other.v);
+//            std::swap(anchors, other.anchors);
+//        }
+//
         SparseDBG(const SparseDBG &other) noexcept = delete;
 
-        SparseDBG &operator=(SparseDBG &&other) = delete;
+        SparseDBG Subgraph(std::vector<Segment<Edge>> &pieces) {
+            SparseDBG res(hasher_);
+            for(auto &it : v) {
+                res.addVertex(it.second.seq);
+            }
+            for(Segment<Edge> &seg : pieces) {
+                Vertex *left;
+                Vertex *right;
+                if (seg.left == 0) {
+                    left = &res.getVertex(seg.contig().start()->seq);
+                } else {
+                    left = &res.addVertex(seg.contig().kmerSeq(seg.left, hasher_.getK()));
+                }
+                Segment<Edge> rcSeg = seg.RC();
+                if (rcSeg.left == 0) {
+                    right = &res.getVertex(rcSeg.contig().start()->seq);
+                } else {
+                    right = &res.addVertex(rcSeg.contig().kmerSeq(rcSeg.left, hasher_.getK()));
+                }
+                left->addEdge(Edge(left, &right->rc(), seg.seq()));
+                right->addEdge(Edge(right, &left->rc(), rcSeg.seq()));
+            }
+            return res;
+        }
 
         bool containsVertex(const htype &hash) const {
             return v.find(hash) != v.end();
@@ -1116,7 +1155,7 @@ namespace dbg {
 
         Vertex &bindTip(Vertex &start, Edge &tip) {
             Sequence seq = start.seq + tip.seq;
-            Vertex &end = addVertex(seq.Subseq(seq.size() - hasher().k));
+            Vertex &end = addVertex(seq.Subseq(seq.size() - hasher().getK()));
             tip.bindTip(start, end);
             return end;
         }
@@ -1128,6 +1167,10 @@ namespace dbg {
             } else {
                 return v[kwh.hash()].rc();
             }
+        }
+
+        Vertex &getVertex(const Sequence &seq) {
+            return getVertex(KWH(hasher_, seq, 0));
         }
 
         Vertex &getVertex(htype hash) {
@@ -1151,44 +1194,53 @@ namespace dbg {
         void fillAnchors(size_t w, logging::Logger &logger, size_t threads) {
             logger.info() << "Adding anchors from long edges for alignment" << std::endl;
             ParallelRecordCollector<std::pair<const htype, EdgePosition>> res(threads);
-            std::function<void(std::pair<const htype, Vertex> &)> task = [&res, w, this](
-                    std::pair<const htype, Vertex> &iter) {
-                Vertex &vertex = iter.second;
-                for (Edge &edge : vertex) {
-                    if (edge.size() > w) {
-                        Sequence seq = vertex.seq + edge.seq;
+            std::function<void(Edge &)> task = [&res, w, this](Edge &edge) {
+                Vertex &vertex = *edge.start();
+                if (edge.size() > w) {
+                    Sequence seq = vertex.seq + edge.seq;
 //                    Does not run for the first and last kmers.
-                        for (KWH kmer(this->hasher_, seq, 1); kmer.hasNext(); kmer = kmer.next()) {
-                            if (kmer.pos % w == 0) {
-                                EdgePosition ep(edge, vertex, kmer.pos);
-                                if (kmer.isCanonical())
-
-                                    res.emplace_back(kmer.hash(), ep);
-                                else {
-                                    res.emplace_back(kmer.hash(), ep.RC());
-                                }
-                            }
-                        }
-                    }
-                }
-                for (Edge &edge : vertex.rc()) {
-                    if (edge.size() > w) {
-                        Sequence seq = vertex.rc().seq + edge.seq;
-//                    Does not run for the first and last kmers.
-                        for (KWH kmer(this->hasher_, seq, 1); kmer.hasNext(); kmer = kmer.next()) {
-                            if (kmer.pos % w == 0) {
-                                EdgePosition ep(edge, vertex.rc(), kmer.pos);
-                                if (kmer.isCanonical())
-                                    res.emplace_back(kmer.hash(), ep);
-                                else {
-                                    res.emplace_back(kmer.hash(), ep.RC());
-                                }
+                    for (KWH kmer(this->hasher_, seq, 1); kmer.hasNext(); kmer = kmer.next()) {
+                        if (kmer.pos % w == 0) {
+                            EdgePosition ep(edge, vertex, kmer.pos);
+                            if (kmer.isCanonical())
+                                res.emplace_back(kmer.hash(), ep);
+                            else {
+                                res.emplace_back(kmer.hash(), ep.RC());
                             }
                         }
                     }
                 }
             };
-            processObjects(begin(), end(), logger, threads, task);
+            EdgeStorage edgeIt = edges();
+            processObjects(edgeIt.begin(), edgeIt.end(), logger, threads, task);
+            for (auto &tmp : res) {
+                anchors.emplace(tmp);
+            }
+            logger.info() << "Added " << anchors.size() << " anchors" << std::endl;
+        }
+
+        void fillAnchors(size_t w, logging::Logger &logger, size_t threads, const std::unordered_set<htype> &to_add) {
+            logger.info() << "Adding anchors from long edges for alignment" << std::endl;
+            ParallelRecordCollector<std::pair<const htype, EdgePosition>> res(threads);
+            std::function<void(Edge &)> task = [&res, w, this, to_add](Edge &edge) {
+                Vertex &vertex = *edge.start();
+                if (edge.size() > w) {
+                    Sequence seq = vertex.seq + edge.seq;
+//                    Does not run for the first and last kmers.
+                    for (KWH kmer(this->hasher_, seq, 1); kmer.hasNext(); kmer = kmer.next()) {
+                        if (kmer.pos % w == 0 || to_add.find(kmer.hash()) != to_add.end()) {
+                            EdgePosition ep(edge, vertex, kmer.pos);
+                            if (kmer.isCanonical())
+                                res.emplace_back(kmer.hash(), ep);
+                            else {
+                                res.emplace_back(kmer.hash(), ep.RC());
+                            }
+                        }
+                    }
+                }
+            };
+            EdgeStorage edgeIt = edges();
+            processObjects(edgeIt.begin(), edgeIt.end(), logger, threads, task);
             for (auto &tmp : res) {
                 anchors.emplace(tmp);
             }
@@ -1215,8 +1267,8 @@ namespace dbg {
                     if (isAnchor(kwh.hash())) {
                         EdgePosition pos = getAnchor(kwh);
                         VERIFY(kwh.pos < pos.pos);
-                        VERIFY(pos.pos + seq.size() - kwh.pos <= pos.edge->size() + hasher_.k);
-                        Segment<Edge> seg(*pos.edge, pos.pos - kwh.pos, pos.pos + seq.size() - kwh.pos - hasher_.k);
+                        VERIFY(pos.pos + seq.size() - kwh.pos <= pos.edge->size() + hasher_.getK());
+                        Segment<Edge> seg(*pos.edge, pos.pos - kwh.pos, pos.pos + seq.size() - kwh.pos - hasher_.getK());
                         return {pos.start, std::vector<Segment<Edge>>({seg})};
                     }
                     if (!kwh.hasNext()) {
@@ -1248,11 +1300,11 @@ namespace dbg {
                 res.emplace_back(seg);
             }
             for (const KWH &kmer : kmers) {
-                if (kmer.pos + hasher_.k < seq.size()) {
+                if (kmer.pos + hasher_.getK() < seq.size()) {
                     Vertex &vertex = getVertex(kmer);
-                    if (!vertex.hasOutgoing(seq[kmer.pos + hasher_.k])) {
+                    if (!vertex.hasOutgoing(seq[kmer.pos + hasher_.getK()])) {
                         std::cout << "No outgoing for middle" << std::endl << seq << std::endl <<
-                                  kmer.pos << " " << size_t(seq[kmer.pos + hasher_.k]) << std::endl
+                                  kmer.pos << " " << size_t(seq[kmer.pos + hasher_.getK()]) << std::endl
                                   << kmer.getSeq() << std::endl;
                         std::cout << vertex.hash() << " " << vertex.outDeg() << " " << vertex.inDeg() << std::endl;
                         for (const Edge &e : vertex) {
@@ -1260,8 +1312,8 @@ namespace dbg {
                         }
                         VERIFY(false);
                     }
-                    Edge &edge = vertex.getOutgoing(seq[kmer.pos + hasher_.k]);
-                    Segment<Edge> seg(edge, 0, std::min(seq.size() - kmer.pos - hasher_.k, edge.size()));
+                    Edge &edge = vertex.getOutgoing(seq[kmer.pos + hasher_.getK()]);
+                    Segment<Edge> seg(edge, 0, std::min(seq.size() - kmer.pos - hasher_.getK(), edge.size()));
                     res.emplace_back(seg);
                 }
             }
@@ -1272,7 +1324,7 @@ namespace dbg {
             Sequence seq = contig.seq;
             std::vector<PerfectAlignment<Contig, Edge>> res;
             KWH kwh(hasher_, seq, 0);
-            size_t k = hasher_.k;
+            size_t k = hasher_.getK();
             while (true) {
                 if (res.empty() || kwh.pos >= res.back().seg_from.right) {
                     if (containsVertex(kwh.hash())) {
@@ -1381,24 +1433,24 @@ namespace dbg {
             }
             for (size_t i = 0; i + 1 < vertices.size(); i++) {
 //            TODO: if too memory heavy save only some of the labels
-                VERIFY(kmers[i].pos + hasher_.k <= seq.size())
+                VERIFY(kmers[i].pos + hasher_.getK() <= seq.size())
                 if (i > 0 && vertices[i] == vertices[i - 1] && vertices[i] == vertices[i + 1] &&
                     (kmers[i].pos - kmers[i - 1].pos == kmers[i + 1].pos - kmers[i].pos) &&
-                    kmers[i + 1].pos - kmers[i].pos < hasher_.k) {
+                    kmers[i + 1].pos - kmers[i].pos < hasher_.getK()) {
                     continue;
                 }
-                vertices[i]->addEdge(Edge(vertices[i], vertices[i + 1], Sequence(seq.Subseq(kmers[i].pos + hasher_.k,
+                vertices[i]->addEdge(Edge(vertices[i], vertices[i + 1], Sequence(seq.Subseq(kmers[i].pos + hasher_.getK(),
                                                                                             kmers[i + 1].pos +
-                                                                                            hasher_.k).str())));
+                                                                                            hasher_.getK()).str())));
                 vertices[i + 1]->rc().addEdge(Edge(&vertices[i + 1]->rc(), &vertices[i]->rc(),
                                                    !Sequence(seq.Subseq(kmers[i].pos, kmers[i + 1].pos).str())));
             }
             if (kmers.front().pos > 0) {
                 vertices.front()->rc().addEdge(Edge(&vertices.front()->rc(), nullptr, !(seq.Subseq(0, kmers[0].pos))));
             }
-            if (kmers.back().pos + hasher_.k < seq.size()) {
+            if (kmers.back().pos + hasher_.getK() < seq.size()) {
                 vertices.back()->addEdge(
-                        Edge(vertices.back(), nullptr, seq.Subseq(kmers.back().pos + hasher_.k, seq.size())));
+                        Edge(vertices.back(), nullptr, seq.Subseq(kmers.back().pos + hasher_.getK(), seq.size())));
             }
         }
 
@@ -1412,10 +1464,10 @@ namespace dbg {
             }
             for (size_t i = 0; i + 1 < vertices.size(); i++) {
 //            TODO: if too memory heavy save only some of the labels
-                VERIFY(kmers[i].pos + hasher_.k <= seq.size())
+                VERIFY(kmers[i].pos + hasher_.getK() <= seq.size())
                 if (i > 0 && vertices[i] == vertices[i - 1] && vertices[i] == vertices[i + 1] &&
                     (kmers[i].pos - kmers[i - 1].pos == kmers[i + 1].pos - kmers[i].pos) &&
-                    kmers[i + 1].pos - kmers[i].pos < hasher_.k) {
+                    kmers[i + 1].pos - kmers[i].pos < hasher_.getK()) {
                     continue;
                 }
                 vertices[i]->addEdge(
@@ -1452,7 +1504,7 @@ namespace dbg {
                     cov_ldist[std::min(size_t(edge.getCoverage()), cov.size() - 1)][std::min(edge.size() / 50,
                                                                                              cov_ldist[0].size() -
                                                                                              1)] += 1;
-                    if (edge.getTipSize() < hasher_.k * 2) {
+                    if (edge.getTipSize() < hasher_.getK() * 2) {
                         cov_tips[std::min(size_t(edge.getCoverage()), cov.size() - 1)] += 1;
                         covLen_tips[std::min(size_t(edge.getCoverage()), cov.size() - 1)] += edge.size();
                         cov_ldist_tips[std::min(size_t(edge.getCoverage()), cov.size() - 1)][std::min(edge.size() / 50,
@@ -1466,7 +1518,7 @@ namespace dbg {
                     cov_ldist[std::min(size_t(edge.getCoverage()), cov.size() - 1)][std::min(edge.size() / 50,
                                                                                              cov_ldist[0].size() -
                                                                                              1)] += 1;
-                    if (edge.getTipSize() < hasher_.k * 2) {
+                    if (edge.getTipSize() < hasher_.getK() * 2) {
                         cov_tips[std::min(size_t(edge.getCoverage()), cov.size() - 1)] += 1;
                         covLen_tips[std::min(size_t(edge.getCoverage()), cov.size() - 1)] += edge.size();
                         cov_ldist_tips[std::min(size_t(edge.getCoverage()), cov.size() - 1)][std::min(edge.size() / 50,
@@ -1584,7 +1636,7 @@ namespace dbg {
                         std::string incid = vertex.rc().edgeId(inc_edge);
                         bool incsign = !vertex.rc().isCanonical(inc_edge);
                         out << "L\t" << incid << "\t" << (incsign ? "+" : "-") << "\t" << outid << "\t"
-                            << (outsign ? "+" : "-") << "\t" << hasher_.k << "M" << std::endl;
+                            << (outsign ? "+" : "-") << "\t" << hasher_.getK() << "M" << std::endl;
                     }
                 }
             }
@@ -1631,7 +1683,7 @@ namespace dbg {
             processRecords(reader.begin(), reader.end(), logger, threads, collect_task);
             SparseDBG res(vertices.begin(), vertices.end(), hasher);
             reader.reset();
-            res.fillSparseDBGEdges(sequences.begin(), sequences.end(), logger, threads, hasher.k + 1);
+            res.fillSparseDBGEdges(sequences.begin(), sequences.end(), logger, threads, hasher.getK() + 1);
             logger.info() << "Finished loading graph" << std::endl;
             return std::move(res);
         }

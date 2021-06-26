@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
         const std::experimental::filesystem::path seg_file = dir / ("seg_" + seg.id + ".dot");
         logger.info() << "Printing segment " << seg.id << " to file dot file " << (seg_file) << std::endl;
         std::ofstream coordinates_dot;
-        components.emplace_back(Component::neighbourhood(dbg, seg, dbg.hasher().k + 100));
+        components.emplace_back(Component::neighbourhood(dbg, seg, dbg.hasher().getK() + 100));
     }
 
     return 0;

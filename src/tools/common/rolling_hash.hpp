@@ -19,15 +19,20 @@ T pow(T base, U p) {
 }
 
 class RollingHash {
+private:
+    size_t k;
+    htype hbase;
+    htype kpow;
+    htype inv;
 public:
-    const size_t k;
-    const htype hbase;
-    const htype kpow;
-    const htype inv;
 
     RollingHash(size_t _k, htype _hbase) : k(_k), hbase(_hbase),
             kpow(pow(hbase, k - 1)), inv(pow(hbase, (htype(1u) << (sizeof(htype) * 8u - 1u)) - 1u)){
         VERIFY(inv * hbase == htype(1));
+    }
+
+    size_t getK() const {
+        return k;
     }
 
     RollingHash extensionHash() const {
@@ -90,17 +95,17 @@ public:
 
     KWH(const RollingHash & _hasher, const Sequence &_seq, size_t _pos):
             hasher(_hasher), seq(_seq), pos(_pos), fhash(_hasher.hash(_seq, _pos)),
-            rhash(_hasher.hash(!_seq, _seq.size() - _pos - _hasher.k)) {
+            rhash(_hasher.hash(!_seq, _seq.size() - _pos - _hasher.getK())) {
     }
 
     KWH(const KWH &other) = default;
 
     Sequence getSeq() const {
-        return seq.Subseq(pos, pos + hasher.k);
+        return seq.Subseq(pos, pos + hasher.getK());
     }
 
     KWH operator!() const {
-        return KWH(hasher, !seq, seq.size() - pos - hasher.k, rhash, fhash);
+        return KWH(hasher, !seq, seq.size() - pos - hasher.getK(), rhash, fhash);
     }
 
     htype hash() const {
@@ -116,19 +121,19 @@ public:
     }
 
     htype extendRight(unsigned char c) const {
-        return std::min(hasher.extendRight(seq, pos, fhash, c), hasher.extendLeft(!seq, seq.size() - pos - hasher.k, rhash, c ^ 3u));
+        return std::min(hasher.extendRight(seq, pos, fhash, c), hasher.extendLeft(!seq, seq.size() - pos - hasher.getK(), rhash, c ^ 3u));
     }
 
     htype extendLeft(unsigned char c) const {
-        return std::min(hasher.extendLeft(seq, pos, fhash, c), hasher.extendRight(!seq, seq.size() - pos - hasher.k, rhash, c ^ 3u));
+        return std::min(hasher.extendLeft(seq, pos, fhash, c), hasher.extendRight(!seq, seq.size() - pos - hasher.getK(), rhash, c ^ 3u));
     }
 
     KWH next() const {
-        return {hasher, seq, pos + 1, hasher.next(seq, pos, fhash), hasher.prev(!seq, seq.size() - pos - hasher.k, rhash)};
+        return {hasher, seq, pos + 1, hasher.next(seq, pos, fhash), hasher.prev(!seq, seq.size() - pos - hasher.getK(), rhash)};
     }
 
     KWH prev() const {
-        return {hasher, seq, pos - 1, hasher.prev(seq, pos, fhash), hasher.next(!seq, seq.size() - pos - hasher.k, rhash)};
+        return {hasher, seq, pos - 1, hasher.prev(seq, pos, fhash), hasher.next(!seq, seq.size() - pos - hasher.getK(), rhash)};
     }
 
     bool hasNext() const {
@@ -197,7 +202,7 @@ public:
     MinimizerCalculator(const Sequence& _seq, const RollingHash &_hasher, size_t _w) :
             seq(_seq), w(_w), kwh(_hasher, seq, 0), pos(-1) {
         VERIFY(w >= 2); //This code does not work for w = 1
-        VERIFY(seq.size() >= _hasher.k + w - 1)
+        VERIFY(seq.size() >= _hasher.getK() + w - 1)
         queue.push(kwh);
         for(size_t i = 1; i < w; i++) {
             kwh = kwh.next();

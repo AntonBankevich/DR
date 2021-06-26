@@ -30,8 +30,8 @@ SparseDBG constructSparseDBGFromReads(logging::Logger &logger, const io::Library
     logger.info() << "Starting construction of sparse de Bruijn graph" << std::endl;
     SparseDBG sdbg(hash_list.begin(), hash_list.end(), hasher);
     logger.info() << "Vertex map constructed." << std::endl;
-    io::SeqReader reader(reads_file, (hasher.k + w) * 20, (hasher.k + w) * 4);
-    sdbg.fillSparseDBGEdges(reader.begin(), reader.end(), logger, threads, w + hasher.k - 1);
+    io::SeqReader reader(reads_file, (hasher.getK() + w) * 20, (hasher.getK() + w) * 4);
+    sdbg.fillSparseDBGEdges(reader.begin(), reader.end(), logger, threads, w + hasher.getK() - 1);
     return std::move(sdbg);
 }
 
@@ -70,7 +70,7 @@ void tieTips(logging::Logger &logger, SparseDBG &sdbg, size_t w, size_t threads)
     logger.info() << "Refilling graph with old edges." << std::endl;
     sdbg.refillSparseDBGEdges(old_edges.begin(), old_edges.end(), logger, threads);
     logger.info() << "Filling graph with new edges." << std::endl;
-    sdbg.fillSparseDBGEdges(new_edges.begin(), new_edges.end(), logger, threads, sdbg.hasher().k + 1);
+    sdbg.fillSparseDBGEdges(new_edges.begin(), new_edges.end(), logger, threads, sdbg.hasher().getK() + 1);
     logger.info() << "Finished fixing sparse de Bruijn graph." << std::endl;
 }
 
@@ -250,7 +250,7 @@ void CalculateCoverage(const std::experimental::filesystem::path &dir, const Rol
                        const io::Library &lib, size_t threads, logging::Logger &logger, SparseDBG &dbg) {
     logger.info() << "Calculating edge coverage." << std::endl;
     io::SeqReader reader(lib);
-    fillCoverage(dbg, logger, reader.begin(), reader.end(), threads, hasher, w + hasher.k - 1);
+    fillCoverage(dbg, logger, reader.begin(), reader.end(), threads, hasher, w + hasher.getK() - 1);
     std::ofstream os;
     os.open(dir / "coverages.save");
     os << dbg.size() << std::endl;
@@ -277,7 +277,7 @@ alignLib(logging::Logger &logger, SparseDBG &dbg, const io::Library &align_lib, 
 
     std::function<void(StringContig &)> task = [&dbg, &alignment_results, &hasher, w, acgt](StringContig & contig) {
         Contig read = contig.makeContig();
-        if(read.size() < w + hasher.k - 1)
+        if(read.size() < w + hasher.getK() - 1)
             return;
         Path path = dbg.align(read.seq).path();
         std::stringstream ss;

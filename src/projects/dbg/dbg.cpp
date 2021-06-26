@@ -278,7 +278,7 @@ int main(int argc, char **argv) {
     if(parser.getCheck("print-alignments")) {
         RecordStorage reads_storage(dbg, 0, 100000, true);
         io::SeqReader readReader(reads_lib);
-        reads_storage.fill(readReader.begin(), readReader.end(), hasher.k + w - 1, logger, threads);
+        reads_storage.fill(readReader.begin(), readReader.end(), hasher.getK() + w - 1, logger, threads);
         reads_storage.printAlignments(logger, dir/"alignments.txt");
     }
 
@@ -302,7 +302,7 @@ int main(int argc, char **argv) {
             const std::experimental::filesystem::path seg_file = dir / fname;
             logger.info() << "Printing contig " << contig.id << " to dot file " << (seg_file) << std::endl;
             std::ofstream coordinates_dot;
-            Component comp = Component::neighbourhood(dbg, contig, dbg.hasher().k + 100);
+            Component comp = Component::neighbourhood(dbg, contig, dbg.hasher().getK() + 100);
             coordinates_dot.open(seg_file);
             printDot(coordinates_dot, Component(comp), storage.labeler());
             coordinates_dot.close();
@@ -323,7 +323,7 @@ int main(int argc, char **argv) {
         std::function<void(StringContig &)> task = [&dbg, &comps, &os, &hasher, w, &logger](StringContig & scontig) {
             string initial_seq = scontig.seq;
             Contig contig = scontig.makeContig();
-            if(contig.size() < hasher.k + w - 1)
+            if(contig.size() < hasher.getK() + w - 1)
                 return;
             GraphAlignment al = dbg.align(contig.seq);
             for(size_t j = 0; j < comps.size(); j++) {
@@ -357,7 +357,7 @@ int main(int argc, char **argv) {
         size_t radius = std::stoull(parser.getValue("subdataset-radius"));
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
-            comps.emplace_back(Component::neighbourhood(dbg, contig, dbg.hasher().k + radius));
+            comps.emplace_back(Component::neighbourhood(dbg, contig, dbg.hasher().getK() + radius));
             os.emplace_back(new std::ofstream());
             os.back()->open(subdatasets_dir / (std::to_string(cnt) + ".fasta"));
             cnt += 1;
@@ -366,7 +366,7 @@ int main(int argc, char **argv) {
         std::function<void(StringContig &)> task = [&dbg, &comps, &os, &hasher, w, &logger](StringContig & scontig) {
             string initial_seq = scontig.seq;
             Contig contig = scontig.makeContig();
-            if(contig.size() < hasher.k + w - 1)
+            if(contig.size() < hasher.getK() + w - 1)
                 return;
             GraphAlignment al = dbg.align(contig.seq);
             for(size_t j = 0; j < comps.size(); j++) {
@@ -414,7 +414,7 @@ int main(int argc, char **argv) {
             const std::experimental::filesystem::path seg_file = dir / ("seg_" + mask(seg.id) + ".dot");
             logger.info() << "Printing segment " << seg.id << " to dot file " << (seg_file) << std::endl;
             std::ofstream coordinates_dot;
-            Component comp = Component::neighbourhood(dbg, seg, dbg.hasher().k + 100);
+            Component comp = Component::neighbourhood(dbg, seg, dbg.hasher().getK() + 100);
             coordinates_dot.open(seg_file);
             printDot(coordinates_dot, Component(dbg), storage.labeler());
             coordinates_dot.close();
@@ -470,7 +470,7 @@ int main(int argc, char **argv) {
 
         std::function<void(StringContig &)> task = [&dbg, &alignment_results, &hasher, w, &logger](StringContig & contig) {
             Contig read = contig.makeContig();
-            if(read.size() < w + hasher.k - 1)
+            if(read.size() < w + hasher.getK() - 1)
                 return;
             GraphAlignment gal = dbg.align(read.seq);
             if (gal.size() > 0 && gal.front().contig().getCoverage() < 2 && gal.start().inDeg() == 0 && gal.start().outDeg() == 1) {
@@ -510,7 +510,7 @@ int main(int argc, char **argv) {
     if(parser.getCheck("correct")) {
         io::SeqReader reader(reads_lib);
         error_correction::correctSequences(dbg, logger, reader.begin(), reader.end(),
-                                           dir / "corrected.fasta", dir / "bad.fasta", threads, w + hasher.k - 1);
+                                           dir / "corrected.fasta", dir / "bad.fasta", threads, w + hasher.getK() - 1);
     }
     if (parser.getValue("reference") != "none") {
         analyseGenome(dbg, parser.getValue("reference"), k + w - 1, dir / "ref.info", dir / "mult.info", logger);
