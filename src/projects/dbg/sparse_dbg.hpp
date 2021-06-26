@@ -1219,7 +1219,7 @@ namespace dbg {
             logger.info() << "Added " << anchors.size() << " anchors" << std::endl;
         }
 
-        void fillAnchors(size_t w, logging::Logger &logger, size_t threads, const std::unordered_set<htype> &to_add) {
+        void fillAnchors(size_t w, logging::Logger &logger, size_t threads, const std::unordered_set<htype, alt_hasher<htype>> &to_add) {
             logger.info() << "Adding anchors from long edges for alignment" << std::endl;
             ParallelRecordCollector<std::pair<const htype, EdgePosition>> res(threads);
             std::function<void(Edge &)> task = [&res, w, this, to_add](Edge &edge) {

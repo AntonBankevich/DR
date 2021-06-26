@@ -707,7 +707,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
         segs.emplace_back(rec.first);
     }
     SparseDBG subgraph = dbg.Subgraph(segs);
-    std::unordered_set<htype> anchors;
+    std::unordered_set<htype, alt_hasher<htype>> anchors;
     for(const auto & vit : subgraph){
         if(vit.second.inDeg() == 1 && vit.second.outDeg() == 1) {
             anchors.emplace(vit.first);
