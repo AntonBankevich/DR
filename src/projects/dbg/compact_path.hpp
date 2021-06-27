@@ -759,7 +759,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
                 break;
             }
         }
-        VERIFY(new_start_edge != nullptr);
+        VERIFY_OMP(new_start_edge != nullptr);
         size_t cur = 0;
         size_t rlen = al.len();
         size_t crlen = 0;
@@ -773,7 +773,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
                 while(rcur + al[crlen].size() < cur) {
                     rcur += al[crlen].size();
                     crlen += 1;
-                    VERIFY(crlen < rlen && rcur < al.size());
+                    VERIFY_OMP(crlen < rlen && rcur < al.size());
                 }
                 new_start_edge = &new_start_edge->end()->getOutgoing(al[crlen].contig().seq[cur - rcur]);
                 new_start_pos = 0;
