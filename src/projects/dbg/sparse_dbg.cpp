@@ -126,7 +126,9 @@ std::string Edge::str() const {
     return ss.str();
 }
 
-Sequence Edge::kmerSeq(size_t pos, size_t k) const {
+Sequence Edge::kmerSeq(size_t pos) const {
+    VERIFY(pos <= seq.size());
+    size_t k = start_->seq.size();
     if (pos >= k)
         return seq.Subseq(pos - k, pos);
     else {

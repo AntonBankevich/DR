@@ -50,7 +50,7 @@ namespace dbg {
         Edge &sparseRcEdge() const;
         Path walkForward();
         void incCov(size_t val) const;
-        Sequence kmerSeq(size_t pos, size_t k) const;
+        Sequence kmerSeq(size_t pos) const;
         std::string str() const;
         bool operator==(const Edge &other) const;
         bool operator!=(const Edge &other) const;
@@ -1082,13 +1082,13 @@ namespace dbg {
                 if (seg.left == 0) {
                     left = &res.getVertex(seg.contig().start()->seq);
                 } else {
-                    left = &res.addVertex(seg.contig().kmerSeq(seg.left, hasher_.getK()));
+                    left = &res.addVertex(seg.contig().kmerSeq(seg.left));
                 }
                 Segment<Edge> rcSeg = seg.RC();
                 if (rcSeg.left == 0) {
                     right = &res.getVertex(rcSeg.contig().start()->seq);
                 } else {
-                    right = &res.addVertex(rcSeg.contig().kmerSeq(rcSeg.left, hasher_.getK()));
+                    right = &res.addVertex(rcSeg.contig().kmerSeq(rcSeg.left));
                 }
                 left->addEdge(Edge(left, &right->rc(), seg.seq()));
                 right->addEdge(Edge(right, &left->rc(), rcSeg.seq()));
@@ -1258,6 +1258,22 @@ namespace dbg {
                 return anchors.find(kwh.hash())->second.RC();
         }
 
+        GraphAlignment align(const Sequence &seq, Edge *edge_to, size_t pos_to) {
+            size_t k = hasher().getK();
+            size_t cur = k;
+            GraphAlignment res;
+            while(cur < seq.size()) {
+                size_t len = std::min(seq.size() - cur, edge_to->size() - pos_to);
+                res += Segment<Edge>(*edge_to, pos_to, pos_to + len);
+                cur += len;
+                if(cur < seq.size()) {
+                    edge_to = &edge_to->end()->getOutgoing(seq[cur]);
+                    pos_to = 0;
+                }
+            }
+            return res;
+        }
+
         GraphAlignment align(const Sequence &seq) {
             std::vector<KWH> kmers = extractVertexPositions(seq);
             std::vector<Segment<Edge>> res;
@@ -1369,6 +1385,66 @@ namespace dbg {
                         }
                         if (left_to - left_from > k) {
                             res.emplace_back(Segment<Contig>(contig, left_from, right_from - k),
+                                             Segment<Edge>(edge, left_to, right_to - k));
+                        }
+                    }
+                }
+                if (!kwh.hasNext())
+                    break;
+                kwh = kwh.next();
+            }
+            return std::move(res);
+        }
+
+        std::vector<PerfectAlignment<Edge, Edge>> carefulAlign(Edge &contig) {
+            Sequence seq = contig.start()->seq + contig.seq;
+            std::vector<PerfectAlignment<Edge, Edge>> res;
+            KWH kwh(hasher_, seq, 0);
+            size_t k = hasher_.getK();
+            while (true) {
+                if (res.empty() || kwh.pos >= res.back().seg_from.right) {
+                    if (containsVertex(kwh.hash())) {
+                        Vertex &vertex = getVertex(kwh);
+                        Vertex &rcVertex = vertex.rc();
+                        if ((res.empty() || kwh.pos > res.back().seg_from.right)
+                            && kwh.pos > 0 && rcVertex.hasOutgoing(seq[kwh.pos - 1] ^ 3)) {
+                            Edge &edge = rcVertex.getOutgoing(seq[kwh.pos - 1] ^ 3);
+                            size_t len = 1;
+                            while (len < edge.size() && len < kwh.pos && edge.seq[len] == (seq[kwh.pos - len - 1] ^ 3))
+                                len += 1;
+                            res.emplace_back(Segment<Edge>(contig, kwh.pos - len, kwh.pos),
+                                             Segment<Edge>(edge.rc(), edge.size() - len, edge.size()));
+                        }
+                        if (kwh.pos + k < seq.size() && vertex.hasOutgoing(seq[kwh.pos + k])) {
+                            Edge &edge = vertex.getOutgoing(seq[kwh.pos + k]);
+                            size_t len = 1;
+                            while (len < edge.size() && kwh.pos + k + len < seq.size() &&
+                                   edge.seq[len] == seq[kwh.pos + k + len])
+                                len += 1;
+                            res.emplace_back(Segment<Edge>(contig, kwh.pos, kwh.pos + len),
+                                             Segment<Edge>(edge, 0, len));
+                        }
+                    } else if ((res.empty() || kwh.pos > res.back().seg_from.right) && isAnchor(kwh.hash())) {
+                        typename SparseDBG::EdgePosition pos = getAnchor(kwh);
+//                TODO replace this code with a call to expand method of PerfectAlignment class after each edge is marked by its full sequence
+                        Edge &edge = *pos.edge;
+                        Vertex &start = *pos.start;
+                        CompositeSequence edge_seq({start.seq, edge.seq});
+                        size_t left_from = kwh.pos;
+                        size_t right_from = kwh.pos + k;
+                        size_t left_to = pos.pos;
+                        size_t right_to = pos.pos + k;
+                        while (left_from > 0 && left_to > 0 && edge_seq[left_to - 1] == seq[left_from - 1]) {
+                            left_from -= 1;
+                            left_to -= 1;
+                        }
+                        while (right_from < seq.size() && right_to < edge_seq.size() &&
+                               seq[right_from] == edge_seq[right_to]) {
+                            right_from += 1;
+                            right_to += 1;
+                        }
+                        if (left_to - left_from > k) {
+                            res.emplace_back(Segment<Edge>(contig, left_from, right_from - k),
                                              Segment<Edge>(edge, left_to, right_to - k));
                         }
                     }

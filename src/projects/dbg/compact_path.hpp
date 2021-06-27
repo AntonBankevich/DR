@@ -47,7 +47,7 @@ public:
         return _edges;
     }
 
-    GraphAlignment getAlignment() {
+    GraphAlignment getAlignment() const {
         std::vector<Segment<Edge>> path;
         Vertex *cur = _start;
         for(size_t i = 0; i < _edges.size(); i++) {
@@ -75,11 +75,11 @@ public:
         return CompactPath(getAlignment().RC());
     }
 
-    Vertex &start() {
-        return *_start;
-    }
+//    Vertex &start() {
+//        return *_start;
+//    }
 
-    const Vertex &start() const {
+    Vertex &start() const {
         return *_start;
     }
 
@@ -115,6 +115,7 @@ public:
 
     AlignedRead(const string &readId, GraphAlignment &_path) : id(readId), path(_path) {}
     AlignedRead(const string &readId, CompactPath &_path) : id(readId), path(_path) {}
+    AlignedRead(const string &readId) : id(readId) {}
 
     void invalidate() {
         path = CompactPath();
@@ -389,10 +390,8 @@ private:
         }
     }
 
-    void processPath(CompactPath &cpath, const std::function<void(Vertex &, const Sequence &)> &task,
+    void processPath(const CompactPath &cpath, const std::function<void(Vertex &, const Sequence &)> &task,
                      const std::function<void(Segment<Edge>)> &edge_task = [](Segment<Edge>){}) {
-        Vertex *left_vertex = &cpath.start();
-        Vertex *right_vertex = &cpath.start();
         GraphAlignment al = cpath.getAlignment();
         for(size_t i = 0; i < al.size(); i++) {
             Edge &edge = al[i].contig();
@@ -428,11 +427,18 @@ public:
 
     void addRead(AlignedRead &&read) {
         reads.emplace_back(read);
-        if(read.valid())
-            addSubpath(read.path);
+        addSubpath(read.path);
     }
 
-    void addSubpath(CompactPath &cpath) {
+    void updatePath(AlignedRead &read, const CompactPath &cpath) {
+        removeSubpath(read.path);
+        read.path = cpath;
+        addSubpath(read.path);
+    }
+
+    void addSubpath(const CompactPath &cpath) {
+        if(!cpath.valid())
+            return;
         std::function<void(Vertex &, const Sequence &)> vertex_task = [this](Vertex &v, const Sequence &s) {
             data.find(&v)->second.addPath(s);
         };
@@ -445,7 +451,9 @@ public:
         processPath(cpath, vertex_task, edge_task);
     }
 
-    void removeSubpath(CompactPath &cpath, size_t left = 0, size_t right = size_t(-1)) {
+    void removeSubpath(const CompactPath &cpath) {
+        if(!cpath.valid())
+            return;
         std::function<void(Vertex &, const Sequence &)> vertex_task = [this](Vertex &v, const Sequence &s) {
             data.find(&v)->second.removePath(s);
         };
@@ -677,9 +685,12 @@ public:
 };
 
 inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &storage) {
+    logger.info() << "Collecting read alignments" << std::endl;
     ParallelRecordCollector<Segment<dbg::Edge>> segmentStorage(threads);
-    size_t min_len = 10000;
-    for(AlignedRead &rec : storage) {
+    ParallelRecordCollector<size_t> lenStorage(threads);
+#pragma omp parallel for default(none) shared(storage, segmentStorage, lenStorage)
+    for(size_t i = 0; i < storage.size(); i++) {
+        AlignedRead &rec = storage[i];
         size_t len = 0;
         for(Segment<dbg::Edge> seg : rec.path.getAlignment()) {
             len += seg.size();
@@ -688,24 +699,28 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
             segmentStorage.emplace_back(seg);
         }
         if(len > 0)
-            min_len = std::min(min_len, len);
+            lenStorage.emplace_back(len);
     }
+    size_t min_len = 100000;
+    for(size_t len : lenStorage) {
+        min_len = std::min(min_len, len);
+    }
+    logger.info() << "Min read length is " << min_len << std::endl;
     std::vector<Segment<dbg::Edge>> segments = segmentStorage.collect();
+    logger.info() << "Collected " << segments.size() << " segments. Sorting." << std::endl;
     __gnu_parallel::sort(segments.begin(), segments.end());
-    std::vector<std::pair<Segment<Edge>, size_t>> res;
+    logger.info() << "Sorting finished" << std::endl;
     std::vector<Segment<Edge>> segs;
+    logger.info() << "Collecting covered edge segments" << std::endl;
     for(Segment<Edge> &seg : segments) {
-        if(!res.empty() && res.back().first.contig() == seg.contig() && res.back().first.right >= seg.left) {
-            res.back().second += seg.size();
-            if(seg.right > res.back().first.right)
-                res.back().first = res.back().first.unite(seg);
+        if(!segs.empty() && segs.back().contig() == seg.contig() && segs.back().right >= seg.left) {
+            if(seg.right > segs.back().right)
+                segs.back() = segs.back().unite(seg);
         } else {
-            res.emplace_back(seg, seg.size());
+            segs.emplace_back(seg);
         }
     }
-    for(auto &rec : res) {
-        segs.emplace_back(rec.first);
-    }
+    logger.info() << "Extracted " << segs.size() << " covered segments" << std::endl;
     SparseDBG subgraph = dbg.Subgraph(segs);
     std::unordered_set<htype, alt_hasher<htype>> anchors;
     for(const auto & vit : subgraph){
@@ -715,21 +730,56 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
     }
     mergeAll(logger, subgraph, threads);
     subgraph.fillAnchors(min_len, logger, threads, anchors);
-    std::unordered_map<Edge *, Segment<Edge>> embedding;
+    logger.info() << "Constructing embedding of old graph into new" << std::endl;
+    std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> embedding;
     for(Edge &edge : dbg.edges()) {
-        GraphAlignment edge_al = subgraph.align(edge.start()->seq + edge.seq);
-        VERIFY(edge_al.size() == 1);
-        embedding.emplace(std::make_pair(&edge, edge_al[0]));
+        std::vector<PerfectAlignment<Edge, Edge>> edge_al = subgraph.carefulAlign(edge);
+        embedding[&edge] = edge_al;
     }
     RecordStorage new_storage(subgraph, storage.min_len, storage.max_len, storage.track_cov);
-    for(AlignedRead &alignedRead : storage) {
-        GraphAlignment al = alignedRead.path.getAlignment();
-        GraphAlignment new_al;
-        for(Segment<Edge> &seg : al) {
-            Segment<Edge> &edge_seg = embedding.find(&seg.contig())->second;
-            new_al += Segment<Edge>(edge_seg.contig(), edge_seg.left + seg.left, edge_seg.left + seg.right);
+    for(AlignedRead &al : new_storage) {
+        new_storage.addRead(AlignedRead(al.id));
+    }
+#pragma omp parallel for default(none) shared(storage, new_storage, embedding)
+    for(size_t i = 0; i < storage.size(); i++) {
+        AlignedRead alignedRead = storage[i];
+        if(!alignedRead.valid()) {
+            new_storage.addRead(AlignedRead(alignedRead.id));
+            continue;
         }
-        new_storage.addRead(AlignedRead(alignedRead.id, new_al));
+        GraphAlignment al = alignedRead.path.getAlignment();
+        Edge &old_start_edge = al[0].contig();
+        size_t old_start_pos = al[0].left;
+        Edge *new_start_edge = nullptr;
+        size_t new_start_pos = 0;
+        for(PerfectAlignment<Edge, Edge> &pal : embedding[&old_start_edge]) {
+            if(pal.seg_from.left <= old_start_pos && old_start_pos < pal.seg_from.right) {
+                new_start_edge = &pal.seg_to.contig();
+                new_start_pos = pal.seg_to.left + old_start_pos - pal.seg_from.left;
+                break;
+            }
+        }
+        VERIFY(new_start_edge != nullptr);
+        size_t cur = 0;
+        size_t rlen = al.len();
+        size_t crlen = 0;
+        size_t rcur = 0;
+        GraphAlignment new_al;
+        while(cur < rlen) {
+            size_t len = std::min(rlen - cur, new_start_edge->size() - new_start_pos);
+            new_al += Segment<Edge>(*new_start_edge, new_start_pos, new_start_pos + len);
+            cur += len;
+            if(cur < rlen) {
+                while(rcur + al[crlen].size() < cur) {
+                    rcur += al[crlen].size();
+                    crlen += 1;
+                    VERIFY(crlen < rlen && rcur < al.size());
+                }
+                new_start_edge = &new_start_edge->end()->getOutgoing(al[crlen].contig().seq[cur - rcur]);
+                new_start_pos = 0;
+            }
+        }
+        new_storage.updatePath(new_storage[i], CompactPath(new_al));
     }
     std::swap(dbg, subgraph);
     std::swap(storage, new_storage);
