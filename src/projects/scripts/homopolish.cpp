@@ -191,6 +191,7 @@ struct ContigInfo {
     string name;
     size_t len;
     vector<uint8_t > quantity;
+    vector<vector<uint8_t>> amounts;
     vector<uint16_t> sum;
     size_t zero_covered = 0;
     string debug_f;
@@ -232,6 +233,7 @@ struct ContigInfo {
         len = sequence.length();
         quantity.resize(len);
         sum.resize(len);
+        amounts.resize(len);
         for (size_t i = 0; i < len; i ++){
             sum[i] = 0;
             quantity[i] = 0;
@@ -249,7 +251,7 @@ struct ContigInfo {
     }
 
 
-    void AddRead(){
+    void AddRead() {
 
     }
 /*
@@ -325,19 +327,35 @@ struct ContigInfo {
 
                 i += complex_regions[i];
             } else {
-
+                int real_cov = 1;
                 int cov = 1;
                 if (quantity[i] == 0) {
                     zero_covered++;
                 } else {
+                    sort(amounts[i].begin(), amounts[i].end());
+                    real_cov = amounts[i][amounts[i].size()/2];
                     cov = int(round(sum[i] * 1.0 / quantity[i]));
+                    if (real_cov != cov) {
+                        logger.info() << "Median disagree with average at position " << i<<" med/avg: "<< real_cov << "/" << cov << endl;
+                        stringstream as;
+                        for (auto cc:amounts[i])
+                            as << int(cc) << " ";
+                        logger.info() << as.str() << endl;
+                        cov = real_cov;
+                    }
                 }
 
                 quantities[quantity[i]]++;
                 for (size_t j = 0; j < cov; j++) {
                     ss << sequence[i];
-                    debug << total_count << " " << sum[i] << " " << int(quantity[i]) << " " << cov << " " << sequence[i]
-                          << endl;
+                    debug << total_count << " " << sum[i] << " " << int(quantity[i]) << " " << cov << " " << sequence[i];
+
+                    debug << "    ";
+                    for (auto am : amounts[i]){
+                        debug << int(am) << " ";
+                    }
+
+                    debug << endl;
                     total_count++;
                 }
                 i++;
@@ -435,7 +453,7 @@ struct AssemblyInfo {
     }
 
     string uncompress (size_t from, size_t to, const string &s) {
-        logger.info() << from << " " << to << " " << s.length() << endl;
+//        logger.info() << from << " " << to << " " << s.length() << endl;
         size_t real_from = getUncompressedPos(s, from);
 //can be optimised
         size_t real_to = getUncompressedPos(s, to);
@@ -511,36 +529,47 @@ struct AssemblyInfo {
             RC(aln);
 //            read = read.RC();
         }
-        logger.info() << aln.alignment_start << " " << aln.alignment_end << endl;
+//
         string compressed_read = read_seq.str();
         compressed_read.erase(std::unique(compressed_read.begin(), compressed_read.end()), compressed_read.end());
         string contig_seq = contigs[aln.contig_id].sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
-        size_t maskLen = 15;
 
-        Contig cref(contig_seq, "ref");
-        std::vector<Contig > ref = {cref};
 //        logger.info() << "contig length " << contig_seq.length() << " read length: " << compressed_read.length() << endl;
 
 //        logger.trace() << contig_seq << endl;
 //        logger.trace() << compressed_read << endl;
-        Contig cread(compressed_read, "read");
+
 
 //map-hifi
 //asm10
-        RawAligner<Contig> minimapaligner(ref, 1, "ava-hifi");
-        auto minimapaln = minimapaligner.align(cread);
+        ;
 
 //strings, match, mismatch, gap_open, gap_extend, width
-        auto cigars = align_example( contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, 150);
+        auto cigars = align_example( contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, 50);
         logger.info() << str(cigars) << endl;
         auto str_cigars = str(cigars);
-        if (str_cigars.find(minimapaln[0].cigarString()) == string::npos) {
-            logger.info() << minimapaln[0].cigarString() << endl;
-            logger.info()<<"Different alignment!" << endl;
+        /*if (!verifyCigar(cigars) || cigars.size() > 100) {
+            logger.info() << "STATS: aln length " << aln.length() <<" read length "<< compressed_read.length() << " matched length " << matchedLength(cigars)<<endl;
+        } */
+        if (matchedLength(cigars) + 300 < compressed_read.length() || !verifyCigar(cigars) || cigars.size() > 300) {
+/*            Contig cref(contig_seq, "ref");
+            std::vector<Contig > ref = {cref};
+            Contig cread(compressed_read, "read");
+            RawAligner<Contig> minimapaligner(ref, 1, "ava-hifi");
+            auto minimapaln = minimapaligner.align(cread);
+            logger.info() <<"minimapped\n";
+            logger.info() << minimapaln[0].cigarString() << endl; */
+            if (matchedLength(cigars) % 200 == 0) {
+                auto full_cigars = align_example( contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, 500);
+                logger.info() << "Check for read " << read.id  << endl;
+                logger.info() << "Bandwindth 500\n";
+                logger.info() << str(full_cigars) << endl;
+                logger.info() << "aln length " << aln.length() <<" read length "<< compressed_read.length() << " matched length " << matchedLength(cigars)<<endl;
+            } else {
+                logger.info()<< "something wrong but skipping for speedup\n";
+            }
         }
-        if (!verifyCigar(cigars)) {
-            logger.info() <<"BAD CIGAR" << endl;
-        }
+
 //        logger.info() << "Aligned " << minimapaln.size()<<"\n";
 //        if (minimapaln.size() == 0) {
 //            return;
@@ -584,6 +613,9 @@ struct AssemblyInfo {
                     if (contigs[aln.contig_id].sequence[coord] == nucl(compressed_read[read_coords + i]) && contigs[aln.contig_id].quantity[coord] != 255 && contigs[aln.contig_id].sum[coord] < 60000) {
                         contigs[aln.contig_id].quantity[coord] ++;
                         contigs[aln.contig_id].sum[coord] += quantities[read_coords + i];
+                        if (contigs[aln.contig_id].amounts[coord].size() < 21)
+                            contigs[aln.contig_id].amounts[coord].push_back( quantities[read_coords + i]);
+
                         matches ++;
                     } else {
                         mismatches ++;
@@ -610,7 +642,7 @@ struct AssemblyInfo {
 //        logger.info() << "Matches "<< matches << " mismatches " << mismatches <<" indels " << indels << endl;
         return;
 //ssw align check;
-        aligner.Align(compressed_read.c_str(), contig_seq.c_str(), contig_seq.length(), filter, &alignment, maskLen);
+//       aligner.Align(compressed_read.c_str(), contig_seq.c_str(), contig_seq.length(), filter, &alignment, maskLen);
         logger.info() << "Cigar " << alignment.cigar_string << endl;
 //old no_align;
         if (compressed_read.length() == aln.length()) {
