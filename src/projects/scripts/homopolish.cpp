@@ -80,6 +80,9 @@ struct ContigInfo {
     string name;
     size_t len;
     vector<uint8_t > quantity;
+//array size. possibly switch to []
+    static const size_t VOTES_STORED = 21;
+    //To avoid multiple resizes real length stored in first element of each vector
     vector<vector<uint8_t>> amounts;
     vector<uint16_t> sum;
     size_t zero_covered = 0;
@@ -126,6 +129,8 @@ struct ContigInfo {
         for (size_t i = 0; i < len; i ++){
             sum[i] = 0;
             quantity[i] = 0;
+            amounts[i].resize(VOTES_STORED + 1);
+            amounts[i][0] = 0;
         }
         FillComplex();
     }
@@ -221,14 +226,24 @@ struct ContigInfo {
                 if (quantity[i] == 0) {
                     zero_covered++;
                 } else {
-                    sort(amounts[i].begin(), amounts[i].end());
-                    real_cov = amounts[i][amounts[i].size()/2];
+                    size_t real_len =  amounts[i][0];
+
+/*
+                    stringstream uns;
+                    uns << " unsorted";
+                    for (auto j = 0; j < amounts[i].size(); j++)
+                        uns << int(amounts[i][j]) << " ";
+                    logger.info() << uns.str() << endl;
+*/
+                    sort(amounts[i].begin() + 1, amounts[i].begin() + 1 + real_len);
+                    real_cov = amounts[i][(1 + real_len)/2];
+
                     cov = int(round(sum[i] * 1.0 / quantity[i]));
                     if (real_cov != cov) {
                         logger.info() << "Median disagree with average at position " << i<<" med/avg: "<< real_cov << "/" << cov << endl;
                         stringstream as;
-                        for (auto cc:amounts[i])
-                            as << int(cc) << " ";
+                        for (auto j = 0; j < amounts[i][0]; j++)
+                            as << int(amounts[i][j + 1]) << " ";
                         logger.info() << as.str() << endl;
                         cov = real_cov;
                     }
@@ -240,10 +255,8 @@ struct ContigInfo {
                     debug << total_count << " " << sum[i] << " " << int(quantity[i]) << " " << cov << " " << sequence[i];
 
                     debug << "    ";
-                    for (auto am : amounts[i]){
-                        debug << int(am) << " ";
-                    }
-
+                    for (auto jj = 0; jj < amounts[i][0]; jj++)
+                        debug << int(amounts[i][jj + 1]) << " ";
                     debug << endl;
                     total_count++;
                 }
@@ -268,7 +281,10 @@ struct AssemblyInfo {
     size_t filtered_pairs;
     bool get_uncovered_only;
     static const size_t SW_BANDWIDTH = 10;
-
+//Used if we see that something wrong is with first
+    static const size_t SW_SECOND_BANDWIDTH = 50;
+//We do not believe matches on the ends of match region
+    static const size_t MATCH_EPS = 1;
 
     AssemblyInfo (CLParser& parser):parser(parser), logger(), used_pairs(0), filtered_pairs(0), get_uncovered_only(false) {
 //TODO paths;
@@ -338,8 +354,12 @@ struct AssemblyInfo {
         }
     }
 
-
+//Some strange cigars are output
     bool verifyCigar(vector<cigar_pair> &cigars) {
+//TODO constant??
+        if (cigars.size() > 200) {
+            return false;
+        }
         for(size_t i = 0; i + 1 < cigars.size(); i++) {
             if (cigars[i].type != 'M' && cigars[i+1].type != 'M') {
                 return false;
@@ -385,7 +405,8 @@ struct AssemblyInfo {
         /*if (!verifyCigar(cigars) || cigars.size() > 100) {
             logger.info() << "STATS: aln length " << aln.length() <<" read length "<< compressed_read.length() << " matched length " << matchedLength(cigars)<<endl;
         } */
-        if (matchedLength(cigars) + 300 < compressed_read.length() || !verifyCigar(cigars) || cigars.size() > 300) {
+        size_t matched_l = matchedLength(cigars);
+        if (matched_l + 300 < aln.length() || !verifyCigar(cigars)) {
 /*            Contig cref(contig_seq, "ref");
             std::vector<Contig > ref = {cref};
             Contig cread(compressed_read, "read");
@@ -393,15 +414,19 @@ struct AssemblyInfo {
             auto minimapaln = minimapaligner.align(cread);
             logger.info() <<"minimapped\n";
             logger.info() << minimapaln[0].cigarString() << endl; */
+
+//Likely long prefix clipped
+
             logger.info() << read.id << endl;
             logger.info() << str(cigars) << endl;
-            logger.info() << "aln length " << aln.length() <<" read length "<< compressed_read.length() << " matched length " << matchedLength(cigars)<<endl;
-            if ((matchedLength(cigars) % 2000 == 239) and false) {
-                auto full_cigars = align_example( contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, 500);
-                logger.info() << "Check with bandwindth 500\n";
-                logger.info() << str(full_cigars) << endl;
+            logger.info() << "aln length " << aln.length() <<" read length "<< compressed_read.length() << " matched length " << matched_l<<endl;
+            //TODO: we can map to reverse complement, but do not want
+            if (matched_l < 100) {
+                logger.info() << "Ultrashort alignmnent, doing nothing" << endl;
             } else {
-                logger.info()<< "something wrong but skipping for speedup\n";
+                cigars = align_example( contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, SW_SECOND_BANDWIDTH);
+                logger.info() << "Replaced using bandwindth "<< SW_SECOND_BANDWIDTH << endl;
+                logger.info() << str(cigars) << endl;
             }
         }
 
@@ -442,14 +467,15 @@ struct AssemblyInfo {
 //TODO do not forget add complex regions here
                 indels += (*it).length;
             } else {
-                for (size_t i = 0; i < (*it).length; i++) {
+                for (size_t i = MATCH_EPS; i + MATCH_EPS< (*it).length; i++) {
                     size_t coord = cont_coords + aln.alignment_start + i;
+
 //                    logger.info() << current_contig.sequence[coord]<< compressed_read[read_coords + i] << endl;
                     if (current_contig.sequence[coord] == nucl(compressed_read[read_coords + i]) && current_contig.quantity[coord] != 255 && current_contig.sum[coord] < 60000) {
                         current_contig.quantity[coord] ++;
                         current_contig.sum[coord] += quantities[read_coords + i];
-                        if (current_contig.amounts[coord].size() < 21)
-                            current_contig.amounts[coord].push_back( quantities[read_coords + i]);
+                        if (current_contig.amounts[coord][0] < ContigInfo::VOTES_STORED)
+                            current_contig.amounts[coord][++current_contig.amounts[coord][0]] = quantities[read_coords + i];
 
                         matches ++;
                     } else {
@@ -458,7 +484,7 @@ struct AssemblyInfo {
 //Only complete traversion of complex regions taken in account;
                     if (current_contig.complex_regions.find(coord) != current_contig.complex_regions.end()) {
                         size_t complex_len = current_contig.complex_regions[coord];
-                        if (read_coords + complex_len < matchedLength(cigars)) { //minimapaln[0].seg_from.right) {
+                        if (read_coords + complex_len < matchedLength(cigars)) {
                             complex_start = read_coords + i;
                             contig_finish = coord + complex_len;
                             complex_id = coord;
@@ -479,56 +505,7 @@ struct AssemblyInfo {
 //ssw align check;
 //       aligner.Align(compressed_read.c_str(), contig_seq.c_str(), contig_seq.length(), filter, &alignment, maskLen);
 //        logger.info() << "Cigar " << alignment.cigar_string << endl;
-//old no_align;
-        if (compressed_read.length() == aln.length()) {
-            size_t bad_pos = 0;
 
-            for (size_t i = 0; i < contig_seq.length(); i++)
-                if (compressed_read[i]!=contig_seq[i])
-                    bad_pos ++;
-            if (rlen > 100 && bad_pos * 4 > rlen) {
-//                logger.info()<< "Lots of bad positions in read " << float(bad_pos)/float(rlen) << endl;
-//                logger.info ()<< aln.str() << endl;
-                filtered_pairs ++;
-                return;
-            }
-/*
- *          logger.info() << compressed_read << endl;
-            logger.info()<< aln.read_id << " " << aln.contig_id << endl;
-            logger.info() << aln.alignment_start << " " << aln.alignment_end << endl;
-            logger.info() << current_contig.sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start) << endl;
-/*            exit(0); */
-            int cur_ind = 0;
-            int shift = 0;
-            int next_ind = cur_ind + 1;
-            while (cur_ind < rlen) {
-                while (next_ind < rlen && read_seq[cur_ind] == read_seq[next_ind]) {
-                    next_ind ++;
-                }
-
-                int vote = next_ind - cur_ind;
-        //TODO: consts, overfill
-                size_t coord = shift + aln.alignment_start;
-
-                if (current_contig.sequence[coord] == nucl(read_seq[cur_ind]) && current_contig.quantity[coord] != 255 && current_contig.sum[coord] < 60000) {
-                    current_contig.quantity[coord] ++;
-                    current_contig.sum[coord] += vote;
-                } else {
-//                    logger.info() << " overfilled " << current_contig.quantity[coord] << current_contig.sum[coord];
-                }
-                cur_ind = next_ind;
-                next_ind = cur_ind + 1;
-                shift++;
-            }
-            used_pairs ++;
-            if (rlen > 100 && bad_pos * 4 > rlen) {
-                logger.info()<< "Lots of bad positions in read " << float(bad_pos)/float(rlen) << endl;
-                logger.info ()<< aln.str() << endl;
-            }
-        } else {
-            filtered_pairs ++;
-       //     logger.trace() << compressed_read.length() << " " << aln.length () << endl;
-        }
     }
 
     void process() {
@@ -564,9 +541,9 @@ struct AssemblyInfo {
                 if (reads_count % 1000 == 0) {
                     logger.info() << "Processed " << reads_count << " original reads " << endl;
                 }
-                if (reads_count %100 == 99) {
-                    exit(0);
-                }
+//                if (reads_count %100 == 99) {
+//                    exit(0);
+//                }
             }
             if (reads_over) {
                 break;
