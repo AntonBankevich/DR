@@ -116,7 +116,13 @@ bool Edge::operator!=(const Edge &other) const {
 }
 
 bool Edge::operator<(const Edge &other) const {
+    if(start_ != other.start_)
+        return *start_ < *other.start_;
     return this->seq < other.seq;
+}
+
+bool Edge::operator<=(const Edge &other) const {
+    return *this == other || *this < other;
 }
 
 std::string Edge::str() const {

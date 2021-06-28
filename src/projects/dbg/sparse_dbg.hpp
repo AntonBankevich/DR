@@ -55,6 +55,7 @@ namespace dbg {
         bool operator==(const Edge &other) const;
         bool operator!=(const Edge &other) const;
         bool operator<(const Edge &other) const;
+        bool operator<=(const Edge &other) const;
     };
 
     class Vertex {

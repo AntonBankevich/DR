@@ -689,7 +689,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
     ParallelRecordCollector<Segment<dbg::Edge>> segmentStorage(threads);
     ParallelRecordCollector<size_t> lenStorage(threads);
 #pragma omp parallel for default(none) shared(storage, segmentStorage, lenStorage)
-    for(size_t i = 0; i < storage.size(); i++) {
+    for(size_t i = 0; i < storage.size(); i++) { // NOLINT(modernize-loop-convert)
         AlignedRead &rec = storage[i];
         size_t len = 0;
         for(Segment<dbg::Edge> seg : rec.path.getAlignment()) {
@@ -722,6 +722,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
     }
     logger.info() << "Extracted " << segs.size() << " covered segments" << std::endl;
     SparseDBG subgraph = dbg.Subgraph(segs);
+    dbg.checkConsistency(threads, logger);
     std::unordered_set<htype, alt_hasher<htype>> anchors;
     for(const auto & vit : subgraph){
         if(vit.second.inDeg() == 1 && vit.second.outDeg() == 1) {
