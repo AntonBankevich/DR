@@ -39,3 +39,11 @@ inline void VERIFY_OMP(bool expr) {
     VERIFY(expr);
 }
 
+inline void VERIFY_OMP(bool expr, const std::string &message) {
+    if(!expr) {
+        std::cout << "message" << std::endl;
+    }
+    VERIFY(expr);
+}
+
+

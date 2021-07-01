@@ -720,6 +720,9 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
             segs.emplace_back(seg);
         }
     }
+    for(Segment<Edge> seg : segs) {
+        std::cout <<
+    }
     logger.info() << "Extracted " << segs.size() << " covered segments" << std::endl;
     SparseDBG subgraph = dbg.Subgraph(segs);
     dbg.checkConsistency(threads, logger);
@@ -747,7 +750,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
     for(AlignedRead &al : storage) {
         new_storage.addRead(AlignedRead(al.id));
     }
-    
+
 #pragma omp parallel for default(none) shared(storage, new_storage, embedding)
     for(size_t i = 0; i < storage.size(); i++) {
         AlignedRead alignedRead = storage[i];
@@ -766,7 +769,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
                 break;
             }
         }
-        VERIFY_OMP(new_start_edge != nullptr);
+        VERIFY_OMP(new_start_edge != nullptr, "Could not find start edge for alignment");
         size_t cur = 0;
         size_t rlen = al.len();
         size_t crlen = 0;
@@ -780,7 +783,8 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
                 while(rcur + al[crlen].size() < cur) {
                     rcur += al[crlen].size();
                     crlen += 1;
-                    VERIFY_OMP(crlen < rlen && rcur < al.size());
+                    VERIFY_OMP(crlen < rlen, "Alignment inconsistency 1");
+                    VERIFY_OMP(rcur < al.size(), "Alignment inconsistency 2");
                 }
                 new_start_edge = &new_start_edge->end()->getOutgoing(al[crlen].contig().seq[cur - rcur]);
                 new_start_pos = 0;
