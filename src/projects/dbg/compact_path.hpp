@@ -733,15 +733,21 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
     subgraph.fillAnchors(min_len, logger, threads, anchors);
     logger.info() << "Constructing embedding of old graph into new" << std::endl;
     std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> embedding;
-    for(Edge &edge : dbg.edges()) {
-        std::vector<PerfectAlignment<Edge, Edge>> edge_al = subgraph.oldEdgeAlign(edge);
-        embedding[&edge] = edge_al;
+    ParallelRecordCollector<std::vector<PerfectAlignment<Edge, Edge>>> edgeAlsList(threads);
+    std::function<void(Edge &)> task = [&edgeAlsList, &subgraph](Edge &edge) {
+        edgeAlsList.emplace_back(subgraph.oldEdgeAlign(edge));
+    };
+    processObjects(dbg.edges().begin(), dbg.edges().end(), logger, threads, task);
+    for(std::vector<PerfectAlignment<Edge, Edge>> &al : edgeAlsList) {
+        if(al.size() > 0)
+            embedding[&al[0].seg_from.contig()] = std::move(al);
     }
     logger.info() << "Aligning reads to the new graph" << std::endl;
     RecordStorage new_storage(subgraph, storage.min_len, storage.max_len, storage.track_cov);
-    for(AlignedRead &al : new_storage) {
+    for(AlignedRead &al : storage) {
         new_storage.addRead(AlignedRead(al.id));
     }
+    
 #pragma omp parallel for default(none) shared(storage, new_storage, embedding)
     for(size_t i = 0; i < storage.size(); i++) {
         AlignedRead alignedRead = storage[i];
