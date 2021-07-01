@@ -720,9 +720,6 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
             segs.emplace_back(seg);
         }
     }
-    for(Segment<Edge> seg : segs) {
-        std::cout <<
-    }
     logger.info() << "Extracted " << segs.size() << " covered segments" << std::endl;
     SparseDBG subgraph = dbg.Subgraph(segs);
     dbg.checkConsistency(threads, logger);
@@ -751,7 +748,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
         new_storage.addRead(AlignedRead(al.id));
     }
 
-#pragma omp parallel for default(none) shared(storage, new_storage, embedding)
+#pragma omp parallel for default(none) shared(storage, new_storage, embedding, std::cout)
     for(size_t i = 0; i < storage.size(); i++) {
         AlignedRead alignedRead = storage[i];
         if(!alignedRead.valid()) {
@@ -767,6 +764,13 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
                 new_start_edge = &pal.seg_to.contig();
                 new_start_pos = pal.seg_to.left + old_start_pos - pal.seg_from.left;
                 break;
+            }
+        }
+        if(new_start_edge == nullptr) {
+            std::cout << old_start_edge.start()->hash() << old_start_edge.start()->isCanonical() << old_start_edge.seq[0] <<
+                            " " << old_start_pos << std::endl;
+            for(PerfectAlignment<Edge, Edge> &pal : embedding[&old_start_edge]) {
+                std::cout << pal.seg_from.left << " " << pal.seg_from.right << std::endl;
             }
         }
         VERIFY_OMP(new_start_edge != nullptr, "Could not find start edge for alignment");
