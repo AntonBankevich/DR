@@ -72,8 +72,8 @@ public:
     }
 
     bool operator<(const Segment<T> &other) const {
-        return contig().id < other.contig().id ||
-                    (contig().id == other.contig().id &&
+        return contig() < other.contig() ||
+                    (contig() == other.contig() &&
                             (left < other.left || left == other.left && right < other.right));
     }
 

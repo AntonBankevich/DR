@@ -1094,7 +1094,7 @@ namespace dbg {
                 left->addEdge(Edge(left, &right->rc(), seg.seq()));
                 right->addEdge(Edge(right, &left->rc(), rcSeg.seq()));
             }
-            return res;
+            return std::move(res);
         }
 
         bool containsVertex(const htype &hash) const {

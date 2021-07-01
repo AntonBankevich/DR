@@ -737,6 +737,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
         std::vector<PerfectAlignment<Edge, Edge>> edge_al = subgraph.carefulAlign(edge);
         embedding[&edge] = edge_al;
     }
+    logger.info() << "Aligning reads to the new graph" << std::endl;
     RecordStorage new_storage(subgraph, storage.min_len, storage.max_len, storage.track_cov);
     for(AlignedRead &al : new_storage) {
         new_storage.addRead(AlignedRead(al.id));
