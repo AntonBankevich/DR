@@ -746,7 +746,6 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
     for(size_t i = 0; i < storage.size(); i++) {
         AlignedRead alignedRead = storage[i];
         if(!alignedRead.valid()) {
-            new_storage.addRead(AlignedRead(alignedRead.id));
             continue;
         }
         GraphAlignment al = alignedRead.path.getAlignment();
