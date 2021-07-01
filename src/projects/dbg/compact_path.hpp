@@ -734,7 +734,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
     logger.info() << "Constructing embedding of old graph into new" << std::endl;
     std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> embedding;
     for(Edge &edge : dbg.edges()) {
-        std::vector<PerfectAlignment<Edge, Edge>> edge_al = subgraph.carefulAlign(edge);
+        std::vector<PerfectAlignment<Edge, Edge>> edge_al = subgraph.oldEdgeAlign(edge);
         embedding[&edge] = edge_al;
     }
     logger.info() << "Aligning reads to the new graph" << std::endl;
