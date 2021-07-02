@@ -185,13 +185,13 @@ int main(int argc, char **argv) {
     }
     RollingHash hasher(k, std::stoi(parser.getValue("base")));
     const size_t w = std::stoi(parser.getValue("window"));
-    io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
+    io::Library construction_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     io::Library paths_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("paths"));
-    io::Library reads_lib = lib;
+    io::Library reads_lib = construction_lib;
     io::Library genome_lib = {};
     if (parser.getValue("reference") != "none") {
         logger.info() << "Added reference to graph construction. Careful, some edges may have coverage 0" << std::endl;
-        lib.insert(lib.begin(), std::experimental::filesystem::path(parser.getValue("reference")));
+        construction_lib.insert(construction_lib.begin(), std::experimental::filesystem::path(parser.getValue("reference")));
         genome_lib.insert(genome_lib.begin(), std::experimental::filesystem::path(parser.getValue("reference")));
     }
     size_t threads = std::stoi(parser.getValue("threads"));
@@ -201,52 +201,66 @@ int main(int argc, char **argv) {
     std::string vertices_file = parser.getValue("vertices");
     std::string dbg_file = parser.getValue("dbg");
     SparseDBG dbg = dbg_file == "none" ?
-            DBGPipeline(logger, hasher, w, lib, dir, threads, disjointigs_file, vertices_file) :
+            DBGPipeline(logger, hasher, w, construction_lib, dir, threads, disjointigs_file, vertices_file) :
           SparseDBG::loadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
 
+    bool calculate_alignments = parser.getCheck("crude-correct") || parser.getCheck("initial-correct") ||
+            parser.getCheck("mult-correct");
     bool calculate_coverage = parser.getCheck("coverage") || parser.getCheck("simplify") ||
             parser.getCheck("correct") || parser.getValue("reference") != "none" ||
             parser.getCheck("tip-correct") || parser.getCheck("crude-correct") ||
             parser.getCheck("initial-correct") || parser.getCheck("mult-correct") || !paths_lib.empty();
-
+    calculate_coverage = calculate_coverage && !calculate_alignments;
     if (!parser.getListValue("align").empty() || parser.getCheck("print-alignments") ||
                 parser.getCheck("mult-correct") || parser.getCheck("mult-analyse") ||
-                parser.getCheck("split")|| calculate_coverage) {
+                parser.getCheck("split")|| calculate_coverage || calculate_alignments) {
         dbg.fillAnchors(w, logger, threads);
     }
 
-    if (calculate_coverage && !parser.getCheck("initial-correct")) {
+    if (calculate_coverage) {
         if (parser.getValue("coverages") == "none") {
             CalculateCoverage(dir, hasher, w, reads_lib, threads, logger, dbg);
         } else {
             LoadCoverage(parser.getValue("coverages"), logger, dbg);
         }
     }
+    size_t extension_size = std::max<size_t>(k * 5 / 2, 3000);
+    if (k > 1500)
+        extension_size = 1000000;
+    if(parser.getValue("extension-size") != "none")
+        extension_size = std::stoull(parser.getValue("extension-size"));
+
+    RecordStorage readStorage(dbg, 0, extension_size, true);
+    RecordStorage refStorage(dbg, 0, extension_size, false);
+
+    if(calculate_alignments) {
+        logger.info() << "Collecting read alignments" << std::endl;
+        io::SeqReader reader(reads_lib);
+        readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
+        logger.info() << "Collecting reference alignments" << std::endl;
+        io::SeqReader refReader(genome_lib);
+        refStorage.fill(refReader.begin(), refReader.end(), dbg, w + k - 1, logger, threads);
+    }
 
     if(parser.getCheck("mult-analyse")) {
-        NewMultCorrect(dbg, logger, dir, reads_lib, 70000,threads,
-                    w + k - 1, parser.getCheck("dump"));
+        NewMultCorrect(dbg, logger, dir, readStorage, 70000, threads, parser.getCheck("dump"));
     }
 
     if(parser.getCheck("mult-correct")) {
-        MultCorrect(dbg, logger, dir, reads_lib, 50000,threads,
-                    w + k - 1, parser.getCheck("dump"));
+        MultCorrect(dbg, logger, dir, readStorage, 50000,threads, parser.getCheck("dump"));
     }
 
     if(parser.getCheck("initial-correct")) {
         size_t threshold = std::stoull(parser.getValue("cov-threshold"));
         size_t reliable = std::stoull(parser.getValue("rel-threshold"));
-        size_t extension_size = std::max<size_t>(k * 5 / 2, 3000);
-        if(parser.getValue("extension-size") != "none")
-            extension_size = std::stoull(parser.getValue("extension-size"));
         std::vector<StringContig> ref_vector;
         if (parser.getValue("reference") != "none") {
             ref_vector = io::SeqReader(parser.getValue("reference")).readAll();
         }
-        initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta", dir / "good.fasta",
-                       dir / "bad.fasta", dir / "new_reliable.fasta", reads_lib, ref_vector,
-                       threshold, 2 * threshold, reliable, threads,
-                       w + k - 1, extension_size, parser.getCheck("dump"));
+        initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta",
+                       dir / "good.fasta",dir / "bad.fasta", dir / "new_reliable.fasta",
+                       readStorage, refStorage, threshold, 2 * threshold, reliable, threads,
+                       parser.getCheck("dump"));
         Component comp(dbg);
         DrawSplit(comp, dir / "split");
     }
@@ -278,7 +292,7 @@ int main(int argc, char **argv) {
     if(parser.getCheck("print-alignments")) {
         RecordStorage reads_storage(dbg, 0, 100000, true);
         io::SeqReader readReader(reads_lib);
-        reads_storage.fill(readReader.begin(), readReader.end(), hasher.getK() + w - 1, logger, threads);
+        reads_storage.fill(readReader.begin(), readReader.end(), dbg, hasher.getK() + w - 1, logger, threads);
         reads_storage.printAlignments(logger, dir/"alignments.txt");
     }
 

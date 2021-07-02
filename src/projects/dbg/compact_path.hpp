@@ -1,6 +1,7 @@
 #pragma once
 #include "sparse_dbg.hpp"
 #include "graph_algorithms.hpp"
+#include "graph_stats.hpp"
 #include <parallel/algorithm>
 #include <utility>
 using namespace dbg;
@@ -363,7 +364,6 @@ inline std::ostream& operator<<(std::ostream  &os, const VertexRecord &rec) {
 
 class RecordStorage {
 private:
-    SparseDBG *dbg_it;
     std::vector<AlignedRead> reads;
     std::unordered_map<const Vertex *, VertexRecord> data;
 public:
@@ -413,9 +413,9 @@ private:
     }
 
 public:
-    RecordStorage(SparseDBG &_dbg, size_t _min_len, size_t _max_len, bool _track_cov = false) :
-            dbg_it(&_dbg), min_len(_min_len), max_len(_max_len), track_cov(_track_cov) {
-        for(auto &it : *dbg_it) {
+    RecordStorage(SparseDBG &dbg, size_t _min_len, size_t _max_len, bool _track_cov = false) :
+            min_len(_min_len), max_len(_max_len), track_cov(_track_cov) {
+        for(auto &it : dbg) {
             data.emplace(&it.second, VertexRecord(it.second));
             data.emplace(&it.second.rc(), VertexRecord(it.second.rc()));
         }
@@ -466,21 +466,21 @@ public:
     }
 
     template<class I>
-    void fill(I begin, I end, size_t min_read_size, logging::Logger &logger, size_t threads) {
+    void fill(I begin, I end, SparseDBG &dbg, size_t min_read_size, logging::Logger &logger, size_t threads) {
         if (track_cov) {
             logger.info() << "Cleaning edge coverages" << std::endl;
-            for(Edge & edge: dbg_it->edges()) {
+            for(Edge & edge: dbg.edges()) {
                 edge.incCov(-edge.intCov());
             }
         }
         logger.info() << "Collecting alignments of sequences to the graph" << std::endl;
         ParallelRecordCollector<AlignedRead> tmpReads(threads);
         ParallelCounter cnt(threads);
-        std::function<void(StringContig &)> read_task = [this, min_read_size, &tmpReads, &cnt](StringContig & scontig) {
+        std::function<void(StringContig &)> read_task = [this, min_read_size, &tmpReads, &cnt, &dbg](StringContig & scontig) {
             Contig contig = scontig.makeContig();
             if(contig.size() < min_read_size)
                 return;
-            GraphAlignment path = dbg_it->align(contig.seq);
+            GraphAlignment path = dbg.align(contig.seq);
             GraphAlignment rcPath = path.RC();
             CompactPath cpath(path);
             CompactPath crcPath(rcPath);
@@ -684,22 +684,63 @@ public:
     }
 };
 
-inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &storage) {
-    logger.info() << "Collecting read alignments" << std::endl;
+inline GraphAlignment realignRead(const GraphAlignment &al,
+                                  std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> &embedding) {
+    Edge &old_start_edge = al[0].contig();
+    size_t old_start_pos = al[0].left;
+    Edge *new_start_edge = nullptr;
+    size_t new_start_pos = 0;
+    for(PerfectAlignment<Edge, Edge> &pal : embedding[&old_start_edge]) {
+        if(pal.seg_from.left <= old_start_pos && old_start_pos < pal.seg_from.right) {
+            new_start_edge = &pal.seg_to.contig();
+            new_start_pos = pal.seg_to.left + old_start_pos - pal.seg_from.left;
+            break;
+        }
+    }
+    VERIFY_OMP(new_start_edge != nullptr, "Could not find start edge for alignment");
+    size_t cur = 0;
+    size_t read_length = al.len();
+    size_t position_in_read_path = 0;
+    size_t position_in_read_sequence = 0;
+    GraphAlignment new_al;
+    while(cur < read_length) {
+        size_t len = std::min(read_length - cur, new_start_edge->size() - new_start_pos);
+        new_al += Segment<Edge>(*new_start_edge, new_start_pos, new_start_pos + len);
+        cur += len;
+        if(cur < read_length) {
+            while(position_in_read_sequence + al[position_in_read_path].size() <= cur) {
+                position_in_read_sequence += al[position_in_read_path].size();
+                position_in_read_path += 1;
+                VERIFY_OMP(position_in_read_sequence < read_length, "Alignment inconsistency 1");
+                VERIFY_OMP(position_in_read_path < al.size(), "Alignment inconsistency 2");
+            }
+            new_start_edge = &new_start_edge->end()->getOutgoing(al[position_in_read_path].contig().seq[cur - position_in_read_sequence]);
+            new_start_pos = 0;
+        }
+    }
+    return new_al;
+}
+
+inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
+                            const std::vector<RecordStorage*> &storages) {
+    logger.info() << "Collecting covered edge segments" << std::endl;
     ParallelRecordCollector<Segment<dbg::Edge>> segmentStorage(threads);
     ParallelRecordCollector<size_t> lenStorage(threads);
-#pragma omp parallel for default(none) shared(storage, segmentStorage, lenStorage)
-    for(size_t i = 0; i < storage.size(); i++) { // NOLINT(modernize-loop-convert)
-        AlignedRead &rec = storage[i];
-        size_t len = 0;
-        for(Segment<dbg::Edge> seg : rec.path.getAlignment()) {
-            len += seg.size();
-            if(seg.contig() < seg.contig().rc())
-                seg = seg.RC();
-            segmentStorage.emplace_back(seg);
+    for(RecordStorage *rit : storages) {
+        RecordStorage &storage = *rit;
+#pragma omp parallel for default(none) shared(storage, segmentStorage, lenStorage, std::cout)
+        for (size_t i = 0; i < storage.size(); i++) { // NOLINT(modernize-loop-convert)
+            AlignedRead &rec = storage[i];
+            size_t len = 0;
+            for (Segment<dbg::Edge> seg : rec.path.getAlignment()) {
+                len += seg.size();
+                if (seg.contig() < seg.contig().rc())
+                    seg = seg.RC();
+                segmentStorage.emplace_back(seg);
+            }
+            if (len > 0)
+                lenStorage.emplace_back(len);
         }
-        if(len > 0)
-            lenStorage.emplace_back(len);
     }
     size_t min_len = 100000;
     for(size_t len : lenStorage) {
@@ -711,7 +752,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
     __gnu_parallel::sort(segments.begin(), segments.end());
     logger.info() << "Sorting finished" << std::endl;
     std::vector<Segment<Edge>> segs;
-    logger.info() << "Collecting covered edge segments" << std::endl;
+    logger.info() << "Merging covered edge segments" << std::endl;
     for(Segment<Edge> &seg : segments) {
         if(!segs.empty() && segs.back().contig() == seg.contig() && segs.back().right >= seg.left) {
             if(seg.right > segs.back().right)
@@ -729,66 +770,45 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
             anchors.emplace(vit.first);
         }
     }
+    printStats(logger, subgraph);
+    for(const auto & vit : dbg){
+        VERIFY(subgraph.isAnchor(vit.first) || subgraph.containsVertex(vit.first))
+    }
     mergeAll(logger, subgraph, threads);
+    printStats(logger, subgraph);
     subgraph.fillAnchors(min_len, logger, threads, anchors);
+    for(const auto & vit : dbg){
+        VERIFY(subgraph.isAnchor(vit.first) || subgraph.containsVertex(vit.first))
+    }
     logger.info() << "Constructing embedding of old graph into new" << std::endl;
     std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> embedding;
     ParallelRecordCollector<std::vector<PerfectAlignment<Edge, Edge>>> edgeAlsList(threads);
     std::function<void(Edge &)> task = [&edgeAlsList, &subgraph](Edge &edge) {
-        edgeAlsList.emplace_back(subgraph.oldEdgeAlign(edge));
+        std::vector<PerfectAlignment<Edge, Edge>> al = subgraph.oldEdgeAlign(edge);
+        edgeAlsList.emplace_back(std::move(al));
     };
     processObjects(dbg.edges().begin(), dbg.edges().end(), logger, threads, task);
     for(std::vector<PerfectAlignment<Edge, Edge>> &al : edgeAlsList) {
-        if(al.size() > 0)
+        if(!al.empty())
             embedding[&al[0].seg_from.contig()] = std::move(al);
     }
-    logger.info() << "Aligning reads to the new graph" << std::endl;
-    RecordStorage new_storage(subgraph, storage.min_len, storage.max_len, storage.track_cov);
-    for(AlignedRead &al : storage) {
-        new_storage.addRead(AlignedRead(al.id));
-    }
-
+    logger.info() << "Realigning sequences to the new graph" << std::endl;
+    for(RecordStorage *sit : storages){
+        RecordStorage &storage = *sit;
+        RecordStorage new_storage(subgraph, storage.min_len, storage.max_len, storage.track_cov);
+        for(AlignedRead &al : storage) {
+            new_storage.addRead(AlignedRead(al.id));
+        }
 #pragma omp parallel for default(none) shared(storage, new_storage, embedding, std::cout)
-    for(size_t i = 0; i < storage.size(); i++) {
-        AlignedRead alignedRead = storage[i];
-        if(!alignedRead.valid()) {
-            continue;
-        }
-        GraphAlignment al = alignedRead.path.getAlignment();
-        Edge &old_start_edge = al[0].contig();
-        size_t old_start_pos = al[0].left;
-        Edge *new_start_edge = nullptr;
-        size_t new_start_pos = 0;
-        for(PerfectAlignment<Edge, Edge> &pal : embedding[&old_start_edge]) {
-            if(pal.seg_from.left <= old_start_pos && old_start_pos < pal.seg_from.right) {
-                new_start_edge = &pal.seg_to.contig();
-                new_start_pos = pal.seg_to.left + old_start_pos - pal.seg_from.left;
-                break;
+        for(size_t i = 0; i < storage.size(); i++) {
+            AlignedRead alignedRead = storage[i];
+            if(!alignedRead.valid()) {
+                continue;
             }
+            GraphAlignment al = alignedRead.path.getAlignment();
+            new_storage.updatePath(new_storage[i], CompactPath(realignRead(al, embedding)));
         }
-        VERIFY_OMP(new_start_edge != nullptr, "Could not find start edge for alignment");
-        size_t cur = 0;
-        size_t read_length = al.len();
-        size_t position_in_read_path = 0;
-        size_t position_in_read_sequence = 0;
-        GraphAlignment new_al;
-        while(cur < read_length) {
-            size_t len = std::min(read_length - cur, new_start_edge->size() - new_start_pos);
-            new_al += Segment<Edge>(*new_start_edge, new_start_pos, new_start_pos + len);
-            cur += len;
-            if(cur < read_length) {
-                while(position_in_read_sequence + al[position_in_read_path].size() <= cur) {
-                    position_in_read_sequence += al[position_in_read_path].size();
-                    position_in_read_path += 1;
-                    VERIFY_OMP(position_in_read_path < read_length, "Alignment inconsistency 1");
-                    VERIFY_OMP(position_in_read_sequence < al.size(), "Alignment inconsistency 2");
-                }
-                new_start_edge = &new_start_edge->end()->getOutgoing(al[position_in_read_path].contig().seq[cur - position_in_read_sequence]);
-                new_start_pos = 0;
-            }
-        }
-        new_storage.updatePath(new_storage[i], CompactPath(new_al));
+        std::swap(storage, new_storage);
     }
     std::swap(dbg, subgraph);
-    std::swap(storage, new_storage);
 }

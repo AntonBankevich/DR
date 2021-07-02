@@ -152,8 +152,8 @@ void printAl(logging::Logger &logger, std::unordered_map<const Edge *, CompactPa
 
 void NewMultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
                  const std::experimental::filesystem::path &dir,
-                 const io::Library &reads_lib, size_t unique_threshold,
-                 size_t threads, const size_t min_read_size, bool dump) {
+                 RecordStorage &reads_storage, size_t unique_threshold,
+                 size_t threads, bool dump) {
     const std::experimental::filesystem::path fig_before = dir / "before.dot";
     const std::experimental::filesystem::path fig_after = dir / "after.dot";
     const std::experimental::filesystem::path out_reads = dir / "corrected.fasta";
@@ -161,11 +161,6 @@ void NewMultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
     const std::experimental::filesystem::path multiplicity_figures = dir / "figs";
 
     ensure_dir_existance(multiplicity_figures);
-    logger.info() << "Collecting info from reads" << std::endl;
-    RecordStorage reads_storage(sdbg, 0, 100000, true);
-    io::SeqReader readReader(reads_lib);
-    reads_storage.fill(readReader.begin(), readReader.end(), min_read_size, logger, threads);
-
     SetUniquenessStorage initial_unique = BulgePathAnalyser(sdbg, unique_threshold).uniqueEdges();
     MultiplicityBoundsEstimator estimator(sdbg, initial_unique);
     estimator.update(logger, 3, multiplicity_figures);
@@ -174,8 +169,8 @@ void NewMultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
 
 void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
                  const std::experimental::filesystem::path &dir,
-                 const io::Library &reads_lib, size_t unique_threshold,
-                 size_t threads, const size_t min_read_size, bool dump) {
+                 RecordStorage &reads_storage, size_t unique_threshold,
+                 size_t threads, bool dump) {
     const std::experimental::filesystem::path fig_before = dir / "before.dot";
     const std::experimental::filesystem::path fig_after = dir / "after.dot";
     const std::experimental::filesystem::path out_reads = dir / "corrected.fasta";
@@ -184,10 +179,6 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
     size_t k = sdbg.hasher().getK();
     ensure_dir_existance(multiplicity_figures);
     logger.info() << "Collecting info from reads" << std::endl;
-//    size_t extension_size = std::max(std::min(min_read_size * 3 / 4, sdbg.hasher().getK() * 11 / 2), sdbg.hasher().getK() * 3 / 2);
-    RecordStorage reads_storage(sdbg, 0, 100000, true);
-    io::SeqReader readReader(reads_lib);
-    reads_storage.fill(readReader.begin(), readReader.end(), min_read_size, logger, threads);
     {
         UniqueClassificator classificator(sdbg, reads_storage);
         classificator.classify(logger, unique_threshold, multiplicity_figures);

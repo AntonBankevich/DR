@@ -457,7 +457,8 @@ processTip(logging::Logger &logger, std::ostream &out, const GraphAlignment &tip
     const VertexRecord &rec = ref_storage.getRecord(tip.start());
     size_t genome_support = 0;
     for(const GraphAlignment & al : alternatives) {
-        if(rec.countStartsWith(CompactPath(al).seq()) > 0) {
+        CompactPath compactPath(al);
+        if(rec.countStartsWith(compactPath.seq()) > 0) {
             genome_support += 1;
         }
     }
@@ -975,19 +976,10 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &good_reads,
                     const std::experimental::filesystem::path &bad_reads,
                     const std::experimental::filesystem::path &new_reliable,
-                    const io::Library &reads_lib,
-                    const std::vector<StringContig> &ref,
-                    double threshold, double bulge_threshold, double reliable_coverage, size_t threads, const size_t min_read_size, size_t extension_size, bool dump) {
+                    RecordStorage &reads_storage,
+                    RecordStorage &ref_storage,
+                    double threshold, double bulge_threshold, double reliable_coverage, size_t threads, bool dump) {
     size_t k = sdbg.hasher().getK();
-    logger.info() << "Collecting info from reads" << std::endl;
-//    size_t extension_size = std::max(std::min(min_read_size * 3 / 4, sdbg.hasher().getK() * 11 / 2), sdbg.hasher().getK() * 3 / 2);
-    size_t min_extension = 0;
-    RecordStorage reads_storage(sdbg, min_extension, extension_size, true);
-    io::SeqReader readReader(reads_lib);
-    reads_storage.fill(readReader.begin(), readReader.end(), min_read_size, logger, threads);
-    logger.info() << "Collecting info from reference" << std::endl;
-    RecordStorage ref_storage(sdbg, min_extension, extension_size, false);
-    ref_storage.fill(ref.begin(), ref.end(), min_read_size, logger, threads);
     size_t clow = 0;
     size_t cerr = 0;
     size_t both = 0;
@@ -1007,15 +999,14 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
         }
     }
     logger << "Edge stats " << clow << " " << cerr << " " << both << std::endl;
-    InitialCorrectionPipeline(logger, sdbg,
-                              reads_storage, ref_storage, threads, out_file, new_reliable, reliable_coverage, threshold,
-                              bulge_threshold, dump);
+    InitialCorrectionPipeline(logger, sdbg,reads_storage, ref_storage, threads, out_file, new_reliable,
+                              reliable_coverage, threshold, bulge_threshold, dump);
     logger.info() << "Applying changes to the graph" << std::endl;
-    RemoveUncovered(logger, threads, sdbg, reads_storage);
+    RemoveUncovered(logger, threads, sdbg, {&reads_storage, &ref_storage});
+    sdbg.checkConsistency(threads, logger);
     logger << "Running second round of error correction" << std::endl;
-    InitialCorrectionPipeline(logger, sdbg,
-                              reads_storage, ref_storage, threads, out_file, new_reliable, reliable_coverage, threshold,
-                              bulge_threshold, dump);
+    InitialCorrectionPipeline(logger, sdbg,reads_storage, ref_storage, threads, out_file, new_reliable,
+                              reliable_coverage, threshold, bulge_threshold, dump);
     logger.info() << "Printing reads to disk" << std::endl;
     std::ofstream ors;
     std::ofstream brs;

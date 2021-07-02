@@ -1227,7 +1227,7 @@ namespace dbg {
             ParallelRecordCollector<std::pair<const htype, EdgePosition>> res(threads);
             std::function<void(Edge &)> task = [&res, w, this, to_add](Edge &edge) {
                 Vertex &vertex = *edge.start();
-                if (edge.size() > w) {
+                if (edge.size() > w || !to_add.empty()) {
                     Sequence seq = vertex.seq + edge.seq;
 //                    Does not run for the first and last kmers.
                     for (KWH kmer(this->hasher_, seq, 1); kmer.hasNext(); kmer = kmer.next()) {
@@ -1242,8 +1242,7 @@ namespace dbg {
                     }
                 }
             };
-            EdgeStorage edgeIt = edges();
-            processObjects(edgeIt.begin(), edgeIt.end(), logger, threads, task);
+            processObjects(edges().begin(), edges().end(), logger, threads, task);
             for (auto &tmp : res) {
                 anchors.emplace(tmp);
             }

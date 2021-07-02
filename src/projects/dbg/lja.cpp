@@ -37,10 +37,13 @@ std::experimental::filesystem::path InitialCorrection(logging::Logger &logger, c
         SparseDBG dbg = DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
         size_t extension_size = std::max<size_t>(k * 5 / 2, 3000);
+        RecordStorage readStorage(dbg, 0, extension_size, true);
+        RecordStorage refStorage(dbg, 0, extension_size, false);
+        io::SeqReader reader(reads_lib);
+        readStorage.fill(reader.begin(), reader.end(), w + k - 1, logger, threads);
         initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta", dir / "good.fasta",
-                       dir / "bad.fasta", dir / "new_reliable.fasta", reads_lib, {},
-                       threshold, 2 * threshold, reliable_coverage, threads,
-                       w + k - 1, extension_size, dump);
+                       dir / "bad.fasta", dir / "new_reliable.fasta", readStorage, refStorage,
+                       threshold, 2 * threshold, reliable_coverage, threads, dump);
         Component comp(dbg);
         DrawSplit(comp, dir / "split");
     };
@@ -91,7 +94,10 @@ std::experimental::filesystem::path MultCorrection(logging::Logger &logger, cons
     std::function<void()> mc_task = [&dir, &logger, &hasher, k, w, &reads_lib, threads, unique_threshold, dump] {
         SparseDBG dbg = DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
-        MultCorrect(dbg, logger, dir, reads_lib, unique_threshold, threads, w + k - 1, dump);
+        RecordStorage readStorage(dbg, 0, 100000, true);
+        io::SeqReader reader(reads_lib);
+        readStorage.fill(reader.begin(), reader.end(), w + k - 1, logger, threads);
+        MultCorrect(dbg, logger, dir, readStorage, unique_threshold, threads, dump);
     };
     if(!skip)
         runInFork(mc_task);
