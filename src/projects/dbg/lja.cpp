@@ -40,7 +40,7 @@ std::experimental::filesystem::path InitialCorrection(logging::Logger &logger, c
         RecordStorage readStorage(dbg, 0, extension_size, true);
         RecordStorage refStorage(dbg, 0, extension_size, false);
         io::SeqReader reader(reads_lib);
-        readStorage.fill(reader.begin(), reader.end(), w + k - 1, logger, threads);
+        readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
         initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta", dir / "good.fasta",
                        dir / "bad.fasta", dir / "new_reliable.fasta", readStorage, refStorage,
                        threshold, 2 * threshold, reliable_coverage, threads, dump);
@@ -96,7 +96,7 @@ std::experimental::filesystem::path MultCorrection(logging::Logger &logger, cons
         dbg.fillAnchors(w, logger, threads);
         RecordStorage readStorage(dbg, 0, 100000, true);
         io::SeqReader reader(reads_lib);
-        readStorage.fill(reader.begin(), reader.end(), w + k - 1, logger, threads);
+        readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
         MultCorrect(dbg, logger, dir, readStorage, unique_threshold, threads, dump);
     };
     if(!skip)
@@ -173,7 +173,7 @@ void ConstructSubdataset(logging::Logger &logger, const std::experimental::files
         CalculateCoverage(subdir, hasher, w, sublib, threads, logger, subdbg);
         RecordStorage reads_storage(subdbg, 0, 100000, true);
         io::SeqReader readReader(sublib);
-        reads_storage.fill(readReader.begin(), readReader.end(), hasher.getK() + w - 1, logger, threads);
+        reads_storage.fill(readReader.begin(), readReader.end(), subdbg, hasher.getK() + w - 1, logger, threads);
         reads_storage.printAlignments(logger, subdir/"alignments.txt");
         std::ofstream edges;
         edges.open(subdir / "graph.fasta");
