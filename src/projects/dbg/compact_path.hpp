@@ -766,31 +766,24 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
                 break;
             }
         }
-        if(new_start_edge == nullptr) {
-            std::cout << old_start_edge.start()->hash() << old_start_edge.start()->isCanonical() << old_start_edge.seq[0] <<
-                            " " << old_start_pos << std::endl;
-            for(PerfectAlignment<Edge, Edge> &pal : embedding[&old_start_edge]) {
-                std::cout << pal.seg_from.left << " " << pal.seg_from.right << std::endl;
-            }
-        }
         VERIFY_OMP(new_start_edge != nullptr, "Could not find start edge for alignment");
         size_t cur = 0;
-        size_t rlen = al.len();
-        size_t crlen = 0;
-        size_t rcur = 0;
+        size_t read_length = al.len();
+        size_t position_in_read_path = 0;
+        size_t position_in_read_sequence = 0;
         GraphAlignment new_al;
-        while(cur < rlen) {
-            size_t len = std::min(rlen - cur, new_start_edge->size() - new_start_pos);
+        while(cur < read_length) {
+            size_t len = std::min(read_length - cur, new_start_edge->size() - new_start_pos);
             new_al += Segment<Edge>(*new_start_edge, new_start_pos, new_start_pos + len);
             cur += len;
-            if(cur < rlen) {
-                while(rcur + al[crlen].size() < cur) {
-                    rcur += al[crlen].size();
-                    crlen += 1;
-                    VERIFY_OMP(crlen < rlen, "Alignment inconsistency 1");
-                    VERIFY_OMP(rcur < al.size(), "Alignment inconsistency 2");
+            if(cur < read_length) {
+                while(position_in_read_sequence + al[position_in_read_path].size() <= cur) {
+                    position_in_read_sequence += al[position_in_read_path].size();
+                    position_in_read_path += 1;
+                    VERIFY_OMP(position_in_read_path < read_length, "Alignment inconsistency 1");
+                    VERIFY_OMP(position_in_read_sequence < al.size(), "Alignment inconsistency 2");
                 }
-                new_start_edge = &new_start_edge->end()->getOutgoing(al[crlen].contig().seq[cur - rcur]);
+                new_start_edge = &new_start_edge->end()->getOutgoing(al[position_in_read_path].contig().seq[cur - position_in_read_sequence]);
                 new_start_pos = 0;
             }
         }
