@@ -49,6 +49,8 @@ public:
     }
 
     GraphAlignment getAlignment() const {
+        if(!valid())
+            return {};
         std::vector<Segment<Edge>> path;
         Vertex *cur = _start;
         for(size_t i = 0; i < _edges.size(); i++) {
@@ -73,6 +75,8 @@ public:
     }
 
     CompactPath RC() {
+        if(!valid())
+            return {};
         return CompactPath(getAlignment().RC());
     }
 
@@ -225,6 +229,12 @@ public:
                     zero_cnt += 1;
                 break;
             }
+        }
+        if(!found) {
+            std::cout << "Error" << std::endl;
+            unlock();
+            std::cout << seq << std::endl;
+            std::cout << this->str() << std::endl;
         }
         VERIFY(found);
         if(zero_cnt > paths.size() / 3) {
@@ -428,12 +438,7 @@ public:
     void addRead(AlignedRead &&read) {
         reads.emplace_back(read);
         addSubpath(read.path);
-    }
-
-    void updatePath(AlignedRead &read, const CompactPath &cpath) {
-        removeSubpath(read.path);
-        read.path = cpath;
-        addSubpath(read.path);
+        addSubpath(read.path.RC());
     }
 
     void addSubpath(const CompactPath &cpath) {
@@ -503,6 +508,17 @@ public:
         CompactPath crcCorrected(rcCorrected);
         this->removeSubpath(cInitial);
         this->removeSubpath(crcInitial);
+        this->addSubpath(cCorrected);
+        this->addSubpath(crcCorrected);
+        alignedRead.path = cCorrected;
+    }
+
+    void reroute(AlignedRead &alignedRead, const GraphAlignment &corrected) {
+        GraphAlignment rcCorrected = corrected.RC();
+        CompactPath cCorrected(corrected);
+        CompactPath crcCorrected(rcCorrected);
+        this->removeSubpath(alignedRead.path);
+        this->removeSubpath(alignedRead.path.RC());
         this->addSubpath(cCorrected);
         this->addSubpath(crcCorrected);
         alignedRead.path = cCorrected;
@@ -806,7 +822,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
                 continue;
             }
             GraphAlignment al = alignedRead.path.getAlignment();
-            new_storage.updatePath(new_storage[i], CompactPath(realignRead(al, embedding)));
+            new_storage.reroute(new_storage[i], realignRead(al, embedding));
         }
         std::swap(storage, new_storage);
     }
