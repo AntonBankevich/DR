@@ -49,6 +49,7 @@ struct dinucleotide {
     }
 };
 
+//complex region positions sorted
 template <class Contig>
 vector<dinucleotide> GetDinucleotideRepeats(const Contig& compressed_contig) {
     size_t len = compressed_contig.size();
@@ -90,8 +91,10 @@ struct ContigInfo {
 //neighbourhoud for complex regions;
     static const size_t COMPLEX_EPS = 5;
     static const size_t MAX_CONSENSUS_COVERAGE = 25;
+
     //Complex_regions: map from start to length;
-    map<size_t, size_t> complex_regions;
+
+    vector<pair<size_t, size_t>> complex_regions;
     map<size_t, vector<string>> complex_strings;
 //TODO more efficient data structure
 
@@ -114,7 +117,7 @@ struct ContigInfo {
             }
             if (cur_finish > len)
                 cur_finish = len;
-            complex_regions[cur_start] = cur_finish - cur_start;
+            complex_regions.emplace_back(make_pair(cur_start, cur_finish - cur_start));
             complex_strings[cur_start] = vector<string>();
             current_id = next_id;
         }
@@ -148,14 +151,6 @@ struct ContigInfo {
     void AddRead() {
 
     }
-/*
- * string getSequence(AlignmentInfo al){
-
-    } */
-
-    bool complexStartPosition(size_t ind){
-        return (complex_regions.find(ind) != complex_regions.end());
-    }
 
     string MSAConsensus(vector<string> &s) {
 
@@ -182,11 +177,12 @@ struct ContigInfo {
     string checkMSAConsensus(string s) {
         s.erase(std::unique(s.begin(), s.end()), s.end());
         if (s.length() <= 2 * COMPLEX_EPS + 2) return "TOO SHORT";
-        size_t len = s.length();
+//What are other suspicious cases? Since we can glue two dimeric regions, commented case is  actually OK
+/*        size_t len = s.length();
         for (size_t i = COMPLEX_EPS + 2; i < len - COMPLEX_EPS; i++) {
             if (s[i] != s[COMPLEX_EPS] && s[i] != s[COMPLEX_EPS + 1])
                 return "On position " + to_string(i) + " of " + to_string(len) + " not dimeric nucleo";
-        }
+        } */
         return "";
     }
 
@@ -194,32 +190,49 @@ struct ContigInfo {
     string GenerateConsensus(Logger & logger){
         io:stringstream ss;
         vector<int> quantities(256);
+
         ofstream debug;
-        debug.open(debug_f + name);
-        debug << name << endl;
+        if (debug_f != "none") {
+            debug.open(debug_f + name);
+            debug << name << endl;
+        }
         size_t total_count = 0 ;
-        for (size_t i = 0; i < len; ) {
-            if (complexStartPosition(i))
-            {
-                auto consensus = MSAConsensus(complex_strings[i]);
-                auto check = checkMSAConsensus(consensus);
-                logger.info() << "consensus of " << complex_strings[i].size() << ": " << consensus.length()
-                << endl << "At position " << ss.str().length() << endl;
-                if (check != ""){
+        size_t cur_complex_ind = 0;
+#pragma omp parallel for
+        for (size_t i = 0; i < complex_regions.size(); i++) {
+            size_t start_pos = complex_regions[i].first;
+            auto consensus = MSAConsensus(complex_strings[start_pos]);
+            auto check = checkMSAConsensus(consensus);
+//            logger.info() << "consensus of " << complex_strings[start_pos].size() << ": " << consensus.length() << endl << "At position " <<start_pos << endl;
+            if (check != ""){
+#pragma omp critical
+                {
                     logger.info() << "SUSPICIOUS CONS " << check << endl;
-                    for (auto s: complex_strings[i]) {
+                    logger.info() << "Thread " << omp_get_thread_num() << endl;
+                    for (auto s: complex_strings[start_pos]) {
                         logger.info() << s << endl;
                     }
                 }
-                logger.info() << consensus << endl;
+            }
+            complex_strings[start_pos].push_back(consensus);
+        }
+        logger.info() << " Consenus for contig " << name << " calculated "<< endl;
+        string consensus = "";
+        for (size_t i = 0; i < len; ) {
+
+            if (complex_regions[cur_complex_ind].first == i ) {
+                consensus = complex_strings[i][complex_strings[i].size() - 1];
+                logger.trace() <<"Adding consensus string \n"<< consensus << endl;
                 ss << consensus;
+                if (debug_f != "none" )
+                    for (size_t j = 0; j < consensus.length(); j++) {
+                        debug << total_count << " 0 0 0 " << consensus[j] << endl;
+                        total_count ++;
+                    }
 
-                for (size_t j = 0; j < consensus.length(); j++) {
-                    debug << total_count << " 0 0 0 " << consensus[j] << endl;
-                    total_count ++;
-                }
-
-                i += complex_regions[i];
+                i += complex_regions[cur_complex_ind].second;
+                if (cur_complex_ind + 1< complex_regions.size())
+                    cur_complex_ind ++;
             } else {
                 int real_cov = 1;
                 int cov = 1;
@@ -252,13 +265,17 @@ struct ContigInfo {
                 quantities[quantity[i]]++;
                 for (size_t j = 0; j < cov; j++) {
                     ss << sequence[i];
-                    debug << total_count << " " << sum[i] << " " << int(quantity[i]) << " " << cov << " " << sequence[i];
-
-                    debug << "    ";
-                    for (auto jj = 0; jj < amounts[i][0]; jj++)
-                        debug << int(amounts[i][jj + 1]) << " ";
-                    debug << endl;
                     total_count++;
+                }
+                if (debug_f != "none") {
+                    for (size_t j = 0; j < cov; j++) {
+                        debug << total_count << " " << sum[i] << " " << int(quantity[i]) << " " << cov << " "
+                              << sequence[i];
+                        debug << "    ";
+                        for (auto jj = 0; jj < amounts[i][0]; jj++)
+                            debug << int(amounts[i][jj + 1]) << " ";
+                        debug << endl;
+                    }
                 }
                 i++;
             }
@@ -286,12 +303,15 @@ struct AssemblyInfo {
 //We do not believe matches on the ends of match region
     static const size_t MATCH_EPS = 1;
 
-    AssemblyInfo (CLParser& parser):parser(parser), logger(), used_pairs(0), filtered_pairs(0), get_uncovered_only(false) {
+    static const size_t BATCH_SIZE = 10000;
+
+    AssemblyInfo (CLParser& parser):parser(parser), logger(true, false), used_pairs(0), filtered_pairs(0), get_uncovered_only(false) {
 //TODO paths;
         logging::LoggerStorage ls("/home/lab44/work/homo_compress/", "homopolish");
         logger.addLogFile(ls.newLoggerFile());
-        logger.info() <<"reading contigs";
+        logger.info() <<"Reading contigs..." << endl;
         std::vector<Contig> assembly = io::SeqReader(parser.getValue("contigs")).readAllContigs();
+
         string debug_f = parser.getValue("debug");
         for (auto contig: assembly) {
 //TODO switch to Contig()
@@ -384,9 +404,9 @@ struct AssemblyInfo {
         }
         return res;
     }
-    void processReadPair (StringContig& read, AlignmentInfo& aln) {
+    void processReadPair (string& read, AlignmentInfo& aln) {
 //        logger.info() << read.id << endl;
-        Sequence read_seq = read.makeSequence();
+        Sequence read_seq (read);
         size_t rlen = read.size();
         if (aln.rc) {
             read_seq = !read_seq;
@@ -416,17 +436,24 @@ struct AssemblyInfo {
             logger.info() << minimapaln[0].cigarString() << endl; */
 
 //Likely long prefix clipped
-
-            logger.info() << read.id << endl;
-            logger.info() << str(cigars) << endl;
-            logger.info() << "aln length " << aln.length() <<" read length "<< compressed_read.length() << " matched length " << matched_l<<endl;
+//#pragma omp critical
+            {
+                logger.trace() << aln.read_id << endl << str(cigars) << endl << "aln length " << aln.length() << " read length " << compressed_read.length()
+                              << " matched length " << matched_l << endl;
+            }
             //TODO: we can map to reverse complement, but do not want
             if (matched_l < 100) {
-                logger.info() << "Ultrashort alignmnent, doing nothing" << endl;
+//#pragma omp critical
+                logger.trace() << aln.read_id << " ultrashort alignmnent, doing nothing" << endl;
             } else {
+
                 cigars = align_example( contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, SW_SECOND_BANDWIDTH);
-                logger.info() << "Replaced using bandwindth "<< SW_SECOND_BANDWIDTH << endl;
-                logger.info() << str(cigars) << endl;
+
+//Possibly multiply by two here
+//#pragma omp critical
+                logger.trace() << aln.read_id << " alignment replaced using bandwindth "<< SW_SECOND_BANDWIDTH << endl
+                << str(cigars) << endl;
+
             }
         }
 
@@ -456,8 +483,6 @@ struct AssemblyInfo {
         size_t complex_start = -1;
         size_t contig_finish = -1;
         size_t complex_id = -1;
-//        logger.info() << "quantities_calc\n";
-//        for (auto it = minimapaln[0].begin(); it != minimapaln[0].end(); ++it) {
         for (auto it = cigars.begin(); it != cigars.end(); ++it) {
             if ((*it).type == 'I') {
                 read_coords += (*it).length;
@@ -467,30 +492,41 @@ struct AssemblyInfo {
 //TODO do not forget add complex regions here
                 indels += (*it).length;
             } else {
+                auto complex_regions_iter = lower_bound(current_contig.complex_regions.begin(), current_contig.complex_regions.end(),make_pair(cont_coords + aln.alignment_start, size_t(0)));
+                size_t cur_complex_coord = complex_regions_iter->first;
                 for (size_t i = MATCH_EPS; i + MATCH_EPS< (*it).length; i++) {
                     size_t coord = cont_coords + aln.alignment_start + i;
 
+
 //                    logger.info() << current_contig.sequence[coord]<< compressed_read[read_coords + i] << endl;
                     if (current_contig.sequence[coord] == nucl(compressed_read[read_coords + i]) && current_contig.quantity[coord] != 255 && current_contig.sum[coord] < 60000) {
-                        current_contig.quantity[coord] ++;
-                        current_contig.sum[coord] += quantities[read_coords + i];
-                        if (current_contig.amounts[coord][0] < ContigInfo::VOTES_STORED)
-                            current_contig.amounts[coord][++current_contig.amounts[coord][0]] = quantities[read_coords + i];
-
+                        {
+                            current_contig.quantity[coord]++;
+                            current_contig.sum[coord] += quantities[read_coords + i];
+                            if (current_contig.amounts[coord][0] < ContigInfo::VOTES_STORED)
+#pragma omp critical
+                                current_contig.amounts[coord][++current_contig.amounts[coord][0]] = quantities[
+                                        read_coords + i];
+                        }
                         matches ++;
                     } else {
                         mismatches ++;
                     }
 //Only complete traversion of complex regions taken in account;
-                    if (current_contig.complex_regions.find(coord) != current_contig.complex_regions.end()) {
-                        size_t complex_len = current_contig.complex_regions[coord];
+//                    if (current_contig.complex_regions.find(coord) != current_contig.complex_regions.end()) {
+                    if (coord == cur_complex_coord) {
+                        size_t complex_len = complex_regions_iter->second;
                         if (read_coords + complex_len < matchedLength(cigars)) {
                             complex_start = read_coords + i;
                             contig_finish = coord + complex_len;
                             complex_id = coord;
                         }
+                        complex_regions_iter ++;
+                        if (complex_regions_iter != current_contig.complex_regions.end())
+                            cur_complex_coord = complex_regions_iter->first;
                     }
                     if (coord == contig_finish) {
+#pragma omp critical
                         current_contig.complex_strings[complex_id].push_back(uncompress(complex_start, read_coords + i, read_seq.str()));
                         contig_finish = -1;
                     }
@@ -506,6 +542,14 @@ struct AssemblyInfo {
 //       aligner.Align(compressed_read.c_str(), contig_seq.c_str(), contig_seq.length(), filter, &alignment, maskLen);
 //        logger.info() << "Cigar " << alignment.cigar_string << endl;
 
+    }
+
+    void processBatch(vector<string>& contigs, vector<AlignmentInfo>& alignments){
+        size_t len = contigs.size();
+#pragma omp parallel for
+        for (size_t i = 0; i < len; i++) {
+            processReadPair(contigs[i], alignments[i]);
+        }
     }
 
     void process() {
@@ -527,6 +571,8 @@ struct AssemblyInfo {
         logger.info() << "Assembly read\n";
         size_t reads_count = 0;
         size_t aln_count = 1;
+        vector<AlignmentInfo> align_batch;
+        vector<string> contig_batch;
         while (!compressed_reads.eof()) {
             bool reads_over = false;
             while (cur.id != cur_compressed) {
@@ -541,37 +587,47 @@ struct AssemblyInfo {
                 if (reads_count % 1000 == 0) {
                     logger.info() << "Processed " << reads_count << " original reads " << endl;
                 }
-//                if (reads_count %100 == 99) {
-//                    exit(0);
-//                }
             }
             if (reads_over) {
                 break;
             }
-            processReadPair(cur, cur_align);
+            align_batch.push_back(cur_align);
+            contig_batch.push_back(cur.seq);
+//            processReadPair(cur, cur_align);
 //TODO:: appropriate logic for multiple alignment
             do {
                 cur_align = readAlignment(compressed_reads);
                 aln_count ++;
-                if (aln_count % 1000 == 0) {
-                    logger.info() << "Processed " << aln_count << " compressed reads " << endl;
+                if (aln_count % BATCH_SIZE == 0) {
+                    logger.info() << "Batch  of size " <<BATCH_SIZE <<" created, processing" << endl;
+                    processBatch(contig_batch, align_batch);
 
+                    logger.info() << "Processed " << aln_count << " compressed mappings " << endl;
+                    contig_batch.resize(0);
+                    align_batch.resize(0);
+                    //exit(0);
                 }
+
                 if (cur_compressed == cur_align.read_id) {
-                    processReadPair(cur, cur_align);
-//                    processDinucleotideReadPair(cur,cur_align);
+                    align_batch.push_back(cur_align);
+                    contig_batch.push_back(cur.seq);
+
+//                    contig_batch.emplace_back(cur);
+//                    processReadPair(cur, cur_align);
                 }
             } while (cur_compressed == cur_align.read_id);
 /*            if (aln_count %2000 == 1999)
                 break; */
             cur_compressed = cur_align.read_id;
+
         }
+        processBatch(contig_batch, align_batch);
+        logger.info() << "Processed final batch" << aln_count << " compressed reads " << endl;
+
         logger.info() << "Reads processed, used " <<used_pairs << " filtered by compressed length " << filtered_pairs << endl;
         for (auto& contig: contigs){
             logger.info() << "Generating consensus for contig " << contig.first << endl;
-
             corrected_contigs << ">" << contig.first << '\n' << contig.second.GenerateConsensus(logger) << '\n';
-//            corrected_contigs << ">" << contig.first << '\n' << contig.second.dinucl.GenerateDinucleotideConsensus(logger, contig.second.sequence) << '\n';
         }
         size_t total_zero_covered = 0;
         for (auto & contig: contigs) {
@@ -590,7 +646,7 @@ struct AssemblyInfo {
  *
  */
 int main(int argc, char **argv) {
-    CLParser parser({"aligned=", "contigs=", "output=", "debug="}, {"reads"},
+    CLParser parser({"aligned=", "contigs=", "output=", "debug=none", "threads="}, {"reads"},
                     {});
 
     parser.parseCL(argc, argv);
@@ -601,12 +657,8 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    cout << " parsed";
-
-     AssemblyInfo assemblyInfo(parser);
-//    if (parser.getValue("dinucleo") == "true")
-//        assemblyInfo.processDinucleo();
-//    else
-     assemblyInfo.process();
+    omp_set_num_threads(stoi(parser.getValue("threads")));
+    AssemblyInfo assemblyInfo(parser);
+    assemblyInfo.process();
 
  }
