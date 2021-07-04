@@ -8,7 +8,7 @@
 #include <unordered_set>
 #include <vector>
 #include <iostream>
-#include <ssw/ssw_cpp.h>
+//#include <ssw/ssw_cpp.h>
 #include <spoa/spoa.hpp>
 #include "minimap2/ksw2.h"
 
