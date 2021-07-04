@@ -207,8 +207,7 @@ struct ContigInfo {
             if (check != ""){
 #pragma omp critical
                 {
-                    logger.info() << "SUSPICIOUS CONS " << check << endl;
-                    logger.info() << "Thread " << omp_get_thread_num() << endl;
+                    logger.info() << "Problematic consensus starting on compressed position " << start_pos <<" " << check <<" of " <<complex_strings[start_pos].size() << " sequences "<< endl;
                     for (auto s: complex_strings[start_pos]) {
                         logger.info() << s << endl;
                     }
@@ -226,7 +225,7 @@ struct ContigInfo {
                 ss << consensus;
                 if (debug_f != "none" )
                     for (size_t j = 0; j < consensus.length(); j++) {
-                        debug << total_count << " 0 0 0 " << consensus[j] << endl;
+                        debug << total_count << " 0 "<< complex_strings[i].size() <<" 0 " << consensus[j] << endl;
                         total_count ++;
                     }
 
@@ -599,7 +598,7 @@ struct AssemblyInfo {
                 cur_align = readAlignment(compressed_reads);
                 aln_count ++;
                 if (aln_count % BATCH_SIZE == 0) {
-                    logger.info() << "Batch  of size " <<BATCH_SIZE <<" created, processing" << endl;
+                    logger.info() << "Batch of size " <<BATCH_SIZE <<" created, processing" << endl;
                     processBatch(contig_batch, align_batch);
 
                     logger.info() << "Processed " << aln_count << " compressed mappings " << endl;
@@ -622,7 +621,7 @@ struct AssemblyInfo {
 
         }
         processBatch(contig_batch, align_batch);
-        logger.info() << "Processed final batch" << aln_count << " compressed reads " << endl;
+        logger.info() << "Processed final batch of " << align_batch.size() << " compressed reads " << endl;
 
         logger.info() << "Reads processed, used " <<used_pairs << " filtered by compressed length " << filtered_pairs << endl;
         for (auto& contig: contigs){
