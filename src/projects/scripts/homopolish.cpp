@@ -221,11 +221,11 @@ struct ContigInfo {
 
             if (complex_regions[cur_complex_ind].first == i ) {
                 consensus = complex_strings[i][complex_strings[i].size() - 1];
-                logger.trace() <<"Adding consensus string \n"<< consensus << endl;
+//                logger.trace() <<"Adding consensus string \n"<< consensus << endl;
                 ss << consensus;
                 if (debug_f != "none" )
                     for (size_t j = 0; j < consensus.length(); j++) {
-                        debug << total_count << " 0 "<< complex_strings[i].size() <<" 0 " << consensus[j] << endl;
+                        debug << total_count + 1 << " 0 "<< complex_strings[i].size() <<" 0 " << consensus[j] << endl;
                         total_count ++;
                     }
 
@@ -268,7 +268,7 @@ struct ContigInfo {
                 }
                 if (debug_f != "none") {
                     for (size_t j = 0; j < cov; j++) {
-                        debug << total_count << " " << sum[i] << " " << int(quantity[i]) << " " << cov << " "
+                        debug << total_count - cov + j + 1 << " " << sum[i] << " " << int(quantity[i]) << " " << cov << " "
                               << sequence[i];
                         debug << "    ";
                         for (auto jj = 0; jj < amounts[i][0]; jj++)
