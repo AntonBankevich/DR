@@ -1621,7 +1621,7 @@ namespace dbg {
 
         void removeMarked() {
             for (auto it = v.begin(); it != v.end();) {
-                if (it->second.marked()) {
+                if (it->second.marked() || (it->second.inDeg() == 0 && it->second.outDeg() == 0)) {
                     it = v.erase(it);
                 } else {
                     ++it;

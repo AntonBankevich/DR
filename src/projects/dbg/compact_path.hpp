@@ -793,9 +793,6 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
     mergeAll(logger, subgraph, threads);
     printStats(logger, subgraph);
     subgraph.fillAnchors(min_len, logger, threads, anchors);
-    for(const auto & vit : dbg){
-        VERIFY(subgraph.isAnchor(vit.first) || subgraph.containsVertex(vit.first))
-    }
     logger.info() << "Constructing embedding of old graph into new" << std::endl;
     std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> embedding;
     ParallelRecordCollector<std::vector<PerfectAlignment<Edge, Edge>>> edgeAlsList(threads);

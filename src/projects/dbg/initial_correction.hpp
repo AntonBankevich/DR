@@ -27,17 +27,18 @@ size_t edit_distance(Sequence s1, Sequence s2) {
 }
 
 size_t bestPrefix(const Sequence &s1, const Sequence &s2) {
-    std::vector<std::vector<size_t>> d(s1.size() + 1, std::vector<size_t>(s2.size() + 1));
-    d[0][0] = 0;
-    for(unsigned int i = 1; i <= s1.size(); ++i) d[i][0] = i;
-    for(unsigned int i = 1; i <= s2.size(); ++i) d[0][i] = i;
-
-    for(unsigned int i = 1; i <= s1.size(); ++i)
+    std::vector<size_t> prev(s2.size() + 1);
+    std::vector<size_t> cur(s2.size() + 1);
+    for(unsigned int i = 0; i <= s1.size(); ++i) cur[i] = i;
+    for(unsigned int i = 1; i <= s1.size(); ++i) {
+        std::swap(prev, cur);
+        cur[0] = i;
         for(unsigned int j = 1; j <= s2.size(); ++j)
-            d[i][j] = std::min({ d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (s1[i - 1] == s2[j - 1] ? 0 : 1) });
+            cur[j] = std::min({ prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (s1[i - 1] == s2[j - 1] ? 0 : 1) });
+    }
     size_t res = s2.size();
     for(size_t j = 0; j < s2.size(); j++)
-        if(d[s1.size()][j] < d[s1.size()][res])
+        if(cur[j] < cur[res])
             res = j;
     return res;
 }
@@ -436,7 +437,9 @@ void InitialCorrectionPipeline(logging::Logger &logger, SparseDBG &sdbg, RecordS
 GraphAlignment BestAlignmentPrefix(const GraphAlignment &al, const Sequence & seq) {
     Sequence candSeq = al.truncSeq();
     Sequence prefix = candSeq.Subseq(0, bestPrefix(seq, candSeq));
-    return GraphAlignment(al.start()).extend(prefix);
+    GraphAlignment res(al.start());
+    res.extend(prefix);
+    return res;
 }
 
 GraphAlignment
@@ -513,7 +516,7 @@ processTip(logging::Logger &logger, std::ostream &out, const GraphAlignment &tip
     if(trunc_alignments.size() == 1) {
         return std::move(trunc_alignments[0]);
     } else {
-        return std::move(tip);
+        return tip;
     }
 }
 
@@ -521,13 +524,14 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
                                 RecordStorage &ref_storage,
                                 const std::experimental::filesystem::path &out_file,
                                 double threshold, double reliable_threshold, size_t k, size_t threads, bool dump) {
+    if(dump)
+        threads = 1;
     ParallelRecordCollector<std::string> results(threads);
     ParallelCounter simple_bulge_cnt(threads);
     ParallelCounter bulge_cnt(threads);
     logger.info() << "Correcting low covered regions in reads" << std::endl;
-    if(dump)
-        omp_set_num_threads(1);
-    size_t max_size = std::min<size_t>(k * 2 + 500, 4000);
+    omp_set_num_threads(threads);
+    size_t max_size = std::min(reads_storage.max_len * 9 / 10, std::max<size_t>(k * 2, 1000));
 #pragma omp parallel for default(none) shared(std::cout, reads_storage, ref_storage, results, threshold, k, max_size, logger, simple_bulge_cnt, bulge_cnt, dump, reliable_threshold)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;
@@ -647,8 +651,6 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
             path_pos = path_pos + step_front;
         }
         if(path != corrected_path) {
-            if(alignedRead.id == "m64062_190806_063919/124783250/ccs")
-                logger << "Corrected read " << alignedRead.id << std::endl;
             reads_storage.reroute(alignedRead, path, corrected_path);
         }
         results.emplace_back(ss.str());
