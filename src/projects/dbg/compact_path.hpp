@@ -742,6 +742,9 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
     logger.info() << "Collecting covered edge segments" << std::endl;
     ParallelRecordCollector<Segment<dbg::Edge>> segmentStorage(threads);
     ParallelRecordCollector<size_t> lenStorage(threads);
+    for(Edge &edge : dbg.edges()) {
+        edge.extraInfo = 0;
+    }
     for(RecordStorage *rit : storages) {
         RecordStorage &storage = *rit;
 #pragma omp parallel for default(none) shared(storage, segmentStorage, lenStorage, std::cout)
@@ -752,11 +755,23 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
                 len += seg.size();
                 if (seg.contig() < seg.contig().rc())
                     seg = seg.RC();
-                segmentStorage.emplace_back(seg);
+                if(seg.size() < seg.contig().size())
+                    segmentStorage.emplace_back(seg);
+                else {
+                    seg.contig().start()->lock();
+                    seg.contig().extraInfo = 1;
+                    seg.contig().start()->unlock();
+                }
             }
             if (len > 0)
                 lenStorage.emplace_back(len);
         }
+    }
+    for(Edge &edge : dbg.edges()) {
+        if(edge.extraInfo == 1) {
+            segmentStorage.emplace_back(edge, 0, edge.size());
+        }
+        edge.extraInfo = 0;
     }
     size_t min_len = 100000;
     for(size_t len : lenStorage) {
@@ -778,6 +793,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
         }
     }
     logger.info() << "Extracted " << segs.size() << " covered segments" << std::endl;
+    logger.info() << "Constructing subgraph" << std::endl;
     SparseDBG subgraph = dbg.Subgraph(segs);
     dbg.checkConsistency(threads, logger);
     std::unordered_set<htype, alt_hasher<htype>> anchors;

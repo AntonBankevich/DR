@@ -150,7 +150,7 @@ int main(int argc, char **argv) {
                      "initial-correct", "mult-correct", "mult-analyse", "compress", "dimer-compress=1000000", "help", "genome-path",
                      "dump", "extension-size=none", "print-all", "extract-subdatasets", "print-alignments", "subdataset-radius=10000",
                      "split"},
-                    {"reads", "align", "paths", "print-segment"},
+                    {"reads", "pseudo-reads", "align", "paths", "print-segment"},
                     {"h=help", "o=output-dir", "t=threads", "k=k-mer-size","w=window"},
                     constructMessage());
     parser.parseCL(argc, argv);
@@ -185,15 +185,15 @@ int main(int argc, char **argv) {
     }
     RollingHash hasher(k, std::stoi(parser.getValue("base")));
     const size_t w = std::stoi(parser.getValue("window"));
-    io::Library construction_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
+    io::Library pseudo_reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("pseudo-reads"));
+    io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     io::Library paths_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("paths"));
-    io::Library reads_lib = construction_lib;
     io::Library genome_lib = {};
     if (parser.getValue("reference") != "none") {
         logger.info() << "Added reference to graph construction. Careful, some edges may have coverage 0" << std::endl;
-        construction_lib.insert(construction_lib.begin(), std::experimental::filesystem::path(parser.getValue("reference")));
-        genome_lib.insert(genome_lib.begin(), std::experimental::filesystem::path(parser.getValue("reference")));
+        genome_lib = {std::experimental::filesystem::path(parser.getValue("reference"))};
     }
+    io::Library construction_lib = reads_lib + pseudo_reads_lib + genome_lib;
     size_t threads = std::stoi(parser.getValue("threads"));
     omp_set_num_threads(threads);
 

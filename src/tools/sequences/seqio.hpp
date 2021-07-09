@@ -262,3 +262,10 @@ namespace io {
     };
 
 }
+
+inline io::Library operator+(const io::Library &lib1, const io::Library &lib2) {
+    io::Library res = lib1;
+    res.insert(res.end(), lib2.begin(), lib2.end());
+    return std::move(res);
+}
+
