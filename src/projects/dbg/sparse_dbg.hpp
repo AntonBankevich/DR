@@ -1225,7 +1225,7 @@ namespace dbg {
         void fillAnchors(size_t w, logging::Logger &logger, size_t threads, const std::unordered_set<htype, alt_hasher<htype>> &to_add) {
             logger.info() << "Adding anchors from long edges for alignment" << std::endl;
             ParallelRecordCollector<std::pair<const htype, EdgePosition>> res(threads);
-            std::function<void(Edge &)> task = [&res, w, this, to_add](Edge &edge) {
+            std::function<void(Edge &)> task = [&res, w, this, &to_add](Edge &edge) {
                 Vertex &vertex = *edge.start();
                 if (edge.size() > w || !to_add.empty()) {
                     Sequence seq = vertex.seq + edge.seq;
@@ -1416,8 +1416,10 @@ namespace dbg {
                     }
                     if (edge == nullptr && isAnchor(kwh.hash())) {
                         typename SparseDBG::EdgePosition gpos = getAnchor(kwh);
-                        edge = gpos.edge;
-                        pos = gpos.pos;
+                        if(gpos.edge->seq[gpos.pos] == seq[kwh.pos + k]) {
+                            edge = gpos.edge;
+                            pos = gpos.pos;
+                        }
                     }
                     if(edge != nullptr) {
                         size_t len = std::min(contig.size() - kwh.pos, edge->size() - pos);
