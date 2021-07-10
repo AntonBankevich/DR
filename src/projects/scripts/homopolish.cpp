@@ -8,9 +8,10 @@
 #include <unordered_set>
 #include <vector>
 #include <iostream>
-//#include <ssw/ssw_cpp.h>
+
 #include <spoa/spoa.hpp>
-#include "minimap2/ksw2.h"
+#include <ksw2/ksw_wrapper.hpp>
+
 
 using namespace std;
 using logging::Logger;
@@ -418,7 +419,7 @@ struct AssemblyInfo {
         string contig_seq = current_contig.sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
 
 //strings, match, mismatch, gap_open, gap_extend, width
-        auto cigars = align_example( contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, SW_BANDWIDTH);
+        auto cigars = align_ksw( contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, SW_BANDWIDTH);
 
         auto str_cigars = str(cigars);
         /*if (!verifyCigar(cigars) || cigars.size() > 100) {
@@ -446,7 +447,7 @@ struct AssemblyInfo {
                 logger.trace() << aln.read_id << " ultrashort alignmnent, doing nothing" << endl;
             } else {
 
-                cigars = align_example( contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, SW_SECOND_BANDWIDTH);
+                cigars = align_ksw( contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, SW_SECOND_BANDWIDTH);
 
 //Possibly multiply by two here
 //#pragma omp critical

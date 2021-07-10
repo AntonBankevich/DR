@@ -8,3 +8,4 @@ Makefile
 tests/run_tests
 **/*.cmake
 **/*.cbp
+src/tests/googletest-master/googletest/generated/*
