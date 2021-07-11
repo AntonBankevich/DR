@@ -296,6 +296,8 @@ public:
         for(Component &component : split) {
             cnt += 1;
             std::experimental::filesystem::path out_file = dir / (std::to_string(cnt) + ".dot");
+            logger.info() << "Component parameters: size=" << component.size() << " border edges=" << component.borderEdges() <<
+                    " connected subcomponents=" << component.realCC() << " acyclic=" << component.isAcyclic() <<std::endl;
             if(component.size() > 2 && component.borderEdges() == 2 && component.realCC() == 2 && component.isAcyclic()) {
                 processSimpleComponent(logger, component);
             }

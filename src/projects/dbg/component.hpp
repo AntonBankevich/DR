@@ -130,6 +130,10 @@ namespace dbg {
                     if(!contains(*edge.end()))
                         res++;
                 }
+                for(Edge &edge : vert.rc()) {
+                    if(!contains(*edge.end()))
+                        res++;
+                }
             }
             return res;
         }
