@@ -150,7 +150,7 @@ namespace dbg {
                     while(!queue.empty()) {
                         Vertex &vert = *queue.back();
                         queue.pop_back();
-                        if(visited.find(&vert) == visited.end())
+                        if(visited.find(&vert) != visited.end())
                             continue;
                         bool ok = true;
                         for(Edge &edge : vert.rc()) {
@@ -185,7 +185,7 @@ namespace dbg {
                     while(!queue.empty()) {
                         Vertex &vert = *queue.back();
                         queue.pop_back();
-                        if(visited.find(&vert) == visited.end())
+                        if(visited.find(&vert) != visited.end())
                             continue;
                         visited.emplace(&vert);
                         for(Edge &edge : vert) {
