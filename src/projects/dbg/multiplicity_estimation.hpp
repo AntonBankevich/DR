@@ -267,22 +267,36 @@ private:
 public:
     const RecordStorage &reads_storage;
     void classify(logging::Logger &logger, size_t unique_len, const std::experimental::filesystem::path &dir) {
-        Component graph(dbg);
-        std::vector<Component> split = LengthSplitter(unique_len).split(Component(dbg));
         size_t cnt = 0;
-        for(auto & it : dbg) {
-            for(auto v_it : {&it.second, &it.second.rc()}) {
-                for(Edge &edge : *v_it) {
-                    if(edge.size() > unique_len) {
-                        addUnique(edge);
+        for(Edge &edge : dbg.edges()) {
+            edge.is_reliable = true;
+        }
+        for(Edge &edge : dbg.edges()) {
+            if(edge.size() > unique_len || (edge.start()->inDeg() == 0 && edge.size() > unique_len / 3)) {
+                addUnique(edge);
+                if(edge.end()->outDeg() > 1 && edge.end()->inDeg() == 1) {
+                    Edge *best = nullptr;
+                    for(Edge &out : *edge.end()) {
+                        if(best == nullptr) {
+                            best = &out;
+                            continue;
+                        } else {
+                            if (out.getCoverage() > best->getCoverage()) {
+                                best->is_reliable = false;
+                                best = &out;
+                            } else {
+                                out.is_reliable = false;
+                            }
+                        }
                     }
                 }
             }
         }
+        std::vector<Component> split = UniqueSplitter(*this).split(Component(dbg));
         for(Component &component : split) {
             cnt += 1;
             std::experimental::filesystem::path out_file = dir / (std::to_string(cnt) + ".dot");
-            std::vector<const Edge *> new_unique = processComponent(logger, component, unique_len, out_file);
+            std::vector<const Edge *> new_unique = processComponent(logger, component, out_file);
             addUnique(new_unique.begin(), new_unique.end());
         }
     }
@@ -346,12 +360,12 @@ public:
         return std::move(extra_unique);
     }
 
-    std::vector<const dbg::Edge *> processComponent(logging::Logger &logger, const Component &component, size_t unique_len,
+    std::vector<const dbg::Edge *> processComponent(logging::Logger &logger, const Component &component,
                                                     const std::experimental::filesystem::path &out_file) const {
         std::unordered_set<const dbg::Edge *> unique_in_component;
         double rel_coverage = 0;
-        std::function<bool(const dbg::Edge &)> is_unique = [unique_len](const dbg::Edge &edge) {
-            return edge.size() >= unique_len;
+        std::function<bool(const dbg::Edge &)> is_unique = [this](const dbg::Edge &edge) {
+            return isUnique(edge);
         };
         MappedNetwork net(component, is_unique, rel_coverage);
         bool res = net.fillNetwork();
@@ -376,8 +390,8 @@ public:
             }
         }
         if(res) {
-            std::function<bool(const dbg::Edge &)> is_unique1 = [&unique_in_component, unique_len](const dbg::Edge &edge){
-                return edge.size() >= unique_len || unique_in_component.find(&edge) != unique_in_component.end();
+            std::function<bool(const dbg::Edge &)> is_unique1 = [&unique_in_component, this](const dbg::Edge &edge){
+                return isUnique(edge) || unique_in_component.find(&edge) != unique_in_component.end();
             };
             std::vector<Component> subsplit = ConditionSplitter(is_unique1).split(component);
             for(Component &subcomponent : subsplit) {
@@ -385,8 +399,8 @@ public:
                 unique_in_component.insert(extra_unique.begin(), extra_unique.end());
             }
         }
-        std::function<std::string(Edge &)> colorer = [&unique_in_component](Edge &edge) {
-            return unique_in_component.find(&edge) == unique_in_component.end() ? "black" : "red";
+        std::function<std::string(Edge &)> colorer = [this, &unique_in_component](Edge &edge) {
+            return (isUnique(edge) || unique_in_component.find(&edge) == unique_in_component.end()) ? "black" : "red";
         };
         logger << "Printing component to " << out_file << std::endl;
         const std::function<std::string(Edge &)> labeler = [](Edge &) {return "";};

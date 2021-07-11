@@ -185,27 +185,18 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
         std::unordered_map<const Edge *, CompactPath> unique_extensions =
                 constructUniqueExtensions(logger, sdbg, reads_storage, classificator);
         Component all(sdbg);
-        std::function<std::string(Edge &)> labeler = [&reads_storage](Edge &edge){
-            const VertexRecord &rec = reads_storage.getRecord(*edge.start());
-            std::stringstream ss;
-            for(const auto &ext : rec) {
-                if(ext.first[0] == edge.seq[0])
-                    ss << ext.first << "(" << ext.second << ")\n";
-            }
-            return ss.str();
-        };
         std::function<std::string(Edge &)> colorer = classificator.colorer();
         {
             std::ofstream os;
             os.open(fig_before);
-            printDot(os, all, labeler, colorer);
+            printDot(os, all, reads_storage.labeler(), colorer);
             os.close();
         }
         correctReads(logger, reads_storage, unique_extensions);
         {
             std::ofstream os;
             os.open(fig_after);
-            printDot(os, all, labeler, colorer);
+            printDot(os, all, reads_storage.labeler(), colorer);
             os.close();
         }
     }
@@ -223,8 +214,7 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
     std::ofstream ors;
     std::ofstream brs;
     ors.open(out_reads);
-    for(auto it = reads_storage.begin(); it != reads_storage.end(); ++it) {
-        AlignedRead &alignedRead = *it;
+    for(auto & alignedRead : reads_storage) {
         GraphAlignment al = alignedRead.path.getAlignment();
         bool ok = true;
         for(Segment<dbg::Edge> &seg : al) {
@@ -237,9 +227,10 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
             ors << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
         } else {
             logger << "Could not correct read " << alignedRead.id << ". Removing it from dataset." << std::endl;
-            alignedRead.path = CompactPath();
+            reads_storage.invalidateRead(alignedRead);
         }
     }
+    RemoveUncovered(logger, threads, sdbg, {&reads_storage});
     reads_storage.printAlignments(logger, out_alignments);
     ors.close();
 }

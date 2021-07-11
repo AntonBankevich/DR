@@ -21,6 +21,7 @@
 #include "common/dir_utils.hpp"
 #include "common/cl_parser.hpp"
 #include "common/logging.hpp"
+#include "graph_printing.hpp"
 #include <iostream>
 #include <queue>
 #include <omp.h>
@@ -259,7 +260,7 @@ int main(int argc, char **argv) {
         }
         initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta",
                        dir / "good.fasta",dir / "bad.fasta", dir / "new_reliable.fasta",
-                       readStorage, refStorage, threshold, 2 * threshold, reliable, threads,
+                       readStorage, refStorage, threshold, 2 * threshold, reliable, false, threads,
                        parser.getCheck("dump"));
         Component comp(dbg);
         DrawSplit(comp, dir / "split");
@@ -463,12 +464,12 @@ int main(int argc, char **argv) {
         logger.info() << "Printing graph to fasta file " << (dir / "graph.fasta") << std::endl;
         std::ofstream edges;
         edges.open(dir / "graph.fasta");
-        dbg.printFasta(edges);
+        printFasta(edges, dbg);
         edges.close();
         logger.info() << "Printing graph to gfa file " << (dir / "graph.gfa") << std::endl;
         std::ofstream gfa;
         gfa.open(dir / "graph.gfa");
-        dbg.printGFA(gfa, calculate_coverage);
+        printGFA(gfa, dbg, calculate_coverage);
         gfa.close();
         logger.info() << "Printing graph to dot file " << (dir / "graph.dot") << std::endl;
         std::ofstream dot;
@@ -571,7 +572,7 @@ int main(int argc, char **argv) {
         mergeAll(logger, simp_dbg, threads);
         std::ofstream simp_os;
         simp_os.open(dir / "simp_graph.fasta");
-        simp_dbg.printFasta(simp_os);
+        printFasta(simp_os, simp_dbg);
         simp_os.close();
         std::ofstream dot;
         dot.open(dir / "simp_graph.dot");

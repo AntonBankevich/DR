@@ -7,6 +7,97 @@
 
 namespace dbg {
     class Component {
+        class EdgeIterator {
+            typedef typename std::unordered_set<htype, alt_hasher<htype>>::const_iterator iterator;
+            Component const *component;
+            iterator it;
+            iterator end;
+            bool rc;
+            size_t e_num;
+
+            void seek() {
+                if(it == end)
+                    return;
+                {
+                    const Vertex &vert = rc ? component->graph.getVertex(*it).rc() : component->graph.getVertex(*it);
+                    if (e_num < vert.outDeg()) {
+                        return;
+                    }
+                }
+                e_num = 0;
+                if(rc) {
+                    rc = false;
+                    ++it;
+                } else {
+                    rc = true;
+                }
+                while(it != end) {
+                    const Vertex &vert = rc ? component->graph.getVertex(*it).rc() : component->graph.getVertex(*it);
+                    if (e_num < vert.outDeg()) {
+                        return;
+                    }
+                    if(rc) {
+                        rc = false;
+                        ++it;
+                    } else {
+                        rc = true;
+                    }
+                }
+            }
+
+        public:
+            typedef typename dbg::Edge value_type;
+
+            EdgeIterator(const Component &component, iterator it, iterator end, bool rc, size_t e_num) : component(&component),
+                            it(it), end(end), rc(rc), e_num(e_num) {
+                seek();
+            }
+
+            Edge &operator*() const {
+                Edge *res = nullptr;
+                if(rc)
+                    res = &component->graph.getVertex(*it).rc()[e_num];
+                else
+                    res = &component->graph.getVertex(*it)[e_num];
+                return *res;
+            }
+
+            EdgeIterator& operator++() {
+                e_num += 1;
+                seek();
+                return *this;
+            }
+
+            EdgeIterator operator++(int) const {
+                EdgeIterator other = *this;
+                ++other;
+                return other;
+            }
+
+            bool operator==(const EdgeIterator &other) const {
+                return it == other.it && end == other.end && rc == other.rc && e_num == other.e_num;
+            }
+
+            bool operator!=(const EdgeIterator &other) const {
+                return !operator==(other);
+            }
+        };
+
+        class EdgeStorage {
+        private:
+            const Component &component;
+        public:
+            EdgeStorage(const Component &component) : component(component) {
+            }
+
+            EdgeIterator begin() const {
+                return {component, component.v.begin(), component.v.end(), false, 0};
+            }
+
+            EdgeIterator end() const {
+                return {component, component.v.end(), component.v.end(), false, 0};
+            }
+        };
     public:
         SparseDBG &graph;
         std::unordered_set<htype, alt_hasher<htype>> v;
@@ -38,6 +129,10 @@ namespace dbg {
                 }
             }
             VERIFY(false);
+        }
+
+        EdgeStorage edges() const {
+            return {*this};
         }
 
         bool contains(const Vertex &vert) const {

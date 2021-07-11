@@ -2,6 +2,8 @@
 #include "dbg_construction.hpp"
 #include "common/rolling_hash.hpp"
 #include "sequences/seqio.hpp"
+#include "component.hpp"
+#include "graph_printing.hpp"
 #include <iostream>
 #include <unordered_set>
 
@@ -358,7 +360,7 @@ std::experimental::filesystem::path CrudeCorrect(logging::Logger &logger, Sparse
     logger.info() << "Printing initial simplified graph to fasta" << std::endl;
     std::ofstream simp_os;
     simp_os.open(dir / "simp_graph.fasta");
-    simp_dbg.printFasta(simp_os);
+    printFasta(simp_os, Component(simp_dbg));
     simp_os.close();
     logger.info() << "Printing initial simplified graph to dot" << std::endl;
     std::ofstream dot;

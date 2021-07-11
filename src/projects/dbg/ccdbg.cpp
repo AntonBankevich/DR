@@ -5,6 +5,7 @@
 #include "common/rolling_hash.hpp"
 #include "common/hash_utils.hpp"
 #include "visualization.hpp"
+#include "graph_printing.hpp"
 #include <sequences/seqio.hpp>
 #include <common/cl_parser.hpp>
 #include <common/dir_utils.hpp>
@@ -53,7 +54,7 @@ int main(int argc, char **argv) {
             logger.info() << "Printing initial graph to fasta file " << (initial_dir / "graph.fasta") << std::endl;
             std::ofstream edges;
             edges.open(initial_dir / "graph.fasta");
-            dbg.printFasta(edges);
+            printFasta(edges, Component(dbg));
             edges.close();
             logger.info() << "Printing graph to dot file " << (initial_dir / "graph.dot") << std::endl;
             std::ofstream dot;
@@ -76,7 +77,7 @@ int main(int argc, char **argv) {
         logger.info() << "Printing graph to fasta file " << (dir / "graph.fasta") << std::endl;
         std::ofstream edges;
         edges.open(dir / "graph.fasta");
-        dbg_corrected.printFasta(edges);
+        printFasta(edges, dbg_corrected);
         edges.close();
         logger.info() << "Printing graph to dot file " << (dir / "graph.dot") << std::endl;
         std::ofstream dot;

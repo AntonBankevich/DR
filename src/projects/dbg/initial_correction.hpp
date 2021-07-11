@@ -545,7 +545,9 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
         for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
             VERIFY_OMP(corrected_path.finish() == path.getVertex(path_pos));
             Edge &edge = path[path_pos].contig();
-            if (edge.getCoverage() >= threshold || edge.is_reliable) {
+            if (edge.getCoverage() >= reliable_threshold || edge.is_reliable ||
+                    (edge.start()->inDeg() > 0 && edge.end()->outDeg() > 0 && edge.getCoverage() > threshold) ) {
+//              Tips need to pass reliable threshold to avoid being corrected.
                 corrected_path.push_back(path[path_pos]);
                 continue;
             }
@@ -980,7 +982,7 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &new_reliable,
                     RecordStorage &reads_storage,
                     RecordStorage &ref_storage,
-                    double threshold, double bulge_threshold, double reliable_coverage, size_t threads, bool dump) {
+                    double threshold, double bulge_threshold, double reliable_coverage, bool remove_bad, size_t threads, bool dump) {
     size_t k = sdbg.hasher().getK();
     size_t clow = 0;
     size_t cerr = 0;
@@ -1009,6 +1011,25 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
     logger << "Running second round of error correction" << std::endl;
     InitialCorrectionPipeline(logger, sdbg,reads_storage, ref_storage, threads, out_file, new_reliable,
                               reliable_coverage, threshold, bulge_threshold, dump);
+    if(remove_bad) {
+        size_t cnt = 0;
+        for (auto it = reads_storage.begin(); it != reads_storage.end(); ++it) {
+            AlignedRead &alignedRead = *it;
+            bool good = true;
+            for (auto edge_it : alignedRead.path.getAlignment().path()) {
+                if (edge_it->getCoverage() < threshold) {
+                    good = false;
+                    break;
+                }
+            }
+            if (!good) {
+                reads_storage.invalidateRead(alignedRead);
+                cnt++;
+            }
+        }
+        logger.info() << "Could not correct " << cnt << " reads. They were removed." << std::endl;
+    }
+    RemoveUncovered(logger, threads, sdbg, {&reads_storage, &ref_storage});
     logger.info() << "Printing reads to disk" << std::endl;
     std::ofstream ors;
     std::ofstream brs;
@@ -1018,19 +1039,9 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
     grs.open(good_reads);
     for(auto it = reads_storage.begin(); it != reads_storage.end(); ++it) {
         AlignedRead &alignedRead = *it;
+        if(!alignedRead.valid())
+            continue;
         ors << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
-        bool good = true;
-        for(auto edge_it : alignedRead.path.getAlignment().path()) {
-            if(edge_it->getCoverage() < threshold) {
-                good = false;
-                break;
-            }
-        }
-        if(good) {
-            grs << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
-        } else {
-            brs << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
-        }
     }
     ors.close();
     brs.close();
@@ -1058,6 +1069,8 @@ void InitialCorrectionPipeline(logging::Logger &logger, SparseDBG &sdbg, RecordS
     for(size_t i = 0; i < 3; i++){
         size_t correctedAT = correctAT(logger, reads_storage, k, threads);
         logger.info() << "Corrected " << correctedAT << " dinucleotide sequences" << std::endl;
+        if(correctedAT == 0)
+            break;
     }
     {
         size_t corrected_bulges = collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);

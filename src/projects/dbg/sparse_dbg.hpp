@@ -1631,67 +1631,6 @@ namespace dbg {
             }
         }
 
-        void printFasta(std::ostream &out) const {
-            size_t cnt = 0;
-            for (const auto &it : v) {
-                const Vertex &vertex = it.second;
-                VERIFY(!vertex.seq.empty());
-                for (size_t i = 0; i < vertex.outDeg(); i++) {
-                    const Edge &edge = *(vertex.begin() + i);
-                    Sequence tmp = vertex.seq + edge.seq;
-                    Vertex &end = *edge.end();
-                    out << ">" << cnt << "_" << vertex.hash() << int(vertex.isCanonical()) <<
-                        "_" << end.hash() << int(end.isCanonical()) << "_" << edge.size() << "_" << edge.getCoverage()
-                        << std::endl;
-                    cnt++;
-                    out << tmp.str() << "\n";
-                }
-                const Vertex &rcvertex = vertex.rc();
-                for (size_t i = 0; i < rcvertex.outDeg(); i++) {
-                    const Edge &edge = rcvertex[i];
-                    Sequence tmp = rcvertex.seq + edge.seq;
-                    Vertex &end = *edge.end();
-                    out << ">" << cnt << "_" << rcvertex.hash() << int(rcvertex.isCanonical()) <<
-                        "_" << end.hash() << int(end.isCanonical()) << "_" << edge.size() << "_" << edge.getCoverage()
-                        << std::endl;
-                    cnt++;
-                    out << tmp.str() << "\n";
-                }
-            }
-        }
-
-        void printGFA(std::ostream &out, bool calculate_coverage) const {
-            out << "H\tVN:Z:1.0" << std::endl;
-            size_t cnt = 0;
-            for (const auto &it : v) {
-                for (const Vertex *pv : {&it.second, &it.second.rc()}) {
-                    const Vertex &vertex = *pv;
-                    VERIFY(!vertex.seq.empty());
-                    for (const Edge &edge : vertex) {
-                        if (vertex.isCanonical(edge)) {
-                            if (calculate_coverage)
-                                out << "S\t" << vertex.edgeId(edge) << "\t" << vertex.seq << edge.seq
-                                    << "\tKC:i:" << edge.intCov() << std::endl;
-                            else
-                                out << "S\t" << vertex.edgeId(edge) << "\t" << vertex.seq << edge.seq << std::endl;
-                        }
-                    }
-                }
-            }
-            for (const auto &it : v) {
-                const Vertex &vertex = it.second;
-                for (const Edge &out_edge : vertex) {
-                    std::string outid = vertex.edgeId(out_edge);
-                    bool outsign = vertex.isCanonical(out_edge);
-                    for (const Edge &inc_edge : vertex.rc()) {
-                        std::string incid = vertex.rc().edgeId(inc_edge);
-                        bool incsign = !vertex.rc().isCanonical(inc_edge);
-                        out << "L\t" << incid << "\t" << (incsign ? "+" : "-") << "\t" << outid << "\t"
-                            << (outsign ? "+" : "-") << "\t" << hasher_.getK() << "M" << std::endl;
-                    }
-                }
-            }
-        }
 
         template<class Iterator>
         void fillSparseDBGEdges(Iterator begin, Iterator end, logging::Logger &logger, size_t threads,

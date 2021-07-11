@@ -431,6 +431,18 @@ public:
         }
     }
 
+    std::function<std::string(Edge &)> labeler() {
+        return [this](Edge &edge) {
+            const VertexRecord &rec = getRecord(*edge.start());
+            std::stringstream ss;
+            for (const auto &ext : rec) {
+                if (ext.first[0] == edge.seq[0])
+                    ss << ext.first << "(" << ext.second << ")\n";
+            }
+            return ss.str();
+        };
+    }
+
     const VertexRecord &getRecord(const Vertex &v) const {
         return data.find(&v)->second;
     }
@@ -439,6 +451,11 @@ public:
         reads.emplace_back(read);
         addSubpath(read.path);
         addSubpath(read.path.RC());
+    }
+
+    void invalidateRead(AlignedRead &read) {
+        removeSubpath(read.path);
+        read.invalidate();
     }
 
     void addSubpath(const CompactPath &cpath) {
@@ -740,6 +757,7 @@ inline GraphAlignment realignRead(const GraphAlignment &al,
 inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
                             const std::vector<RecordStorage*> &storages) {
     logger.info() << "Collecting covered edge segments" << std::endl;
+    size_t k = dbg.hasher().getK();
     ParallelRecordCollector<Segment<dbg::Edge>> segmentStorage(threads);
     ParallelRecordCollector<size_t> lenStorage(threads);
     for(Edge &edge : dbg.edges()) {
@@ -768,7 +786,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
         }
     }
     for(Edge &edge : dbg.edges()) {
-        if(edge.extraInfo == 1) {
+        if(edge.extraInfo == 1 || (edge.getCoverage() > 2 && edge.size() > k * 2 + 5000)) {
             segmentStorage.emplace_back(edge, 0, edge.size());
         }
         edge.extraInfo = 0;

@@ -17,7 +17,7 @@ MappedNetwork::MappedNetwork(const Component &component, const std::function<boo
             dbg::Vertex &v = *v_it;
             for(dbg::Edge &edge : v) {
                 if(!unique(edge)) {
-                    size_t min_flow = edge.getCoverage() <rel_coverage ? 0 : 1;
+                    size_t min_flow = (!edge.is_reliable || edge.getCoverage() < rel_coverage) ? 0 : 1;
                     size_t max_flow = edge.getCoverage() < unique_coverage ? 1 : 1000000000;
                     int eid = addEdge(vertex_mapping[&v], vertex_mapping[edge.end()], min_flow, max_flow);
                     edge_mapping[eid] = &edge;
