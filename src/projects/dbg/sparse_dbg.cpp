@@ -116,6 +116,8 @@ bool Edge::operator!=(const Edge &other) const {
 }
 
 bool Edge::operator<(const Edge &other) const {
+    if(this == &other)
+        return false;
     if(start_ != other.start_)
         return *start_ < *other.start_;
     return this->seq < other.seq;

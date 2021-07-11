@@ -296,6 +296,9 @@ public:
         for(Component &component : split) {
             cnt += 1;
             std::experimental::filesystem::path out_file = dir / (std::to_string(cnt) + ".dot");
+            if(component.size() > 2 && component.borderEdges() == 2 && component.realCC() == 2 && component.isAcyclic()) {
+                processSimpleComponent(logger, component);
+            }
             std::vector<const Edge *> new_unique = processComponent(logger, component, out_file);
             addUnique(new_unique.begin(), new_unique.end());
         }
@@ -358,6 +361,68 @@ public:
             }
         }
         return std::move(extra_unique);
+    }
+
+    Edge &getStart(const Component &component) const {
+        for(htype hash : component.v) {
+            Vertex &start = component.graph.getVertex(hash);
+            for(Edge &edge : start) {
+                if(!component.contains(*edge.end()))
+                    return edge.rc();
+            }
+            for(Edge &edge : start.rc()) {
+                if(!component.contains(*edge.end()))
+                    return edge.rc();
+            }
+        }
+        VERIFY(false);
+    }
+
+    void processSimpleComponent(logging::Logger &logger, const Component &component) const {
+        logger << "Collapsing acyclic component" << std::endl;
+        typedef std::pair<size_t, Edge *> StoredValue;
+        std::priority_queue<StoredValue> queue;
+        queue.emplace(0, &getStart(component));
+        std::unordered_map<Vertex *, Edge *> prev;
+        prev[queue.top().second->end()] = nullptr;
+        Edge *end = nullptr;
+        while(!queue.empty()) {
+            auto tmp = queue.top();
+            queue.pop();
+            size_t score = tmp.first;
+            Edge *last = tmp.second;
+            Vertex *vert = last->end();
+            if(prev.find(vert) != prev.end()) {
+                continue;
+            }
+            prev[vert] = last;
+            for(Edge &edge : *vert) {
+                if(!component.contains(*edge.end())) {
+                    end = last;
+                    break;
+                }
+                queue.emplace(score + edge.intCov(), &edge);
+            }
+            if(end != nullptr)
+                break;
+        }
+        VERIFY(end != nullptr);
+        for(htype hash : component.v) {
+            Vertex &v = component.graph.getVertex(hash);
+            for(Edge &edge : v) {
+                if(component.contains(*edge.end()))
+                    edge.is_reliable = false;
+            }
+            for(Edge &edge : v.rc()) {
+                if(component.contains(*edge.end()))
+                    edge.is_reliable = false;
+            }
+        }
+        while(component.contains(*end->start())) {
+            end->is_reliable = true;
+            end = prev[end->start()];
+        }
+
     }
 
     std::vector<const dbg::Edge *> processComponent(logging::Logger &logger, const Component &component,

@@ -139,6 +139,12 @@ std::experimental::filesystem::path SplitDataset(logging::Logger &logger, const 
         RecordStorage readStorage(dbg, 0, 1000000, true);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
+        {
+            std::ofstream gos;
+            gos.open(dir / "graph.dot");
+            printDot(gos, Component(dbg), readStorage.labeler());
+            gos.close();
+        }
 
         std::vector<Component> comps = LengthSplitter(4000000000ul).split(dbg);
         std::vector<std::ofstream *> os;

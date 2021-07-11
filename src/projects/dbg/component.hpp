@@ -122,6 +122,82 @@ namespace dbg {
             return v.find(vert.hash()) != v.end() && outDeg(vert, min_cov) == 1 && outDeg(vert.rc(), min_cov) == 1;
         }
 
+        size_t borderEdges() const {
+            size_t res = 0;
+            for (htype hash : v) {
+                const Vertex &vert = graph.getVertex(hash);
+                for(Edge &edge : vert) {
+                    if(!contains(*edge.end()))
+                        res++;
+                }
+            }
+            return res;
+        }
+
+        size_t isAcyclic() const {
+            std::unordered_set<Vertex *> visited;
+            for(htype hash : v) {
+                Vertex & compStart = graph.getVertex(hash);
+                for(Vertex *vit : {&compStart, &compStart.rc()}) {
+                    if(visited.find(vit) != visited.end())
+                        continue;
+                    std::vector<Vertex *> queue;
+                    queue.emplace_back(vit);
+                    while(!queue.empty()) {
+                        Vertex &vert = *queue.back();
+                        queue.pop_back();
+                        if(visited.find(&vert) == visited.end())
+                            continue;
+                        bool ok = true;
+                        for(Edge &edge : vert.rc()) {
+                            Vertex &prev = edge.end()->rc();
+                            if(contains(prev) && visited.find(&prev) == visited.end())
+                                ok = false;
+                        }
+                        if(!ok)
+                            continue;
+                        visited.emplace(&vert);
+                        for(Edge &edge : vert) {
+                            if(contains(*edge.end()))
+                                queue.emplace_back(edge.end());
+                        }
+                    }
+                }
+            }
+            return visited.size() == v.size() * 2;
+        }
+
+        size_t realCC() const {
+            std::unordered_set<Vertex *> visited;
+            size_t cnt = 0;
+            for(htype hash : v) {
+                Vertex & compStart = graph.getVertex(hash);
+                for(Vertex *vit : {&compStart, &compStart.rc()}) {
+                    if(visited.find(vit) != visited.end())
+                        continue;
+                    cnt += 1;
+                    std::vector<Vertex *> queue;
+                    queue.emplace_back(vit);
+                    while(!queue.empty()) {
+                        Vertex &vert = *queue.back();
+                        queue.pop_back();
+                        if(visited.find(&vert) == visited.end())
+                            continue;
+                        visited.emplace(&vert);
+                        for(Edge &edge : vert) {
+                            if(contains(*edge.end()))
+                                queue.emplace_back(edge.end());
+                        }
+                        for(Edge &edge : vert.rc()) {
+                            if(contains(*edge.end()))
+                                queue.emplace_back(&edge.end()->rc());
+                        }
+                    }
+                }
+            }
+            return cnt;
+        }
+
         Edge &getOut(Vertex &vert, size_t min_cov) const {
             for (Edge &edge : vert) {
                 if (edge.getCoverage() >= min_cov) {
