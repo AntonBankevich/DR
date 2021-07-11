@@ -386,7 +386,6 @@ public:
         std::priority_queue<StoredValue> queue;
         queue.emplace(0, &getStart(component));
         std::unordered_map<Vertex *, Edge *> prev;
-        prev[queue.top().second->end()] = nullptr;
         Edge *end = nullptr;
         while(!queue.empty()) {
             auto tmp = queue.top();
