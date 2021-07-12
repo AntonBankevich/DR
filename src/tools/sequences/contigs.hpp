@@ -3,6 +3,7 @@
 #include "sequence.hpp"
 #include "nucl.hpp"
 #include "IntrusiveRefCntPtr.h"
+#include "common/string_utils.hpp"
 #include "verify.hpp"
 #include <algorithm>
 #include <utility>
@@ -224,7 +225,16 @@ public:
     std::string comment;
     std::string seq;
     static bool homopolymer_compressing;
-    static size_t dimer_compressing;
+    static size_t min_dimer_to_compress;
+    static size_t max_dimer_size;
+    static size_t dimer_step;
+
+    static void SetDimerParameters(const std::string &s) {
+        std::vector<std::string> vals = split(s, ",");
+        StringContig::min_dimer_to_compress = std::stoull(vals[0]);
+        StringContig::max_dimer_size = std::stoull(vals[1]);
+        StringContig::dimer_step = std::stoull(vals[2]);
+    }
 
     StringContig() : id(""), comment(""), seq("") {
     }
@@ -239,25 +249,35 @@ public:
     StringContig& operator=(StringContig && other) = default;
 
     void compress() {
-        VERIFY(dimer_compressing >= 4);
         if(!homopolymer_compressing)
             return;
         seq.erase(std::unique(seq.begin(), seq.end()), seq.end());
-        if(dimer_compressing >= seq.size())
+        VERIFY(min_dimer_to_compress <= max_dimer_size);
+        VERIFY(min_dimer_to_compress >= 4);
+        if(min_dimer_to_compress >= seq.size())
             return;
         size_t cur = 2;
         size_t at_len = 2;
-        for(size_t i = 2; i < seq.size(); i++) {
-            if (seq[i] == seq[cur - 2])
+        for(size_t i = 2; i <= seq.size(); i++) {
+            if (i < seq.size() && seq[i] == seq[cur - 2])
                 at_len += 1;
             else {
+                if(at_len > min_dimer_to_compress) {
+                    if(at_len > max_dimer_size) {
+                        at_len -= (at_len - max_dimer_size) / 2 * 2;
+                    }
+                    size_t corr_at_len = at_len / dimer_step * dimer_step;
+                    at_len -= (at_len - corr_at_len) / 2 * 2;
+                }
+                for(size_t j = 0; j < at_len - 2; j++) {
+                    seq[cur] = seq[cur - 2];
+                    cur += 1;
+                }
                 at_len = 2;
-            }
-            if(at_len <= dimer_compressing) {
-                seq[cur] = seq[i];
-                cur++;
-            } else {
-                cur -= 1;
+                if(i < seq.size()) {
+                    seq[cur] = seq[i];
+                    cur++;
+                }
             }
         }
         seq.erase(seq.begin() + cur, seq.end());

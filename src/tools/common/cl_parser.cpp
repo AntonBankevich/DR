@@ -39,6 +39,7 @@ void CLParser::parseCL(const std::vector <std::string> &args) {
                 name = "";
             } else if (values.count(name) == 0) {
                 errors.push_back("Unknown option " + s);
+                name = "";
             }
         } else if (isstart) {
             start.push_back(s);

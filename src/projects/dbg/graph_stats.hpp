@@ -73,6 +73,7 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
     logger << "Total vertices: " << dbg.size() << std::endl;
     logger << "Number of end vertices: " << n01 << std::endl;
     logger << "Number of unbranching vertices: " << n11 << std::endl;
+    logger << "Number of connected components: " << dbg::LengthSplitter(1000000000).split(dbg).size() << std::endl;
     logger << "Number of isolated edges " << isolated / 2 << " " << isolatedSize / 2 << std::endl;
 //    logger << "Distribution of degrees:" << std::endl;
 //    for (size_t i = 0; i < arr.size(); i++) {
@@ -84,6 +85,5 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
         if (i % 5 == 4)
             logger << std::endl;
     }
-    logger << "Number of connected components: " << dbg::LengthSplitter(1000000000).split(dbg).size() << std::endl;
 }
 
