@@ -283,9 +283,11 @@ public:
                         } else {
                             if (out.getCoverage() > best->getCoverage()) {
                                 best->is_reliable = false;
+                                best->rc().is_reliable = false;
                                 best = &out;
                             } else {
                                 out.is_reliable = false;
+                                out.rc().is_reliable = false;
                             }
                         }
                     }
@@ -443,7 +445,7 @@ public:
         } else {
             logger << "Could not find unique edges in component" << std::endl;
             logger << "Relaxing flow conditions" << std::endl;
-            rel_coverage = 20;
+            rel_coverage = 15;
             MappedNetwork net1(component, is_unique, rel_coverage);
             res = net1.fillNetwork();
             if(res) {
@@ -466,7 +468,7 @@ public:
             }
         }
         std::function<std::string(Edge &)> colorer = [this, &unique_in_component](Edge &edge) {
-            return (isUnique(edge) || unique_in_component.find(&edge) == unique_in_component.end()) ? "black" : "red";
+            return (isUnique(edge) || unique_in_component.find(&edge) == unique_in_component.end()) ? "blue" : "black";
         };
         logger << "Printing component to " << out_file << std::endl;
         const std::function<std::string(Edge &)> labeler = [](Edge &) {return "";};

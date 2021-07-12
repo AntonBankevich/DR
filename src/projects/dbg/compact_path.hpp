@@ -437,7 +437,7 @@ public:
             std::stringstream ss;
             for (const auto &ext : rec) {
                 if (ext.first[0] == edge.seq[0])
-                    ss << ext.first << "(" << ext.second << ")\n";
+                    ss << ext.first << "(" << ext.second << ")\\n";
             }
             return ss.str();
         };
