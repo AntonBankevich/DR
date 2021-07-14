@@ -9,7 +9,7 @@ void fillCoverage(SparseDBG &sdbg, logging::Logger &logger, Iterator begin, Iter
     std::function<void(ContigType &)> task = [&sdbg, &lens, min_read_size](ContigType & contig) {
         Sequence seq = std::move(contig.makeSequence());
         if(seq.size() >= min_read_size) {
-            GraphAlignment path = sdbg.align(seq);
+            GraphAlignment path = GraphAligner(sdbg).align(seq);
             lens.add(path.size());
             for(Segment<Edge> &seg : path) {
                 seg.contig().incCov(seg.size());
@@ -31,7 +31,7 @@ SparseDBG constructSparseDBGFromReads(logging::Logger &logger, const io::Library
     SparseDBG sdbg(hash_list.begin(), hash_list.end(), hasher);
     logger.info() << "Vertex map constructed." << std::endl;
     io::SeqReader reader(reads_file, (hasher.getK() + w) * 20, (hasher.getK() + w) * 4);
-    sdbg.fillSparseDBGEdges(reader.begin(), reader.end(), logger, threads, w + hasher.getK() - 1);
+    FillSparseDBGEdges(sdbg, reader.begin(), reader.end(), logger, threads, w + hasher.getK() - 1);
     return std::move(sdbg);
 }
 
@@ -68,9 +68,9 @@ void tieTips(logging::Logger &logger, SparseDBG &sdbg, size_t w, size_t threads)
     }
     logger.info() << "New minimizers added to sparse graph." << std::endl;
     logger.info() << "Refilling graph with old edges." << std::endl;
-    sdbg.refillSparseDBGEdges(old_edges.begin(), old_edges.end(), logger, threads);
+    RefillSparseDBGEdges(sdbg, old_edges.begin(), old_edges.end(), logger, threads);
     logger.info() << "Filling graph with new edges." << std::endl;
-    sdbg.fillSparseDBGEdges(new_edges.begin(), new_edges.end(), logger, threads, sdbg.hasher().getK() + 1);
+    FillSparseDBGEdges(sdbg, new_edges.begin(), new_edges.end(), logger, threads, sdbg.hasher().getK() + 1);
     logger.info() << "Finished fixing sparse de Bruijn graph." << std::endl;
 }
 
@@ -154,7 +154,7 @@ void mergeLoop(Path path) {
 }
 
 void MergeEdge(SparseDBG &sdbg, Vertex &start, Edge &edge) {
-    Path path = edge.walkForward();
+    Path path = Path::WalkForward(edge);
     Vertex &end = path.finish().rc();
     if (path.size() > 1 && end.hash() >= start.hash()) {
         VERIFY(start.seq.size() > 0)
@@ -210,7 +210,7 @@ void mergeCyclicPaths(logging::Logger &logger, SparseDBG &sdbg, size_t threads) 
                 if(start.isJunction() || start.marked()) {
                     return;
                 }
-                Path path = start[0].walkForward();
+                Path path = Path::WalkForward(start[0]);
                 VERIFY(path.finish() == start);
                 bool ismin = true;
                 for (const Edge *e : path) {
@@ -228,7 +228,7 @@ void mergeCyclicPaths(logging::Logger &logger, SparseDBG &sdbg, size_t threads) 
     logger.info() << "Found " << loops.size() << " perfect loops" << std::endl;
     for(htype loop : loops) {
         Vertex &start = sdbg.getVertex(loop);
-        Path path = start[0].walkForward();
+        Path path = Path::WalkForward(start[0]);
         mergeLoop(path);
     }
     logger.info() << "Finished merging cyclic paths" << std::endl;
@@ -279,7 +279,7 @@ alignLib(logging::Logger &logger, SparseDBG &dbg, const io::Library &align_lib, 
         Contig read = contig.makeContig();
         if(read.size() < w + hasher.getK() - 1)
             return;
-        Path path = dbg.align(read.seq).path();
+        Path path = GraphAligner(dbg).align(read.seq).path();
         std::stringstream ss;
         ss << read.id << " " << path.start().hash() << int(path.start().isCanonical()) << " ";
         for (size_t i = 0; i < path.size(); i++) {
@@ -287,7 +287,7 @@ alignLib(logging::Logger &logger, SparseDBG &dbg, const io::Library &align_lib, 
         }
         alignment_results.emplace_back(ss.str());
         Contig rc_read = read.RC();
-        Path rc_path = dbg.align(rc_read.seq).path();
+        Path rc_path = GraphAligner(dbg).align(rc_read.seq).path();
         std::stringstream rc_ss;
         rc_ss << rc_read.id << " " << rc_path.start().hash() << int(rc_path.start().isCanonical()) << " ";
         for (size_t i = 0; i < rc_path.size(); i++) {
@@ -305,5 +305,26 @@ alignLib(logging::Logger &logger, SparseDBG &dbg, const io::Library &align_lib, 
     os.close();
     logger.info() << "Finished read alignment. Results are in " << (dir / "alignments.txt") << std::endl;
     return alignments_file;
+}
+
+SparseDBG LoadDBGFromFasta(const io::Library &lib, RollingHash &hasher, logging::Logger &logger, size_t threads) {
+    logger.info() << "Loading graph from fasta" << std::endl;
+    io::SeqReader reader(lib);
+    ParallelRecordCollector<Sequence> sequences(threads);
+    ParallelRecordCollector<htype> vertices(threads);
+    std::function<void(StringContig &)> collect_task = [&sequences, &vertices, hasher](StringContig &contig) {
+        Sequence seq = contig.makeSequence();
+        KWH start(hasher, seq, 0);
+        KWH end(hasher, !seq, 0);
+        vertices.add(start.hash());
+        vertices.add(end.hash());
+        sequences.add(seq);
+    };
+    processRecords(reader.begin(), reader.end(), logger, threads, collect_task);
+    SparseDBG res(vertices.begin(), vertices.end(), hasher);
+    reader.reset();
+    FillSparseDBGEdges(res, sequences.begin(), sequences.end(), logger, threads, hasher.getK() + 1);
+    logger.info() << "Finished loading graph" << std::endl;
+    return std::move(res);
 }
 

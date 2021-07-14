@@ -26,7 +26,7 @@ void processVertex(Vertex &rec, ParallelRecordCollector<Sequence> &res) {
     for(Edge & edge : rec) {
         VERIFY(edge.end() != nullptr);
         VERIFY(!rec.seq.empty());
-        Path path = edge.walkForward();
+        Path path = Path::WalkForward(edge);
 //        Vertex &rec1 = path.back().end()->rc();
 //        const Edge &edge1 = path.size() > 1 ? path[path.size() - 2].end()->sparseRcEdge(path.back()) :
 //                                   rec.sparseRcEdge(path.back());
@@ -109,7 +109,7 @@ void extractCircularDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequenc
                     return;
                 Edge &edge = *rec.begin();
                 VERIFY(edge.end() != nullptr);
-                Path path = edge.walkForward();
+                Path path = Path::WalkForward(edge);
                 if(path.finish() != rec) {
                     std::cout << &path.finish() << std::endl;
                     std::cout << path.finish().hash() << std::endl;

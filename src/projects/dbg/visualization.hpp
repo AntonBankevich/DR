@@ -15,7 +15,7 @@ private:
     void innerFill(const Contig &old_contig) {
         stored_contigs.emplace_back(new Contig(old_contig));
         Contig &contig = *stored_contigs.back();
-        std::vector<PerfectAlignment<Contig, Edge>> path = dbg.carefulAlign(contig);
+        std::vector<PerfectAlignment<Contig, Edge>> path = GraphAligner(dbg).carefulAlign(contig);
         for(PerfectAlignment<Contig, Edge> &al : path) {
             alignments[&al.seg_to.contig()].emplace_back(al);
         }
@@ -61,7 +61,7 @@ public:
     void print(std::ostream &os) {
         for(auto &it : alignments) {
             const Edge &edge = *it.first;
-            os << edge.id << std::endl;
+            os << edge.getId() << std::endl;
             if (alignments.find(&edge) == alignments.end())
                 return;
             const std::vector<PerfectAlignment<Contig, Edge>> &als = alignments.find(&edge)->second;
@@ -100,7 +100,7 @@ public:
 inline void printEdge(std::ostream &os, Vertex & start, Edge &edge, const std::string &extra_label = "",
                const std::string &color = "black") {
     Vertex &end = *edge.end();
-    os << "\"" << start.label() << "\" -> \"" << end.label() <<
+    os << "\"" << start.getShortId() << "\" -> \"" << end.getShortId() <<
        "\" [label=\"" << "ACGT"[edge.seq[0]] << " " << edge.size() << "(" << edge.getCoverage() << ")";
     if(!extra_label.empty()) {
         os << "\\n"<<extra_label;
@@ -123,7 +123,7 @@ inline void printDot(std::ostream &os, const Component &component, const std::fu
         for(Vertex * vit : component.graph.getVertices(vid)) {
             Vertex &vert = *vit;
             std::string color = component.covers(vert) ? "white" : "yellow";
-            os << vert.label() << " [style=filled fillcolor=\"" + color + "\"]\n";
+            os << vert.getShortId() << " [style=filled fillcolor=\"" + color + "\"]\n";
         }
     }
     for(htype vid : component.v) {

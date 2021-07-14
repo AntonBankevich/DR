@@ -11,6 +11,7 @@
 #include "common/zip_utils.hpp"
 #include "sequences/contigs.hpp"
 #include "sequences/seqio.hpp"
+#include "graph_algorithms.hpp"
 #include <omp.h>
 #include <vector>
 #include <string>
@@ -37,7 +38,7 @@ int main(int argc, char **argv) {
     io::Library contigs_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("contigs"));
     std::vector<std::string> contig_segments = parser.getListValue("segment");
 
-    SparseDBG dbg = SparseDBG::loadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
+    SparseDBG dbg = LoadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
     dbg.fillAnchors(1000, logger, threads);
 
     std::vector<std::tuple<std::string, size_t, size_t, std::string>> seg_recs;

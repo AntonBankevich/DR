@@ -1,5 +1,6 @@
 #include "crude_correct.hpp"
 #include "dbg_construction.hpp"
+#include "paths.hpp"
 #include "common/rolling_hash.hpp"
 #include "sequences/seqio.hpp"
 #include "component.hpp"
@@ -109,7 +110,7 @@ SparseDBG simplifyGraph(logging::Logger &logger, SparseDBG &dbg,
             vertices_again.push_back(vert.hash());
     }
     SparseDBG simp_dbg(vertices_again.begin(), vertices_again.end(), dbg.hasher());
-    simp_dbg.fillSparseDBGEdges(edges.begin(), edges.end(), logger, threads, 0);
+    FillSparseDBGEdges(simp_dbg, edges.begin(), edges.end(), logger, threads, 0);
     for(auto & it : simp_dbg) {
         Vertex &vert = it.second;
         Vertex &other = dbg.getVertex(vert.hash());
@@ -400,7 +401,7 @@ std::experimental::filesystem::path CrudeCorrect(logging::Logger &logger, Sparse
         Contig read = contig.makeContig();
         if(read.size() < w + hasher.getK() - 1)
             return;
-        GraphAlignment old_al = dbg.align(read.seq);
+        GraphAlignment old_al = GraphAligner(dbg).align(read.seq);
         while (old_al.size() > 0 && to_skip.find(&old_al.front().contig()) != to_skip.end()) {
             old_al = old_al.subalignment(1, old_al.size());
         }
@@ -417,7 +418,7 @@ std::experimental::filesystem::path CrudeCorrect(logging::Logger &logger, Sparse
         Sequence seq = old_al.Seq();
         if(seq.size() < w + hasher.getK() - 1)
             return;
-        GraphAlignment gal = simp_dbg.align(seq);
+        GraphAlignment gal = GraphAligner(simp_dbg).align(seq);
         for(Segment<Edge> seg : gal) {
             if (to_skip.find(&seg.contig()) != to_skip.end()) {
                 return;

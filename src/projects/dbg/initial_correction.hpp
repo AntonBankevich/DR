@@ -48,18 +48,15 @@ size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates
     std::vector<size_t> dists;
     for(size_t i = 0; i < candidates.size(); i++) {
         dists.push_back(edit_distance(bulge, candidates[i]));
-        std::cout << i << " " << dists.back() << std::endl;
         if (dists.back() < dists[winner])
             winner = i;
     }
     size_t max_dist = std::max<size_t>(20, bulge.size() / 100);
-    std::cout << "Max dist " << max_dist << std::endl;
     if(dists[winner] > max_dist)
         return -1;
     for(size_t i = 0; i < candidates.size(); i++) {
         if(i != winner) {
             size_t diff = edit_distance(candidates[winner], candidates[i]);
-            std::cout << "Diff " << i << " " << winner << " " << diff << std::endl;
             VERIFY(dists[winner] <= dists[i] + diff);
             VERIFY(dists[i] <= dists[winner] + diff);
             if(dists[i] < max_dist && dists[i] != dists[winner] + diff)
@@ -568,8 +565,9 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
             }
             Vertex &start = corrected_path.getVertex(corrected_path.size() - step_back);
             Vertex &end = path.getVertex(path_pos + 1 + step_front);
-            GraphAlignment badPath = corrected_path.subPath(corrected_path.size() - step_back, corrected_path.size())
-                                            + path.subPath(path_pos, path_pos + 1 + step_front);
+            GraphAlignment badPath =
+                    corrected_path.subalignment(corrected_path.size() - step_back, corrected_path.size())
+                                            + path.subalignment(path_pos, path_pos + 1 + step_front);
             corrected_path.pop_back(step_back);
             if(dump) {
                 logger << "Bad read segment " <<    alignedRead.id << " " << path_pos << " " << step_back << " "

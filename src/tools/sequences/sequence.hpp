@@ -4,7 +4,7 @@
 #include "common/output_utils.hpp"
 #include "nucl.hpp"
 #include "IntrusiveRefCntPtr.h"
-#include "verify.hpp"
+#include "common/verify.hpp"
 #include <functional>
 #include <vector>
 #include <string>

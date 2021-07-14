@@ -5,7 +5,7 @@
 #pragma once
 
 #include <vector>
-#include "sequences/verify.hpp"
+#include "common/verify.hpp"
 #include "common/output_utils.hpp"
 
 const size_t LOG_MAX_SEQUENCE_LENGTH = 30;

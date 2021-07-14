@@ -267,6 +267,7 @@ private:
 public:
     const RecordStorage &reads_storage;
     void classify(logging::Logger &logger, size_t unique_len, const std::experimental::filesystem::path &dir) {
+        logger.info() << "Looking for unique edges" << std::endl;
         size_t cnt = 0;
         for(Edge &edge : dbg.edges()) {
             edge.is_reliable = true;

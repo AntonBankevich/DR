@@ -47,7 +47,7 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
         if(seq.size() < min_len) {
             continue;
         }
-        auto tmp = dbg.align(seq);
+        auto tmp = GraphAligner(dbg).align(seq);
         for(size_t i = 0; i < tmp.size(); i++) {
             const Segment<Edge> &seg = tmp[i];
             os << "[" << cur << ", " << cur + seg.size() << "] -> [" << seg.left << ", " << seg.right <<"] ";
@@ -202,8 +202,8 @@ int main(int argc, char **argv) {
     std::string vertices_file = parser.getValue("vertices");
     std::string dbg_file = parser.getValue("dbg");
     SparseDBG dbg = dbg_file == "none" ?
-            DBGPipeline(logger, hasher, w, construction_lib, dir, threads, disjointigs_file, vertices_file) :
-          SparseDBG::loadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
+                    DBGPipeline(logger, hasher, w, construction_lib, dir, threads, disjointigs_file, vertices_file) :
+                    LoadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
 
     bool calculate_alignments = parser.getCheck("crude-correct") || parser.getCheck("initial-correct") ||
             parser.getCheck("mult-correct");
@@ -340,7 +340,7 @@ int main(int argc, char **argv) {
             Contig contig = scontig.makeContig();
             if(contig.size() < hasher.getK() + w - 1)
                 return;
-            GraphAlignment al = dbg.align(contig.seq);
+            GraphAlignment al = GraphAligner(dbg).align(contig.seq);
             for(size_t j = 0; j < comps.size(); j++) {
                 for(size_t i = 0; i <= al.size(); i++) {
                     if(comps[j].v.find(al.getVertex(i).hash()) != comps[j].v.end()) {
@@ -383,7 +383,7 @@ int main(int argc, char **argv) {
             Contig contig = scontig.makeContig();
             if(contig.size() < hasher.getK() + w - 1)
                 return;
-            GraphAlignment al = dbg.align(contig.seq);
+            GraphAlignment al = GraphAligner(dbg).align(contig.seq);
             for(size_t j = 0; j < comps.size(); j++) {
                 for(size_t i = 0; i <= al.size(); i++) {
                     if(comps[j].v.find(al.getVertex(i).hash()) != comps[j].v.end()) {
@@ -487,7 +487,7 @@ int main(int argc, char **argv) {
             Contig read = contig.makeContig();
             if(read.size() < w + hasher.getK() - 1)
                 return;
-            GraphAlignment gal = dbg.align(read.seq);
+            GraphAlignment gal = GraphAligner(dbg).align(read.seq);
             if (gal.size() > 0 && gal.front().contig().getCoverage() < 2 && gal.start().inDeg() == 0 && gal.start().outDeg() == 1) {
                 gal = gal.subalignment(1, gal.size());
             }
@@ -554,7 +554,7 @@ int main(int argc, char **argv) {
                 vertices_again.push_back(vert.hash());
         }
         SparseDBG simp_dbg(vertices_again.begin(), vertices_again.end(), hasher);
-        simp_dbg.fillSparseDBGEdges(edges.begin(), edges.end(), logger, threads, 0);
+        FillSparseDBGEdges(simp_dbg, edges.begin(), edges.end(), logger, threads, 0);
         for(auto & it : simp_dbg) {
             Vertex &vert = it.second;
             Vertex &other = dbg.getVertex(vert.hash());

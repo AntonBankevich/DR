@@ -52,17 +52,6 @@ Edge &Edge::sparseRcEdge() const {
     return vend[0];
 }
 
-Path Edge::walkForward() {
-    Path res(*start_);
-    res += *this;
-    Vertex *next = end();
-    while(next != nullptr && next != start_ && !next->isJunction()) {
-        res += (*next)[0];
-        next = (*next)[0].end();
-    }
-    return std::move(res);
-}
-
 void Edge::bindTip(Vertex &start, Vertex &end) {
     VERIFY(end_ == nullptr);
     end_ = &end;
@@ -144,6 +133,14 @@ Sequence Edge::kmerSeq(size_t pos) const {
     }
 }
 
+std::string Edge::getId() const {
+    return start_->getId() + "ACGT"[seq[0]];
+}
+
+std::string Edge::getShortId() const {
+    return start_->getShortId() + "ACGT"[seq[0]];
+}
+
 Vertex::Vertex(htype hash, Vertex *_rc) : hash_(hash), rc_(_rc), canonical(false) {
     omp_init_lock(&writelock);
 }
@@ -175,3 +172,155 @@ std::string Vertex::edgeId(const Edge &edge) const {
         return edge.end()->rc().edgeId(edge.rc());
     }
 }
+
+void Vertex::checkConsistency() const {
+    for (const Edge &edge : outgoing_) {
+        if (edge.end() != nullptr) {
+            if (edge.rc().end() != &(this->rc())) {
+                std::cout << this << " " << seq << " " << edge.seq << " " << edge.rc().end() << " "
+                          << &(this->rc()) << std::endl;
+            }
+            VERIFY(edge.rc().end() == &(this->rc()));
+            VERIFY(edge.start_ == this);
+        }
+    }
+}
+
+std::string Vertex::getId() const {
+    std::stringstream ss;
+    if(!isCanonical())
+        ss << "-";
+    ss << hash();
+    return ss.str();
+}
+
+std::string Vertex::getShortId() const {
+    std::stringstream ss;
+    if(!isCanonical())
+        ss << "-";
+    ss << hash() % 10000000;
+    return ss.str();
+}
+
+void Vertex::incCoverage() {
+#pragma omp atomic update
+    coverage_ += 1;
+#pragma omp atomic update
+    rc().coverage_ += 1;
+}
+
+void Vertex::setSequence(const Sequence &_seq) {
+    lock();
+    if (seq.empty()) {
+        if (seq.empty()) {
+            seq = Sequence(_seq.str());
+            unlock();
+            rc_->lock();
+            rc_->seq = !_seq;
+            rc_->unlock();
+        } else {
+            unlock();
+        }
+    } else {
+//            if(seq != _seq) {
+//                std::cout << seq << std::endl << _seq << std::endl;
+//                VERIFY(false);
+//            }
+//            VERIFY(_seq == seq);
+        unlock();
+    }
+}
+
+void Vertex::clearSequence() {
+    if (!seq.empty()) {
+        seq = Sequence();
+        rc_->seq = Sequence();
+    }
+}
+
+Edge &Vertex::addEdgeLockFree(const Edge &edge) {
+    for (Edge &e : outgoing_) {
+        if (edge.size() <= e.size()) {
+            if (edge.seq == e.seq.Subseq(0, edge.size())) {
+                return e;
+            }
+        } else if (edge.seq.Subseq(0, e.size()) == e.seq) {
+            e = edge;
+            return e;
+        }
+    }
+    outgoing_.emplace_back(edge);
+    return outgoing_.back();
+}
+
+void Vertex::addEdge(const Edge &e) {
+    omp_set_lock(&writelock);
+    addEdgeLockFree(e);
+    omp_unset_lock(&writelock);
+}
+
+Edge &Vertex::getOutgoing(unsigned char c) const {
+    for (Edge &edge : outgoing_) {
+        if (edge.seq[0] == c) {
+            return edge;
+        }
+    }
+    std::cout << seq << std::endl;
+    std::cout << c << std::endl;
+    for (const Edge &edge : outgoing_) {
+        std::cout << edge.seq << std::endl;
+    }
+    VERIFY(false);
+    return outgoing_[0];
+}
+
+bool Vertex::hasOutgoing(unsigned char c) const {
+    for (const Edge &edge : outgoing_) {
+        if (edge.seq[0] == c) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Vertex::operator<(const Vertex &other) const {
+    return hash_ < other.hash_ || (hash_ == other.hash_ && canonical && !other.canonical);
+}
+
+void Vertex::clear() {
+    outgoing_.clear();
+    rc_->outgoing_.clear();
+}
+
+void Vertex::clearOutgoing() {
+    outgoing_.clear();
+}
+
+Vertex::Vertex(htype hash) : hash_(hash), rc_(new Vertex(hash, this)), canonical(true) {
+    omp_init_lock(&writelock);
+}
+
+Vertex::~Vertex() {
+    if (rc_ != nullptr) {
+        rc_->rc_ = nullptr;
+        delete rc_;
+    }
+    rc_ = nullptr;
+}
+
+void Vertex::sortOutgoing() {
+    std::sort(outgoing_.begin(), outgoing_.end());
+}
+
+bool Vertex::isJunction() const {
+    return outDeg() != 1 || inDeg() != 1;
+}
+
+bool Vertex::operator==(const Vertex &other) const {
+    return this == &other;
+}
+
+bool Vertex::operator!=(const Vertex &other) const {
+    return this != &other;
+}
+

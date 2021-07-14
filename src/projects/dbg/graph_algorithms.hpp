@@ -1,6 +1,33 @@
 #pragma once
+#include "paths.hpp"
 #include "sparse_dbg.hpp"
 using namespace dbg;
+
+template<class Iterator>
+void FillSparseDBGEdges(SparseDBG &sdbg, Iterator begin, Iterator end, logging::Logger &logger, size_t threads,
+                        const size_t min_read_size) {
+    typedef typename Iterator::value_type ContigType;
+    logger.info() << "Starting to fill edges" << std::endl;
+    std::function<void(ContigType &)> task = [&sdbg, min_read_size](ContigType &contig) {
+        Sequence seq = contig.makeSequence();
+        if (seq.size() >= min_read_size)
+            sdbg.processRead(seq);
+    };
+    processRecords(begin, end, logger, threads, task);
+    logger.info() << "Sparse graph edges filled." << std::endl;
+}
+
+template<class Iterator>
+void RefillSparseDBGEdges(SparseDBG &sdbg, Iterator begin, Iterator end, logging::Logger &logger, size_t threads) {
+    logger.info() << "Starting to fill edges" << std::endl;
+    std::function<void(std::pair<Vertex *, Sequence> &)> task = [&sdbg](std::pair<Vertex *, Sequence> &contig) {
+        sdbg.processEdge(*contig.first, contig.second);
+    };
+    processObjects(begin, end, logger, threads, task);
+    logger.info() << "Sparse graph edges filled." << std::endl;
+}
+
+SparseDBG LoadDBGFromFasta(const io::Library &lib, RollingHash &hasher, logging::Logger &logger, size_t threads);
 
 template<class Iterator>
 void fillCoverage(SparseDBG &sdbg, logging::Logger &logger, Iterator begin, Iterator end, size_t threads,

@@ -4,7 +4,7 @@
 #include "nucl.hpp"
 #include "IntrusiveRefCntPtr.h"
 #include "common/string_utils.hpp"
-#include "verify.hpp"
+#include "common/verify.hpp"
 #include <algorithm>
 #include <utility>
 #include <vector>
@@ -108,7 +108,7 @@ public:
 template <class T>
 inline std::ostream& operator<<(std::ostream& os, const Segment<T>& seg)
 {
-    os << seg.contig().id << "[" << seg.left << ":";
+    os << seg.contig().getId() << "[" << seg.left << ":";
     if (seg.right > seg.contig().size() * 3 / 4)
         os << seg.contig().size() << "-" << (seg.contig().size() - seg.right);
     else
@@ -130,6 +130,10 @@ public:
 
     NamedSequence(const Sequence &_seq, string _id) : seq(_seq), id(std::move(_id)){
 //        _rc = new T(!seq, basic::Reverse(id), static_cast<T*>(this));
+    }
+
+    std::string getId() const {
+        return id;
     }
 
     Segment<T> asSegment() const {

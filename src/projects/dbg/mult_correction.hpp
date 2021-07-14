@@ -69,25 +69,25 @@ GraphAlignment correctRead(logging::Logger &logger, std::string &read_id,
         if(unique_extensions.find(&al[i].contig()) == unique_extensions.end())
             continue;
         CompactPath &compactPath = unique_extensions.find(&al[i].contig())->second;
-        logger << compactPath << " " << CompactPath(al.subPath(i + 1, al.size())) << std::endl;
-        if(compactPath.seq().nonContradicts(CompactPath(al.subPath(i + 1, al.size())).cpath()))
+        logger << compactPath << " " << CompactPath(al.subalignment(i + 1, al.size())) << std::endl;
+        if(compactPath.seq().nonContradicts(CompactPath(al.subalignment(i + 1, al.size())).cpath()))
             continue;
         logger << "Corrected" << std::endl;
         corrected = true;
-        GraphAlignment new_al = al.subPath(0, i + 1);
-        size_t corrected_len = al.subPath(i + 1, al.size()).len();
+        GraphAlignment new_al = al.subalignment(0, i + 1);
+        size_t corrected_len = al.subalignment(i + 1, al.size()).len();
         GraphAlignment replacement = compactPath.getAlignment();
         logger << replacement.len() << " " << corrected_len << std::endl;
         while(replacement.len() < corrected_len &&
                     unique_extensions.find(&replacement.back().contig()) != unique_extensions.end()) {
             replacement += unique_extensions[&replacement.back().contig()].getAlignment();
         }
-        logger << CompactPath(replacement) << " " << CompactPath(al.subPath(i + 1, al.size())) << std::endl;
+        logger << CompactPath(replacement) << " " << CompactPath(al.subalignment(i + 1, al.size())) << std::endl;
         logger << replacement.len() << " " << corrected_len << std::endl;
         if(replacement.len() < corrected_len) {
             size_t deficite = corrected_len - replacement.len();
             logger.info() << "Need to correct more than known " << read_id << "\n"
-                          << CompactPath(al.subPath(i + 1, al.size())) << "\n" << compactPath << std::endl;
+                          << CompactPath(al.subalignment(i + 1, al.size())) << "\n" << compactPath << std::endl;
             new_al += replacement;
             while(new_al.finish().outDeg() == 1 && deficite > 0) {
                 size_t len = std::min(deficite, new_al.finish()[0].size());
@@ -175,10 +175,10 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
     const std::experimental::filesystem::path fig_after = dir / "after.dot";
     const std::experimental::filesystem::path out_reads = dir / "corrected.fasta";
     const std::experimental::filesystem::path out_alignments = dir / "alignments.txt";
+    const std::experimental::filesystem::path full_alignments = dir / "full_alignments.txt";
     const std::experimental::filesystem::path multiplicity_figures = dir / "figs";
     size_t k = sdbg.hasher().getK();
     ensure_dir_existance(multiplicity_figures);
-    logger.info() << "Collecting info from reads" << std::endl;
     {
         UniqueClassificator classificator(sdbg, reads_storage);
         classificator.classify(logger, unique_threshold, multiplicity_figures);

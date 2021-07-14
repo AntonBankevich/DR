@@ -1,106 +1,16 @@
 #pragma once
 
-#include <utility>
-
-
+#include "paths.hpp"
 #include "sparse_dbg.hpp"
+#include "common/iterator_utils.hpp"
+#include <utility>
 
 namespace dbg {
     class Component {
-        class EdgeIterator {
-            typedef typename std::unordered_set<htype, alt_hasher<htype>>::const_iterator iterator;
-            Component const *component;
-            iterator it;
-            iterator end;
-            bool rc;
-            size_t e_num;
-
-            void seek() {
-                if(it == end)
-                    return;
-                {
-                    const Vertex &vert = rc ? component->graph.getVertex(*it).rc() : component->graph.getVertex(*it);
-                    if (e_num < vert.outDeg()) {
-                        return;
-                    }
-                }
-                e_num = 0;
-                if(rc) {
-                    rc = false;
-                    ++it;
-                } else {
-                    rc = true;
-                }
-                while(it != end) {
-                    const Vertex &vert = rc ? component->graph.getVertex(*it).rc() : component->graph.getVertex(*it);
-                    if (e_num < vert.outDeg()) {
-                        return;
-                    }
-                    if(rc) {
-                        rc = false;
-                        ++it;
-                    } else {
-                        rc = true;
-                    }
-                }
-            }
-
-        public:
-            typedef typename dbg::Edge value_type;
-
-            EdgeIterator(const Component &component, iterator it, iterator end, bool rc, size_t e_num) : component(&component),
-                            it(it), end(end), rc(rc), e_num(e_num) {
-                seek();
-            }
-
-            Edge &operator*() const {
-                Edge *res = nullptr;
-                if(rc)
-                    res = &component->graph.getVertex(*it).rc()[e_num];
-                else
-                    res = &component->graph.getVertex(*it)[e_num];
-                return *res;
-            }
-
-            EdgeIterator& operator++() {
-                e_num += 1;
-                seek();
-                return *this;
-            }
-
-            EdgeIterator operator++(int) const {
-                EdgeIterator other = *this;
-                ++other;
-                return other;
-            }
-
-            bool operator==(const EdgeIterator &other) const {
-                return it == other.it && end == other.end && rc == other.rc && e_num == other.e_num;
-            }
-
-            bool operator!=(const EdgeIterator &other) const {
-                return !operator==(other);
-            }
-        };
-
-        class EdgeStorage {
-        private:
-            const Component &component;
-        public:
-            EdgeStorage(const Component &component) : component(component) {
-            }
-
-            EdgeIterator begin() const {
-                return {component, component.v.begin(), component.v.end(), false, 0};
-            }
-
-            EdgeIterator end() const {
-                return {component, component.v.end(), component.v.end(), false, 0};
-            }
-        };
     public:
         SparseDBG &graph;
         std::unordered_set<htype, alt_hasher<htype>> v;
+        typedef std::unordered_set<htype, alt_hasher<htype>>::const_iterator iterator;
         struct EdgeRec {
             Vertex *start;
             Vertex *end;
@@ -211,8 +121,60 @@ namespace dbg {
             VERIFY(false);
         }
 
-        EdgeStorage edges() const {
-            return {*this};
+        IterableStorage<ApplyingIterator<iterator, Vertex, 2>> vertices(bool unique = false) const {
+            std::function<std::array<Vertex*, 2>(const htype &)> apply = [this, unique](const htype &hash) -> std::array<Vertex*, 2> {
+                size_t cur = 0;
+                Vertex &vertex = graph.getVertex(hash);
+                if(unique)
+                    return {&graph.getVertex(hash)};
+                else
+                    return graph.getVertices(hash);
+            };
+            ApplyingIterator<iterator, Vertex, 2> begin(v.begin(), v.end(), apply);
+            ApplyingIterator<iterator, Vertex, 2> end(v.end(), v.end(), apply);
+            return {begin, end};
+        }
+
+        IterableStorage<ApplyingIterator<iterator, Vertex, 2>> verticesUniques(bool unique = false) const {
+            return vertices(true);
+        }
+
+        IterableStorage<ApplyingIterator<iterator, Edge, 16>> edges(bool inner = false, bool unique = false) const {
+            std::function<std::array<Edge*, 16>(const htype &)> apply = [this, inner, unique](const htype &hash) {
+                std::array<Edge*, 16> res = {};
+                size_t cur = 0;
+                for(Vertex * vertex : graph.getVertices(hash)) {
+                    for (Edge &edge : *vertex) {
+                        bool isInner = contains(*edge.end());
+                        if(inner && !isInner)
+                            continue;
+                        if(!isInner || edge <= edge.rc()) {
+                            res[cur] = &edge;
+                            cur++;
+                            if(!unique) {
+                                res[cur] = &edge.rc();
+                                cur++;
+                            }
+                        }
+                    }
+                }
+                return res;
+            };
+            ApplyingIterator<iterator, Edge, 16> begin(v.begin(), v.end(), apply);
+            ApplyingIterator<iterator, Edge, 16> end(v.end(), v.end(), apply);
+            return {begin, end};
+        }
+
+        IterableStorage<ApplyingIterator<iterator, Edge, 16>> edgesInner() const {
+            return edges(true, false);
+        }
+
+        IterableStorage<ApplyingIterator<iterator, Edge, 16>> edgesUnique() const {
+            return edges(false, true);
+        }
+
+        IterableStorage<ApplyingIterator<iterator, Edge, 16>> edgesInnerUnique() const {
+            return edges(true, true);
         }
 
         bool contains(const Vertex &vert) const {
@@ -316,7 +278,7 @@ namespace dbg {
             std::unordered_set<htype, alt_hasher<htype>> v;
             typedef std::pair<size_t, htype> StoredValue;
             std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<StoredValue>> queue;
-            std::vector<PerfectAlignment<Contig, Edge>> als1 = graph.carefulAlign(contig);
+            std::vector<PerfectAlignment<Contig, Edge>> als1 = GraphAligner(graph).carefulAlign(contig);
             Contig rc_contig = contig.RC();
 //        TODO Every edge must have a full sequence stored as a composite sequence
             for (PerfectAlignment<Contig, Edge> &al : als1) {

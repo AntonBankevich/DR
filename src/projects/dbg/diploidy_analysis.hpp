@@ -89,13 +89,13 @@ public:
 
     std::string str() const {
         std::stringstream ss;
-        ss << start().label();
+        ss << start().getShortId();
         for(const auto &p : path) {
             if(p.first == p.second) {
-                ss << "-" << p.first->size() << "ACGT"[p.first->seq[0]] << "-" << p.first->end()->label();
+                ss << "-" << p.first->size() << "ACGT"[p.first->seq[0]] << "-" << p.first->end()->getShortId();
             } else {
                 ss << "-(" << p.first->size() << "ACGT"[p.first->seq[0]] << "," <<
-                        p.second->size() << "ACGT"[p.second->seq[0]] << ")-" << p.first->end()->label();
+                        p.second->size() << "ACGT"[p.second->seq[0]] << ")-" << p.first->end()->getShortId();
             }
         }
         return ss.str();

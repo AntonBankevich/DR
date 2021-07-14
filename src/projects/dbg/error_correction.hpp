@@ -301,7 +301,7 @@ namespace error_correction {
         std::function<void(ContigType &)> task = [&sdbg, &times, &scores, min_read_size, &result,  &bad_reads](ContigType & contig) {
             Sequence seq = contig.makeSequence();
             if(seq.size() >= min_read_size) {
-                Path path = sdbg.align(seq).path();
+                Path path = GraphAligner(sdbg).align(seq).path();
                 CorrectionResult res = correct(path);
                 times.emplace_back(res.iterations);
                 scores.emplace_back(res.score);

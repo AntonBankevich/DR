@@ -144,7 +144,7 @@ public:
 //        TODO make parallel
         while(begin != end) {
             StringContig read = *begin;
-            GraphAlignment path = dbg.align(read.makeSequence());
+            GraphAlignment path = GraphAligner(dbg).align(read.makeSequence());
             reads.emplace_back(read.id, path);
             ++begin;
         }
@@ -455,6 +455,7 @@ public:
 
     void invalidateRead(AlignedRead &read) {
         removeSubpath(read.path);
+        removeSubpath(read.path.RC());
         read.invalidate();
     }
 
@@ -502,7 +503,7 @@ public:
             Contig contig = scontig.makeContig();
             if(contig.size() < min_read_size)
                 return;
-            GraphAlignment path = dbg.align(contig.seq);
+            GraphAlignment path = GraphAligner(dbg).align(contig.seq);
             GraphAlignment rcPath = path.RC();
             CompactPath cpath(path);
             CompactPath crcPath(rcPath);
@@ -586,6 +587,21 @@ public:
             al = al.RC();
             os  << "-" << read.id << " " << al.start().hash() << int(al.start().isCanonical())
                 << " " << al.cpath().str() << "\n";
+        }
+        os.close();
+    }
+
+    void printFullAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const {
+        logger.info() << "Printing read to graph alignenments to file " << path << std::endl;
+        std::string acgt = "ACGT";
+        std::ofstream os;
+        os.open(path);
+        for(const AlignedRead &read : reads) {
+            CompactPath al = read.path;
+            if(!al.valid())
+                continue;
+            os << read.id << " " << read.path.getAlignment().str() << "\n";
+            os << "-" << read.id << " " << read.path.getAlignment().RC().str() << "\n";
         }
         os.close();
     }
@@ -718,12 +734,14 @@ public:
 };
 
 inline GraphAlignment realignRead(const GraphAlignment &al,
-                                  std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> &embedding) {
+                                  const std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> &embedding) {
     Edge &old_start_edge = al[0].contig();
     size_t old_start_pos = al[0].left;
     Edge *new_start_edge = nullptr;
     size_t new_start_pos = 0;
-    for(PerfectAlignment<Edge, Edge> &pal : embedding[&old_start_edge]) {
+    auto it = embedding.find(&old_start_edge);
+    VERIFY(it != embedding.end());
+    for(const PerfectAlignment<Edge, Edge> &pal : it->second) {
         if(pal.seg_from.left <= old_start_pos && old_start_pos < pal.seg_from.right) {
             new_start_edge = &pal.seg_to.contig();
             new_start_pos = pal.seg_to.left + old_start_pos - pal.seg_from.left;
@@ -756,6 +774,7 @@ inline GraphAlignment realignRead(const GraphAlignment &al,
 
 inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
                             const std::vector<RecordStorage*> &storages) {
+    omp_set_num_threads(threads);
     logger.info() << "Collecting covered edge segments" << std::endl;
     size_t k = dbg.hasher().getK();
     ParallelRecordCollector<Segment<dbg::Edge>> segmentStorage(threads);
@@ -831,13 +850,18 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
     std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> embedding;
     ParallelRecordCollector<std::vector<PerfectAlignment<Edge, Edge>>> edgeAlsList(threads);
     std::function<void(Edge &)> task = [&edgeAlsList, &subgraph](Edge &edge) {
-        std::vector<PerfectAlignment<Edge, Edge>> al = subgraph.oldEdgeAlign(edge);
+        std::vector<PerfectAlignment<Edge, Edge>> al = GraphAligner(subgraph).oldEdgeAlign(edge);
         edgeAlsList.emplace_back(std::move(al));
     };
     processObjects(dbg.edges().begin(), dbg.edges().end(), logger, threads, task);
     for(std::vector<PerfectAlignment<Edge, Edge>> &al : edgeAlsList) {
         if(!al.empty())
             embedding[&al[0].seg_from.contig()] = std::move(al);
+    }
+    for(Edge &edge : dbg.edges()) {
+        if(edge.intCov() > 0) {
+            VERIFY(embedding.find(&edge) != embedding.end());
+        }
     }
     logger.info() << "Realigning sequences to the new graph" << std::endl;
     for(RecordStorage *sit : storages){

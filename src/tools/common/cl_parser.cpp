@@ -2,7 +2,7 @@
 // Created by anton on 08.07.2020.
 //
 #include <iostream>
-#include <sequences/verify.hpp>
+#include <common/verify.hpp>
 #include <utility>
 #include "cl_parser.hpp"
 

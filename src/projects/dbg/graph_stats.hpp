@@ -17,7 +17,7 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
     for (auto &val: dbg) {
         dbg::Vertex &tmp = val.second;
         if (tmp.inDeg() == 0 && tmp.outDeg() == 1) {
-            dbg::Path path = tmp[0].walkForward();
+            dbg::Path path = dbg::Path::WalkForward(tmp[0]);
             if (path.back().end() != nullptr && path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
                 isolated += 1;
                 for (dbg::Edge *edge : path) {
@@ -27,7 +27,7 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
             }
         }
         if (tmp.inDeg() == 1 && tmp.outDeg() == 0) {
-            dbg::Path path = tmp.rc()[0].walkForward();
+            dbg::Path path = dbg::Path::WalkForward(tmp.rc()[0]);
             if (path.back().end() != nullptr && path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
                 isolated += 1;
                 for (dbg::Edge *edge : path) {

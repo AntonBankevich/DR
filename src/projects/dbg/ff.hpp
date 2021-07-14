@@ -2,7 +2,7 @@
 
 #include <queue>
 #include <unordered_map>
-#include <sequences/verify.hpp>
+#include <common/verify.hpp>
 #include <unordered_set>
 #include "vector"
 class Network {

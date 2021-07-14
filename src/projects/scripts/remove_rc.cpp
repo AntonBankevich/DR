@@ -1,4 +1,4 @@
-#include <sequences/verify.hpp>
+#include <common/verify.hpp>
 #include <sequences/seqio.hpp>
 
 int main(int argc, char **argv) {
