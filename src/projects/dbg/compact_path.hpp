@@ -372,16 +372,128 @@ inline std::ostream& operator<<(std::ostream  &os, const VertexRecord &rec) {
     return os << rec.str();
 }
 
+
+class ReadLogger {
+private:
+    class CountingSS {
+    private:
+        std::stringstream log;
+        size_t len;
+    public:
+        CountingSS() : log(), len(0) {
+        }
+
+        CountingSS &operator<<(const std::string &s) {
+            log << s;
+            len += s.size();
+            return *this;
+        }
+
+        CountingSS &operator<<(const size_t &s) {
+            log << s;
+            len += 5;
+            return *this;
+        }
+
+        std::string str() {
+            return log.str();
+        }
+
+        size_t size() const {
+            return len;
+        }
+
+        void clear() {
+            log = {};
+            len = 0;
+        }
+    };
+
+    std::vector<CountingSS> logs;
+    std::ofstream os;
+
+    void dump(CountingSS &sublog) {
+#pragma omp critical
+        {
+            os << sublog.str();
+        };
+        sublog.clear();
+    }
+
+public:
+    ReadLogger(size_t threads, const std::experimental::filesystem::path &out_file) : logs(threads), os() {
+        os.open(out_file);
+    }
+
+    ReadLogger(const ReadLogger &other) = delete;
+    ReadLogger &operator=(const ReadLogger &other) = delete;
+    ReadLogger(ReadLogger &&other)  = default;
+    ReadLogger &operator=(ReadLogger &&other) = default;
+
+    void flush() {
+        for(CountingSS &sublog : logs) {
+            dump(sublog);
+        }
+    }
+
+    ~ReadLogger() {
+        flush();
+        os.close();
+    }
+
+    void logRead(AlignedRead &alignedRead) {
+        CountingSS &ss = logs[omp_get_thread_num()];
+        ss << alignedRead.id << " initial " << alignedRead.path.getAlignment().str(true) << "\n";
+        if(ss.size() > 100000) {
+            dump(ss);
+        }
+    }
+
+    void logRerouting(AlignedRead &alignedRead, const GraphAlignment &initial, const GraphAlignment &corrected, const std::string &message) {
+        CountingSS &ss = logs[omp_get_thread_num()];
+        size_t left = 0;
+        size_t right = 0;
+        size_t left_len = 0;
+        size_t right_len = 0;
+        while(left < corrected.size() && left < initial.size()) {
+            if(initial[left] != corrected[left])
+                break;
+            left_len += initial[left].size();
+            left++;
+        }
+        while(left + right < corrected.size() && left + right < initial.size()) {
+            if(initial[initial.size() - right - 1] != corrected[corrected.size() - right - 1])
+                break;
+            right_len += initial[initial.size() - right - 1].size();
+            right++;
+        }
+        ss << alignedRead.id << " " << message  << " " << left << "(" << left_len << ") " << right << "(" << right_len << ")\n";
+        ss << alignedRead.id << "  initial  " << initial.subalignment(left, initial.size() - right).str(true) << "\n";
+        ss << alignedRead.id << " corrected " << corrected.subalignment(left, corrected.size() - right).str(true) << "\n";
+//        ss << alignedRead.id << " rc  initial  " << initial.RC().str(true) << "\n";
+//        ss << alignedRead.id << " rc corrected " << corrected.RC().str(true) << "\n";
+        if(ss.size() > 100000) {
+            dump(ss);
+        }
+    }
+};
+
+
 class RecordStorage {
 private:
     std::vector<AlignedRead> reads;
     std::unordered_map<const Vertex *, VertexRecord> data;
+    ReadLogger readLogger;
 public:
     size_t min_len;
     size_t max_len;
     bool track_cov;
 
 private:
+    void flush() {
+        readLogger.flush();
+    }
+
     void processPath(const GraphAlignment &path, const std::function<void(Vertex &, const Sequence &)> &task,
                      size_t right = size_t(-1)) {
         CompactPath cpath(path);
@@ -423,8 +535,9 @@ private:
     }
 
 public:
-    RecordStorage(SparseDBG &dbg, size_t _min_len, size_t _max_len, bool _track_cov = false) :
-            min_len(_min_len), max_len(_max_len), track_cov(_track_cov) {
+    RecordStorage(SparseDBG &dbg, size_t _min_len, size_t _max_len, size_t threads,
+                  const std::experimental::filesystem::path &logFile, bool _track_cov = false) :
+            min_len(_min_len), max_len(_max_len), track_cov(_track_cov), readLogger(threads, logFile) {
         for(auto &it : dbg) {
             data.emplace(&it.second, VertexRecord(it.second));
             data.emplace(&it.second.rc(), VertexRecord(it.second.rc()));
@@ -517,7 +630,8 @@ public:
         logger.info() << "Alignment collection finished. Total length of alignments is " << cnt.get() << std::endl;
     }
 
-    void reroute(AlignedRead &alignedRead, const GraphAlignment &initial, const GraphAlignment &corrected) {
+    void reroute(AlignedRead &alignedRead, const GraphAlignment &initial, const GraphAlignment &corrected, const std::string &message) {
+        readLogger.logRerouting(alignedRead, initial, corrected, message);
         GraphAlignment rcInitial = initial.RC();
         GraphAlignment rcCorrected = corrected.RC();
         CompactPath cInitial(initial);
@@ -531,15 +645,8 @@ public:
         alignedRead.path = cCorrected;
     }
 
-    void reroute(AlignedRead &alignedRead, const GraphAlignment &corrected) {
-        GraphAlignment rcCorrected = corrected.RC();
-        CompactPath cCorrected(corrected);
-        CompactPath crcCorrected(rcCorrected);
-        this->removeSubpath(alignedRead.path);
-        this->removeSubpath(alignedRead.path.RC());
-        this->addSubpath(cCorrected);
-        this->addSubpath(crcCorrected);
-        alignedRead.path = cCorrected;
+    void reroute(AlignedRead &alignedRead, const GraphAlignment &corrected, const std::string &message) {
+        reroute(alignedRead, alignedRead.path.getAlignment(), corrected, message);
     }
 
     typedef typename std::vector<AlignedRead>::iterator iterator;
@@ -720,7 +827,7 @@ public:
                 corrected.emplace_back(initial[j]);
             }
             GraphAlignment corrected_alignment(&start, std::move(corrected));
-            recs.reroute(read, initial, corrected_alignment);
+            recs.reroute(read, initial, corrected_alignment, "unknown");
         }
     }
 
@@ -866,7 +973,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
     logger.info() << "Realigning sequences to the new graph" << std::endl;
     for(RecordStorage *sit : storages){
         RecordStorage &storage = *sit;
-        RecordStorage new_storage(subgraph, storage.min_len, storage.max_len, storage.track_cov);
+        RecordStorage new_storage(subgraph, storage.min_len, storage.max_len, threads, "/dev/null", storage.track_cov);
         for(AlignedRead &al : storage) {
             new_storage.addRead(AlignedRead(al.id));
         }
@@ -877,9 +984,9 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
                 continue;
             }
             GraphAlignment al = alignedRead.path.getAlignment();
-            new_storage.reroute(new_storage[i], realignRead(al, embedding));
+            new_storage.reroute(new_storage[i], realignRead(al, embedding), "Remapping");
         }
-        std::swap(storage, new_storage);
+        storage = std::move(new_storage);
     }
-    std::swap(dbg, subgraph);
+    dbg = std::move(subgraph);
 }

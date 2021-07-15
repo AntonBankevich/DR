@@ -206,7 +206,7 @@ int main(int argc, char **argv) {
                     LoadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
 
     bool calculate_alignments = parser.getCheck("crude-correct") || parser.getCheck("initial-correct") ||
-            parser.getCheck("mult-correct");
+            parser.getCheck("mult-correct") || parser.getCheck("print-alignments");
     bool calculate_coverage = parser.getCheck("coverage") || parser.getCheck("simplify") ||
             parser.getCheck("correct") || parser.getValue("reference") != "none" ||
             parser.getCheck("tip-correct") || parser.getCheck("crude-correct") ||
@@ -231,8 +231,8 @@ int main(int argc, char **argv) {
     if(parser.getValue("extension-size") != "none")
         extension_size = std::stoull(parser.getValue("extension-size"));
 
-    RecordStorage readStorage(dbg, 0, extension_size, true);
-    RecordStorage refStorage(dbg, 0, extension_size, false);
+    RecordStorage readStorage(dbg, 0, extension_size, threads, dir/"read_log.txt", true);
+    RecordStorage refStorage(dbg, 0, extension_size, threads, "/dev/null", false);
 
     if(calculate_alignments) {
         logger.info() << "Collecting read alignments" << std::endl;
@@ -291,10 +291,7 @@ int main(int argc, char **argv) {
     }
 
     if(parser.getCheck("print-alignments")) {
-        RecordStorage reads_storage(dbg, 0, 100000, true);
-        io::SeqReader readReader(reads_lib);
-        reads_storage.fill(readReader.begin(), readReader.end(), dbg, hasher.getK() + w - 1, logger, threads);
-        reads_storage.printAlignments(logger, dir/"alignments.txt");
+        readStorage.printAlignments(logger, dir/"alignments.txt");
     }
 
     if(parser.getCheck("print-all")) {

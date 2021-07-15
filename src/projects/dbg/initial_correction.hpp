@@ -651,7 +651,7 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
             path_pos = path_pos + step_front;
         }
         if(path != corrected_path) {
-            reads_storage.reroute(alignedRead, path, corrected_path);
+            reads_storage.reroute(alignedRead, path, corrected_path, "low coverage correction");
         }
         results.emplace_back(ss.str());
     }
@@ -661,7 +661,7 @@ size_t correctLowCoveredRegions(logging::Logger &logger, RecordStorage &reads_st
     out.open(out_file);
     size_t res = 0;
     for(std::string &s : results) {
-        if(!s.empty() && s.find("+") != size_t(-1))
+        if(!s.empty() && s.find('+') != size_t(-1))
             res += 1;
         out << s;
     }
@@ -750,7 +750,7 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage,
         }
         if(corrected) {
             GraphAlignment path0 = initial_cpath.getAlignment();
-            reads_storage.reroute(alignedRead, path0, path);
+            reads_storage.reroute(alignedRead, path0, path, "simple bulge corrected");
         }
         results.emplace_back(ss.str());
     }
@@ -834,10 +834,10 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
            }
             if (extension.startsWith(best_seq))
                 continue;
-            logger  << "Correcting ATAT " << best_support << " " << initial_support  << " "
-                    << at_cnt1 << " " << at_cnt2 << " " << max_variation << " "
-                    << "ACGT"[seq[seq.size() - 2]] << "ACGT"[seq[seq.size() - 1]] << " "
-                    << extension.size() << " " << best_seq.size() << std::endl;
+//            logger  << "Correcting ATAT " << best_support << " " << initial_support  << " "
+//                    << at_cnt1 << " " << at_cnt2 << " " << max_variation << " "
+//                    << "ACGT"[seq[seq.size() - 2]] << "ACGT"[seq[seq.size() - 1]] << " "
+//                    << extension.size() << " " << best_seq.size() << std::endl;
             VERIFY_OMP(best_support > 0);
             GraphAlignment rerouting(path.getVertex(path_pos));
             rerouting.extend(best_seq);
@@ -852,7 +852,7 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
             }
             GraphAlignment prev_path = path;
             path = path.reroute(path_pos, path_pos + old_path.size(), rerouting.path());
-            reads_storage.reroute(alignedRead, prev_path, path);
+            reads_storage.reroute(alignedRead, prev_path, path, "AT corrected");
 //            std::cout << "Rerouted " << alignedRead.id << " " << initial_support << " " << best_support << std::endl;
             if(path.size() > 10000) {
                 std::cout << extension << "\n" <<best_seq << std::endl;
@@ -860,10 +860,10 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
             corrected += std::max(prev_path.len(), path.len()) - std::min(prev_path.len(), path.len());
         }
         if(corrected > 0) {
-#pragma omp critical
-            {
-                logger << "ATAT " << alignedRead.id << " " << corrected << std::endl;
-            }
+//#pragma omp critical
+//            {
+//                logger << "ATAT " << alignedRead.id << " " << corrected << std::endl;
+//            }
             ++cnt;
         }
     }
@@ -1027,6 +1027,7 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
         }
         logger.info() << "Could not correct " << cnt << " reads. They were removed." << std::endl;
     }
+    logger.info() << "Applying changes to the graph" << std::endl;
     RemoveUncovered(logger, threads, sdbg, {&reads_storage, &ref_storage});
     logger.info() << "Printing reads to disk" << std::endl;
     std::ofstream ors;

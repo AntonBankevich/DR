@@ -86,12 +86,10 @@ void dbg::Path::operator+=(dbg::Edge &edge) {
 }
 
 dbg::GraphAlignment dbg::GraphAlignment::RC() const {
-    std::vector<Segment<Edge>> path;
+    GraphAlignment res;
     for (size_t i = 0; i < als.size(); i++) {
-        Edge &rc_edge = als[i].contig().rc();
-        path.emplace_back(rc_edge, rc_edge.size() - als[i].right, rc_edge.size() - als[i].left);
+        res += als[als.size() - 1 - i].RC();
     }
-    GraphAlignment res = {&finish().rc(), {path.rbegin(), path.rend()}};
     return res;
 }
 
@@ -367,13 +365,17 @@ dbg::Path dbg::GraphAlignment::path() {
     return {*start_, res};
 }
 
-std::string dbg::GraphAlignment::str() const {
+std::string dbg::GraphAlignment::str(bool show_coverage) const {
     if(!valid())
         return "";
     std::stringstream ss;
     ss << leftSkip() << " " << start().getId();
     for(const Segment<Edge> &seg : als) {
-        ss << " " << "ACGT"[seg.contig().seq[0]] << " " << seg.contig().end()->getId();
+        ss << " " << seg.size() << "ACGT"[seg.contig().seq[0]];
+        if(show_coverage) {
+            ss << "(" << seg.contig().getCoverage() << ")";
+        }
+        ss << " " << seg.contig().end()->getId();
     }
     ss << " " << rightSkip();
     return ss.str();

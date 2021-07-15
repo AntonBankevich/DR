@@ -64,7 +64,7 @@ namespace dbg {
         typename std::vector<Segment<Edge>>::const_iterator end() const {return als.end();}
         Path path();
         size_t size() const {return als.size();}
-        std::string str() const;
+        std::string str(bool show_coverage = false) const;
         size_t len() const;
 
         GraphAlignment RC() const;
@@ -112,15 +112,10 @@ namespace dbg {
     public:
         Segment<U> seg_from;
         Segment<V> seg_to;
-
-        PerfectAlignment(const Segment<U> &seg_from_, const Segment<V> &seg_to_) : seg_from(seg_from_),
-                                                                                   seg_to(seg_to_) {
+        PerfectAlignment(const Segment<U> &seg_from_, const Segment<V> &seg_to_) : seg_from(seg_from_), seg_to(seg_to_) {
             VERIFY(seg_from_.size() == seg_to_.size());
         }
-
-        size_t size() {
-            return seg_from.size();
-        }
+        size_t size() {return seg_from.size();}
     };
 
     class GraphAligner {
@@ -128,7 +123,7 @@ namespace dbg {
         SparseDBG &dbg;
 
     public:
-        GraphAligner(SparseDBG &dbg) : dbg(dbg) {
+        explicit GraphAligner(SparseDBG &dbg) : dbg(dbg) {
         }
 
         GraphAlignment align(const EdgePosition &pos, const Sequence &seq) const;

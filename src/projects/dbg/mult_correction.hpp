@@ -130,7 +130,7 @@ void correctReads(logging::Logger &logger, RecordStorage &reads_storage,
             printAl(logger, unique_extensions, corrected2);
             printAl(logger, unique_extensions, al);
             if(al != corrected2) {
-                reads_storage.reroute(alignedRead, al, corrected2);
+                reads_storage.reroute(alignedRead, al, corrected2, "mult correction");
                 logger << "Corrected read " << alignedRead.id << " " << alignedRead.path << std::endl;
             } else {
                 logger << "No corrections were made" << std::endl;

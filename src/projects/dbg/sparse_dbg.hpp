@@ -64,7 +64,7 @@ namespace dbg {
         mutable std::vector<Edge> outgoing_{};
         Vertex *rc_;
         htype hash_;
-        omp_lock_t writelock{};
+        omp_lock_t writelock;
         size_t coverage_ = 0;
         bool canonical = false;
         bool mark_ = false;

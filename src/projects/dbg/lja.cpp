@@ -40,8 +40,8 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         SparseDBG dbg = DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
         size_t extension_size = std::max<size_t>(k * 5 / 2, 3000);
-        RecordStorage readStorage(dbg, 0, extension_size, true);
-        RecordStorage refStorage(dbg, 0, extension_size, false);
+        RecordStorage readStorage(dbg, 0, extension_size, threads, dir/"read_log.txt", true);
+        RecordStorage refStorage(dbg, 0, extension_size, threads, "/dev/null", false);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
         initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta", dir / "good.fasta",
@@ -102,7 +102,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         const io::Library construction_lib = reads_lib + pseudo_reads_lib;
         SparseDBG dbg = DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
-        RecordStorage readStorage(dbg, 0, 1000000, true);
+        RecordStorage readStorage(dbg, 0, 1000000, threads, dir/"read_log.txt", true);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
         MultCorrect(dbg, logger, dir, readStorage, unique_threshold, threads, dump);
@@ -136,7 +136,7 @@ std::experimental::filesystem::path SplitDataset(logging::Logger &logger, const 
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
         SparseDBG dbg = DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
-        RecordStorage readStorage(dbg, 0, 1000000, true);
+        RecordStorage readStorage(dbg, 0, 1000000, threads, dir/"read_log.txt", true);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
         {
@@ -222,7 +222,7 @@ void ConstructSubdataset(logging::Logger &logger, const std::experimental::files
         SparseDBG subdbg = DBGPipeline(logger, hasher, w, sublib, subdir, threads);
         subdbg.fillAnchors(w, logger, threads);
         CalculateCoverage(subdir, hasher, w, sublib, threads, logger, subdbg);
-        RecordStorage reads_storage(subdbg, 0, 100000, true);
+        RecordStorage reads_storage(subdbg, 0, 100000, threads, subdir/"read_log.txt", true);
         io::SeqReader readReader(sublib);
         reads_storage.fill(readReader.begin(), readReader.end(), subdbg, hasher.getK() + w - 1, logger, threads);
         reads_storage.printAlignments(logger, subdir/"alignments.txt");
