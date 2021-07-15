@@ -404,7 +404,7 @@ private:
         }
 
         void clear() {
-            log = {};
+            log = std::stringstream();
             len = 0;
         }
     };
