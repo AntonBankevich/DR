@@ -8,6 +8,12 @@
 #include <common/zip_utils.hpp>
 #include <vector>
 using namespace hashing;
+
+struct ReadAndAls {
+    std::string id;
+    std::vector<Segment<Contig>> als;
+    ReadAndAls(const std::string &id, const std::vector<Segment<Contig>> &als) : id(id), als(als) {}
+};
 int main(int argc, char **argv) {
     CLParser parser({"ref=", "kmer-size=", "width=", "output-dir=", "dimer-compress=1000000000,1000000000,1"}, {"reads"},
                     {"k=kmer-size", "w=width", "o=output-dir"});
@@ -65,7 +71,7 @@ int main(int argc, char **argv) {
     for(StringContig scontig : readReader) {
         Contig read = scontig.makeContig();
         VERIFY(read.size() >= k + w - 1);
-        std::vector<Segment<Contig>> res;
+        std::vector<std::pair<Segment<Contig>, Segment<Contig>>> res;
         KWH kwh(hasher, read.seq, 0);
         while (true) {
             if (position_map.find(kwh.fHash()) != position_map.end()) {
@@ -80,8 +86,7 @@ int main(int argc, char **argv) {
                     Segment<Contig> seg_from(read, shrink_left, read.size() - shrink_right);
                     Segment<Contig> seg_to(*pos.first, pos.second - kwh.pos + shrink_left,
                                            pos.second - kwh.pos + read.size() - shrink_right);
-                    if(seg_from.seq() == seg_to.seq())
-                        res.emplace_back(seg_to);
+                    res.emplace_back(seg_from, seg_to);
                 }
             }
             if (!kwh.hasNext())
@@ -92,8 +97,9 @@ int main(int argc, char **argv) {
         res.erase(std::unique(res.begin(), res.end()), res.end());
 //        VERIFY(res.size() > 0);
         bool ok = false;
-        for(Segment<Contig> &pos : res) {
-            os << read.id << " " << pos.contig().getId() << " " << pos.left << " " << pos.right << std::endl;
+        for(std::pair<Segment<Contig>, Segment<Contig>> &al : res) {
+            if(al.first.seq() == al.second.seq())
+                os << read.id << " " << al.second.contig().getId() << " " << al.second.left << " " << al.second.right << std::endl;
         }
 //        VERIFY(ok);
     }
