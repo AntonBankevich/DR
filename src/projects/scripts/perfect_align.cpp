@@ -9,7 +9,7 @@
 #include <vector>
 using namespace hashing;
 int main(int argc, char **argv) {
-    CLParser parser({"ref=", "kmer-size=", "width=", "output-dir=", "dimer-compress="}, {"reads"},
+    CLParser parser({"ref=", "kmer-size=", "width=", "output-dir=", "dimer-compress=1000000000,1000000000,1"}, {"reads"},
                     {"k=kmer-size", "w=width", "o=output-dir"});
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
