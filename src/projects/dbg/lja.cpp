@@ -2,7 +2,7 @@
 #include "mult_correction.hpp"
 #include "parameter_estimator.hpp"
 #include "visualization.hpp"
-#include "error_correction.hpp"
+#include "tip_correction.hpp"
 #include "graph_algorithms.hpp"
 #include "dbg_construction.hpp"
 #include "dbg_disjointigs.hpp"
@@ -35,7 +35,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         k += 1;
     }
     ensure_dir_existance(dir);
-    RollingHash hasher(k, 239);
+    hashing::RollingHash hasher(k, 239);
     std::function<void()> ic_task = [&dir, &logger, &hasher, remove_bad, k, w, &reads_lib, &pseudo_reads_lib, threads, threshold, reliable_coverage, dump] {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
         SparseDBG dbg = DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
@@ -45,18 +45,11 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         RecordStorage refStorage(dbg, 0, extension_size, threads, "/dev/null", false);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
-        initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta", dir / "good.fasta",
-                       dir / "bad.fasta", dir / "new_reliable.fasta", readStorage, refStorage,
+        initialCorrect(dbg, logger, dir / "correction.txt", readStorage, refStorage,
                        threshold, 2 * threshold, reliable_coverage, remove_bad, threads, dump);
-        Component comp(dbg);
-        DrawSplit(comp, dir / "split");
-        std::ofstream edges;
-        edges.open(dir / "graph.fasta");
-        for(Edge &edge : dbg.edges()) {
-            edges << ">" << edge.start()->hash() << edge.start()->isCanonical() << "ACGT"[edge.seq[0]] << "\n" <<
-                edge.start()->seq << edge.seq << "\n";
-        }
-        edges.close();
+        readStorage.printFasta(logger, dir / "corrected.fasta");
+        DrawSplit(Component(dbg), dir / "split");
+        dbg.printFastaOld(dir / "graph.fasta");
     };
     if(!skip)
         runInFork(ic_task);
@@ -75,7 +68,7 @@ std::experimental::filesystem::path CrudeCorrection(logging::Logger &logger, con
         k += 1;
     }
     ensure_dir_existance(dir);
-    RollingHash hasher(k, 239);
+    hashing::RollingHash hasher(k, 239);
     std::function<void()> cc_task = [&dir, &logger, &hasher, w, &reads_lib, threads, threshold] {
         SparseDBG dbg = DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
@@ -98,7 +91,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         k += 1;
     }
     ensure_dir_existance(dir);
-    RollingHash hasher(k, 239);
+    hashing::RollingHash hasher(k, 239);
     std::function<void()> mc_task = [&dir, &logger, &hasher, k, w, &reads_lib, &pseudo_reads_lib, threads, unique_threshold, dump] {
         const io::Library construction_lib = reads_lib + pseudo_reads_lib;
         SparseDBG dbg = DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
@@ -108,12 +101,8 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
         MultCorrect(dbg, logger, dir, readStorage, unique_threshold, threads, dump);
         std::ofstream edges;
-        edges.open(dir / "graph.fasta");
-        for(Edge &edge : dbg.edges()) {
-            edges << ">" << edge.start()->hash() << edge.start()->isCanonical() << "ACGT"[edge.seq[0]] << "\n" <<
-                  edge.start()->seq << edge.seq << "\n";
-        }
-        edges.close();
+        dbg.printFastaOld(dir / "graph.fasta");
+        readStorage.printAlignments(logger, dir/"corrected.fasta");
     };
     if(!skip)
         runInFork(mc_task);
@@ -130,7 +119,7 @@ std::experimental::filesystem::path SplitDataset(logging::Logger &logger, const 
         k += 1;
     }
     ensure_dir_existance(dir);
-    RollingHash hasher(k, 239);
+    hashing::RollingHash hasher(k, 239);
     std::experimental::filesystem::path res = dir/"split";
     recreate_dir(res);
     std::function<void()> split_task = [&dir, &logger, &hasher, k, w, &reads_lib, &pseudo_reads_lib, threads, &res, dump] {
@@ -216,7 +205,7 @@ void ConstructSubdataset(logging::Logger &logger, const std::experimental::files
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
         k += 1;
     }
-    RollingHash hasher(k, 239);
+    hashing::RollingHash hasher(k, 239);
     std::function<void()> split_task = [&subdir, &logger, &hasher, k, w, threads, dump] {
         logger.info() << "Constructing subdataset graphs" << std::endl;
         io::Library sublib = {subdir/"corrected.fasta"};

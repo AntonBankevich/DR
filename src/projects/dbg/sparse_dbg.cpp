@@ -133,6 +133,16 @@ Sequence Edge::kmerSeq(size_t pos) const {
     }
 }
 
+Sequence Edge::suffix(size_t pos) const {
+    VERIFY(pos <= seq.size());
+    size_t k = start_->seq.size();
+    if (pos >= k)
+        return seq.Subseq(pos - k, seq.size());
+    else {
+        return start()->seq.Subseq(pos) + seq.Subseq(0, seq.size());
+    }
+}
+
 std::string Edge::getId() const {
     return start_->getId() + "ACGT"[seq[0]];
 }

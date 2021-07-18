@@ -9,7 +9,7 @@
 #include <vector>
 using namespace hashing;
 int main(int argc, char **argv) {
-    CLParser parser({"ref=", "kmer-size=", "width=", "output-dir="}, {"reads"},
+    CLParser parser({"ref=", "kmer-size=", "width=", "output-dir=", "dimer-compress="}, {"reads"},
                     {"k=kmer-size", "w=width", "o=output-dir"});
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
@@ -34,6 +34,7 @@ int main(int argc, char **argv) {
     std::unordered_map<htype, std::vector<std::pair<Contig *, size_t>>, alt_hasher<htype>> position_map;
 
     StringContig::homopolymer_compressing = true;
+    StringContig::SetDimerParameters(parser.getValue("dimer-compress"));
     std::vector<Contig> ref;
     io::SeqReader reader(reff);
     std::ofstream refos;
@@ -53,7 +54,7 @@ int main(int argc, char **argv) {
     }
     refos.close();
     for(Contig &contig : ref) {
-        for(size_t pos = 0; pos + k <= contig.size(); pos += w) {
+        for(size_t pos = 1; pos + k <= contig.size(); pos += w) {
             htype h = hasher.hash(contig.seq, pos);
             position_map[h].emplace_back(&contig, pos);
         }
@@ -64,14 +65,23 @@ int main(int argc, char **argv) {
     for(StringContig scontig : readReader) {
         Contig read = scontig.makeContig();
         VERIFY(read.size() >= k + w - 1);
-        std::vector<std::pair<Contig *, size_t>> res;
+        std::vector<Segment<Contig>> res;
         KWH kwh(hasher, read.seq, 0);
         while (true) {
             if (position_map.find(kwh.fHash()) != position_map.end()) {
                 for(std::pair<Contig *, size_t> &pos : position_map[kwh.fHash()]) {
-                    if (kwh.pos <= pos.second && -kwh.pos + pos.second + read.size()<= pos.first->size()) {
-                        res.emplace_back(pos.first, pos.second - kwh.pos);
+                    size_t shrink_left = 0;
+                    if(kwh.pos > pos.second) {
+                        shrink_left = kwh.pos - pos.second;
                     }
+                    size_t shrink_right = 0;
+                    if(-kwh.pos + pos.second + read.size()> pos.first->size())
+                        shrink_right = -kwh.pos + pos.second + read.size() - pos.first->size();
+                    Segment<Contig> seg_from(read, shrink_left, read.size() - shrink_right);
+                    Segment<Contig> seg_to(*pos.first, pos.second - kwh.pos + shrink_left,
+                                           pos.second - kwh.pos + read.size() - shrink_right);
+                    if(seg_from.seq() == seg_to.seq())
+                        res.emplace_back(seg_to);
                 }
             }
             if (!kwh.hasNext())
@@ -82,11 +92,8 @@ int main(int argc, char **argv) {
         res.erase(std::unique(res.begin(), res.end()), res.end());
 //        VERIFY(res.size() > 0);
         bool ok = false;
-        for(std::pair<Contig *, size_t> &pos : res) {
-            if(read.seq == pos.first->seq.Subseq(pos.second, pos.second + read.size())) {
-                os << read.id << " " << pos.first->id << " " << pos.second << " " << pos.second + read.size() << std::endl;
-                ok = true;
-            }
+        for(Segment<Contig> &pos : res) {
+            os << read.id << " " << pos.contig().getId() << " " << pos.left << " " << pos.right << std::endl;
         }
 //        VERIFY(ok);
     }

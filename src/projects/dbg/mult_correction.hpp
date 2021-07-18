@@ -201,7 +201,7 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
         }
     }
     logger.info() << "Collecting bad edges" << std::endl;
-    std::unordered_set<Edge *> bad_edges;
+    std::unordered_set<Edge const *> bad_edges;
     for(Edge & edge : sdbg.edges()) {
         if(edge.size() > k + 5000)
             continue;
@@ -214,20 +214,13 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
     std::ofstream ors;
     std::ofstream brs;
     ors.open(out_reads);
+    std::function<bool(const Edge&)> is_bad = [&bad_edges](const Edge &edge) {
+        return edge.getCoverage() < 2 || bad_edges.find(&edge) != bad_edges.end();
+    };
+    reads_storage.invalidateBad(logger, is_bad);
     for(auto & alignedRead : reads_storage) {
-        GraphAlignment al = alignedRead.path.getAlignment();
-        bool ok = true;
-        for(Segment<dbg::Edge> &seg : al) {
-            if(seg.contig().getCoverage() < 2 || bad_edges.find(&seg.contig()) != bad_edges.end()) {
-                ok = false;
-                break;
-            }
-        }
-        if(ok) {
+        if(alignedRead.valid()) {
             ors << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
-        } else {
-            logger << "Could not correct read " << alignedRead.id << ". Removing it from dataset." << std::endl;
-            reads_storage.invalidateRead(alignedRead);
         }
     }
     RemoveUncovered(logger, threads, sdbg, {&reads_storage});

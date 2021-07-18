@@ -50,6 +50,7 @@ namespace dbg {
         Edge &sparseRcEdge() const;
         void incCov(size_t val) const;
         Sequence kmerSeq(size_t pos) const;
+        Sequence suffix(size_t pos) const;
         std::string str() const;
         bool operator==(const Edge &other) const;
         bool operator!=(const Edge &other) const;
@@ -163,6 +164,10 @@ namespace dbg {
             }
         }
 
+        Sequence kmerSeq() const {
+            return edge->kmerSeq(pos);
+        }
+
         unsigned char lastNucl() const {
             return edge->seq[pos - 1];
         }
@@ -240,6 +245,17 @@ namespace dbg {
             }
             return std::move(res);
         }
+
+//        SparseDBG Subgraph(const std::vector<EdgePosition> &breaks) {
+//            SparseDBG res(hasher_);
+//            for(auto &it : v) {
+//                res.addVertex(it.second.seq);
+//            }
+//            for(const EdgePosition &epos : breaks) {
+//                res.addVertex(hasher_.hash(epos.kmerSeq(), 0));
+//            }
+//            return std::move(res);
+//        }
 
         bool containsVertex(const hashing::htype &hash) const {
             return v.find(hash) != v.end();
@@ -421,6 +437,15 @@ namespace dbg {
             os << "}\n";
         }
 
+        void printFastaOld(const std::experimental::filesystem::path &out) {
+            std::ofstream os;
+            os.open(out);
+            for(Edge &edge : edges()) {
+                os << ">" << edge.start()->hash() << edge.start()->isCanonical() << "ACGT"[edge.seq[0]] << "\n" <<
+                      edge.start()->seq << edge.seq << "\n";
+            }
+            os.close();
+        }
 
         void processRead(const Sequence &seq) {
             std::vector<hashing::KWH> kmers = extractVertexPositions(seq);

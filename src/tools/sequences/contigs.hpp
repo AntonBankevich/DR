@@ -205,6 +205,9 @@ public:
             return Contig(!seq, "-" + id);
     }
 
+    bool operator<(const Contig &other) {
+        return getId() < other.getId();
+    }
 //    Contig(const string &_seq, const string &_id, Contig *_rc): NamedSequence(Sequence(_seq), _id, _rc) {
 //    }
 };

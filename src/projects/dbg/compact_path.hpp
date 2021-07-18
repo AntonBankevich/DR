@@ -572,6 +572,31 @@ public:
         read.invalidate();
     }
 
+    void invalidateBad(logging::Logger &logger, double threshold) {
+        const std::function<bool(const Edge &)> &is_bad = [threshold](const Edge &edge) {
+            return edge.getCoverage() < threshold;
+        };
+        invalidateBad(logger, is_bad);
+    }
+
+    void invalidateBad(logging::Logger &logger, const std::function<bool(const Edge &)> &is_bad) {
+        size_t cnt = 0;
+        for (AlignedRead &alignedRead : reads) {
+            bool good = true;
+            for (Segment<Edge> & edge_it : alignedRead.path.getAlignment()) {
+                if (is_bad(edge_it.contig())) {
+                    good = false;
+                    break;
+                }
+            }
+            if (!good) {
+                invalidateRead(alignedRead);
+                cnt++;
+            }
+        }
+        logger.info() << "Could not correct " << cnt << " reads. They were removed." << std::endl;
+    }
+
     void addSubpath(const CompactPath &cpath) {
         if(!cpath.valid())
             return;
@@ -694,6 +719,20 @@ public:
             al = al.RC();
             os  << "-" << read.id << " " << al.start().hash() << int(al.start().isCanonical())
                 << " " << al.cpath().str() << "\n";
+        }
+        os.close();
+    }
+
+    void printFasta(logging::Logger &logger, const std::experimental::filesystem::path &path) const {
+        logger.info() << "Printing reads to fasta file " << path << std::endl;
+        std::string acgt = "ACGT";
+        std::ofstream os;
+        os.open(path);
+        for(const AlignedRead &read : reads) {
+            CompactPath al = read.path;
+            if(!al.valid())
+                continue;
+            os  << read.id << "\n" << read.path.getAlignment().Seq() << "\n";
         }
         os.close();
     }

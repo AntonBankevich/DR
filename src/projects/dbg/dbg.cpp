@@ -258,10 +258,8 @@ int main(int argc, char **argv) {
         if (parser.getValue("reference") != "none") {
             ref_vector = io::SeqReader(parser.getValue("reference")).readAll();
         }
-        initialCorrect(dbg, logger, dir / "correction.txt", dir / "corrected.fasta",
-                       dir / "good.fasta",dir / "bad.fasta", dir / "new_reliable.fasta",
-                       readStorage, refStorage, threshold, 2 * threshold, reliable, false, threads,
-                       parser.getCheck("dump"));
+        initialCorrect(dbg, logger, dir / "correction.txt", readStorage, refStorage, threshold, 2 * threshold, reliable,
+                       false, threads, parser.getCheck("dump"));
         Component comp(dbg);
         DrawSplit(comp, dir / "split");
     }
@@ -290,8 +288,12 @@ int main(int argc, char **argv) {
         }
     }
 
-    if(parser.getCheck("print-alignments")) {
+    if(parser.getCheck("print-alignments") || parser.getCheck("mult-correct")) {
         readStorage.printAlignments(logger, dir/"alignments.txt");
+    }
+
+    if(parser.getCheck("mult-correct") || parser.getCheck("initial-correct")) {
+        readStorage.printFasta(logger, dir/"corrected.fasta");
     }
 
     if(parser.getCheck("print-all")) {
