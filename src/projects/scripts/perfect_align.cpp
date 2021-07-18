@@ -7,7 +7,7 @@
 #include <common/omp_utils.hpp>
 #include <common/zip_utils.hpp>
 #include <vector>
-
+using namespace hashing;
 int main(int argc, char **argv) {
     CLParser parser({"ref=", "kmer-size=", "width=", "output-dir="}, {"reads"},
                     {"k=kmer-size", "w=width", "o=output-dir"});

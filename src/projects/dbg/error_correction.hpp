@@ -5,6 +5,7 @@
 #pragma once
 
 #include "sparse_dbg.hpp"
+#include "common/hash_utils.hpp"
 #include "common/output_utils.hpp"
 #include "common/simple_computation.hpp"
 #include <queue>
@@ -47,7 +48,6 @@ namespace error_correction {
     std::ostream& operator<<(std::ostream& out, const State & item) {
         return out << "(" << item.last_match << " " << item.diff << " " << item.graph_position->hash() << " " << item.match << ")";
     }
-
 }
 
 namespace std {

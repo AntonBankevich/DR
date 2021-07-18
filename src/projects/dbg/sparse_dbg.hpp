@@ -5,17 +5,16 @@
 #pragma once
 #include "sequences/sequence.hpp"
 #include "sequences/seqio.hpp"
-#include "common/hash_utils.hpp"
 #include "common/omp_utils.hpp"
 #include "common/logging.hpp"
 #include "common/rolling_hash.hpp"
 #include "common/hash_utils.hpp"
+#include <common/oneline_utils.hpp>
+#include <common/iterator_utils.hpp>
 #include <vector>
 #include <numeric>
 #include <unordered_map>
-#include <common/oneline_utils.hpp>
 #include <unordered_set>
-#include <common/iterator_utils.hpp>
 
 namespace dbg {
     class Vertex;
@@ -58,28 +57,32 @@ namespace dbg {
         bool operator<=(const Edge &other) const;
     };
 
+//    std::ostream& operator<<(std::ostream& os, const Edge& edge);
+
+
+
     class Vertex {
     private:
         friend class SparseDBG;
         mutable std::vector<Edge> outgoing_{};
         Vertex *rc_;
-        htype hash_;
+        hashing::htype hash_;
         omp_lock_t writelock;
         size_t coverage_ = 0;
         bool canonical = false;
         bool mark_ = false;
-        explicit Vertex(htype hash, Vertex *_rc);
+        explicit Vertex(hashing::htype hash, Vertex *_rc);
     public:
         Sequence seq;
 
-        explicit Vertex(htype hash = 0);
+        explicit Vertex(hashing::htype hash = 0);
         Vertex(const Vertex &) = delete;
         ~Vertex();
 
         void mark() {mark_ = true;}
         void unmark() {mark_ = false;}
         bool marked() const {return mark_;}
-        htype hash() const {return hash_;}
+        hashing::htype hash() const {return hash_;}
         Vertex &rc() {return *rc_;}
         const Vertex &rc() const {return *rc_;}
         void setSequence(const Sequence &_seq);
@@ -172,17 +175,17 @@ namespace dbg {
 
     class SparseDBG {
     public:
-        typedef std::unordered_map<htype, Vertex, alt_hasher<htype>> vertex_map_type;
-        typedef std::unordered_map<htype, Vertex, alt_hasher<htype>>::iterator vertex_iterator_type;
-        typedef std::unordered_map<htype, EdgePosition, alt_hasher<htype>> anchor_map_type;
+        typedef std::unordered_map<hashing::htype , Vertex, hashing::alt_hasher<hashing::htype>> vertex_map_type;
+        typedef std::unordered_map<hashing::htype, Vertex, hashing::alt_hasher<hashing::htype>>::iterator vertex_iterator_type;
+        typedef std::unordered_map<hashing::htype, EdgePosition, hashing::alt_hasher<hashing::htype>> anchor_map_type;
     private:
 //    TODO: replace with perfect hash map? It is parallel, maybe faster and compact.
         vertex_map_type v;
         anchor_map_type anchors;
-        RollingHash hasher_;
+        hashing::RollingHash hasher_;
 
 //    Be careful since hash does not define vertex. Rc vertices share the same hash
-        Vertex &innerAddVertex(htype h) {
+        Vertex &innerAddVertex(hashing::htype h) {
             return v.emplace(std::piecewise_construct, std::forward_as_tuple(h),
                              std::forward_as_tuple(h)).first->second;
         }
@@ -190,16 +193,16 @@ namespace dbg {
     public:
 
         template<class Iterator>
-        SparseDBG(Iterator begin, Iterator end, RollingHash _hasher) : hasher_(_hasher) {
+        SparseDBG(Iterator begin, Iterator end, hashing::RollingHash _hasher) : hasher_(_hasher) {
             while (begin != end) {
-                htype hash = *begin;
+                hashing::htype hash = *begin;
                 if (v.find(hash) == v.end())
                     addVertex(hash);
                 ++begin;
             }
         }
 
-        explicit SparseDBG(RollingHash _hasher) : hasher_(_hasher) {
+        explicit SparseDBG(hashing::RollingHash _hasher) : hasher_(_hasher) {
         }
 
         SparseDBG(SparseDBG &&other) = default;
@@ -238,14 +241,14 @@ namespace dbg {
             return std::move(res);
         }
 
-        bool containsVertex(const htype &hash) const {
+        bool containsVertex(const hashing::htype &hash) const {
             return v.find(hash) != v.end();
         }
 
         void checkConsistency(size_t threads, logging::Logger &logger) {
             logger.info() << "Checking consistency" << std::endl;
-            std::function<void(std::pair<const htype, Vertex> &)> task =
-                    [this](std::pair<const htype, Vertex> &pair) {
+            std::function<void(std::pair<const hashing::htype, Vertex> &)> task =
+                    [this](std::pair<const hashing::htype, Vertex> &pair) {
                         const Vertex &vert = pair.second;
                         vert.checkConsistency();
                         vert.rc().checkConsistency();
@@ -254,37 +257,17 @@ namespace dbg {
             logger.info() << "Consistency check success" << std::endl;
         }
 
-        void checkSeqFilled(size_t threads, logging::Logger &logger) {
-            logger.info() << "Checking vertex sequences" << std::endl;
-            std::function<void(std::pair<const htype, Vertex> &)> task =
-                    [&logger](std::pair<const htype, Vertex> &pair) {
-                        const Vertex &vert = pair.second;
-                        if (vert.seq.empty() || vert.rc().seq.empty()) {
-                            logger.info() << "Sequence not filled " << pair.first << std::endl;
-                            VERIFY(false);
-                        }
-                        if (!vert.isCanonical()) {
-                            logger.info() << "Canonical vertex marked not canonical " << pair.first << std::endl;
-                            VERIFY(false);
-                        }
-                        if (vert.rc().isCanonical()) {
-                            logger.info() << "Noncanonical vertex marked canonical " << pair.first << std::endl;
-                            VERIFY(false);
-                        }
-                    };
-            processObjects(v.begin(), v.end(), logger, threads, task);
-            logger.info() << "Vertex sequence check success" << std::endl;
-        }
+        void checkSeqFilled(size_t threads, logging::Logger &logger);
 
-        const RollingHash &hasher() const {
+        const hashing::RollingHash &hasher() const {
             return hasher_;
         }
 
-        void addVertex(htype h) {
+        void addVertex(hashing::htype h) {
             innerAddVertex(h);
         }
 
-        Vertex &addVertex(const KWH &kwh) {
+        Vertex &addVertex(const hashing::KWH &kwh) {
             Vertex &newVertex = innerAddVertex(kwh.hash());
             Vertex &res = kwh.isCanonical() ? newVertex : newVertex.rc();
             res.setSequence(kwh.getSeq());
@@ -292,7 +275,7 @@ namespace dbg {
         }
 
         Vertex &addVertex(const Sequence &seq) {
-            return addVertex(KWH(hasher_, seq, 0));
+            return addVertex(hashing::KWH(hasher_, seq, 0));
         }
 
         Vertex &bindTip(Vertex &start, Edge &tip) {
@@ -302,7 +285,7 @@ namespace dbg {
             return end;
         }
 
-        Vertex &getVertex(const KWH &kwh) {
+        Vertex &getVertex(const hashing::KWH &kwh) {
             auto it = v.find(kwh.hash());
             VERIFY(it != v.end());
             if (kwh.isCanonical()) {
@@ -313,19 +296,19 @@ namespace dbg {
         }
 
         Vertex &getVertex(const Sequence &seq) {
-            return getVertex(KWH(hasher_, seq, 0));
+            return getVertex(hashing::KWH(hasher_, seq, 0));
         }
 
-        Vertex &getVertex(htype hash) {
+        Vertex &getVertex(hashing::htype hash) {
             return v.find(hash)->second;
         }
 
-        std::array<Vertex *, 2> getVertices(htype hash) {
+        std::array<Vertex *, 2> getVertices(hashing::htype hash) {
             Vertex &res = v.find(hash)->second;
             return {&res, &res.rc()};
         }
 
-        const Vertex &getVertex(const KWH &kwh) const {
+        const Vertex &getVertex(const hashing::KWH &kwh) const {
             auto it = v.find(kwh.hash());
             VERIFY(it != v.end());
             if (kwh.isCanonical()) {
@@ -337,13 +320,13 @@ namespace dbg {
 
         void fillAnchors(size_t w, logging::Logger &logger, size_t threads) {
             logger.info() << "Adding anchors from long edges for alignment" << std::endl;
-            ParallelRecordCollector<std::pair<const htype, EdgePosition>> res(threads);
+            ParallelRecordCollector<std::pair<const hashing::htype, EdgePosition>> res(threads);
             std::function<void(Edge &)> task = [&res, w, this](Edge &edge) {
                 Vertex &vertex = *edge.start();
                 if (edge.size() > w) {
                     Sequence seq = vertex.seq + edge.seq;
 //                    Does not run for the first and last kmers.
-                    for (KWH kmer(this->hasher_, seq, 1); kmer.hasNext(); kmer = kmer.next()) {
+                    for (hashing::KWH kmer(this->hasher_, seq, 1); kmer.hasNext(); kmer = kmer.next()) {
                         if (kmer.pos % w == 0) {
                             EdgePosition ep(edge, kmer.pos);
                             if (kmer.isCanonical())
@@ -362,15 +345,15 @@ namespace dbg {
             logger.info() << "Added " << anchors.size() << " anchors" << std::endl;
         }
 
-        void fillAnchors(size_t w, logging::Logger &logger, size_t threads, const std::unordered_set<htype, alt_hasher<htype>> &to_add) {
+        void fillAnchors(size_t w, logging::Logger &logger, size_t threads, const std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> &to_add) {
             logger.info() << "Adding anchors from long edges for alignment" << std::endl;
-            ParallelRecordCollector<std::pair<const htype, EdgePosition>> res(threads);
+            ParallelRecordCollector<std::pair<const hashing::htype, EdgePosition>> res(threads);
             std::function<void(Edge &)> task = [&res, w, this, &to_add](Edge &edge) {
                 Vertex &vertex = *edge.start();
                 if (edge.size() > w || !to_add.empty()) {
                     Sequence seq = vertex.seq + edge.seq;
 //                    Does not run for the first and last kmers.
-                    for (KWH kmer(this->hasher_, seq, 1); kmer.hasNext(); kmer = kmer.next()) {
+                    for (hashing::KWH kmer(this->hasher_, seq, 1); kmer.hasNext(); kmer = kmer.next()) {
                         if (kmer.pos % w == 0 || to_add.find(kmer.hash()) != to_add.end()) {
                             EdgePosition ep(edge, kmer.pos);
                             if (kmer.isCanonical())
@@ -389,20 +372,20 @@ namespace dbg {
             logger.info() << "Added " << anchors.size() << " anchors" << std::endl;
         }
 
-        bool isAnchor(htype hash) const {
+        bool isAnchor(hashing::htype hash) const {
             return anchors.find(hash) != anchors.end();
         }
 
-        EdgePosition getAnchor(const KWH &kwh) {
+        EdgePosition getAnchor(const hashing::KWH &kwh) {
             if (kwh.isCanonical())
                 return anchors.find(kwh.hash())->second;
             else
                 return anchors.find(kwh.hash())->second.RC();
         }
 
-        std::vector<KWH> extractVertexPositions(const Sequence &seq) const {
-            std::vector<KWH> res;
-            KWH kwh(hasher(), seq, 0);
+        std::vector<hashing::KWH> extractVertexPositions(const Sequence &seq) const {
+            std::vector<hashing::KWH> res;
+            hashing::KWH kwh(hasher(), seq, 0);
             while (true) {
                 if (containsVertex(kwh.hash())) {
                     res.emplace_back(kwh);
@@ -414,23 +397,11 @@ namespace dbg {
             return std::move(res);
         }
 
-        void printEdge(std::ostream &os, Vertex &start, Edge &edge, bool output_coverage) {
-            Vertex &end = *edge.end();
-            os << "\"";
-            if (!start.isCanonical())
-                os << "-";
-            os << start.hash() % 100000 << "\" -> \"";
-            if (!end.isCanonical())
-                os << "-";
-            if (output_coverage)
-                os << end.hash() % 100000 << "\" [label=\"" << edge.size() << "(" << edge.getCoverage() << ")\"]\n";
-            else
-                os << end.hash() % 100000 << "\" [label=\"" << edge.size() << "\"]\n";
-        }
+        void printEdge(std::ostream &os, Vertex &start, Edge &edge, bool output_coverage);
 
         void printDot(std::ostream &os, bool output_coverage) {
             os << "digraph {\nnodesep = 0.5;\n";
-            for (std::pair<const htype, Vertex> &it : this->v) {
+            for (std::pair<const hashing::htype, Vertex> &it : this->v) {
                 Vertex &start = it.second;
                 for (Edge &edge : start) {
                     Vertex &end = *edge.end();
@@ -452,7 +423,7 @@ namespace dbg {
 
 
         void processRead(const Sequence &seq) {
-            std::vector<KWH> kmers = extractVertexPositions(seq);
+            std::vector<hashing::KWH> kmers = extractVertexPositions(seq);
             if (kmers.size() == 0) {
                 std::cout << seq << std::endl;
             }
@@ -490,7 +461,7 @@ namespace dbg {
 
         void processEdge(Vertex &vertex, Sequence old_seq) {
             Sequence seq = vertex.seq + old_seq;
-            std::vector<KWH> kmers = extractVertexPositions(seq);
+            std::vector<hashing::KWH> kmers = extractVertexPositions(seq);
             VERIFY(kmers.front().pos == 0 && kmers.back().pos == old_seq.size());
             std::vector<Vertex *> vertices;
             for (size_t i = 0; i < kmers.size(); i++) {
@@ -514,8 +485,8 @@ namespace dbg {
         }
 
         IterableStorage<ApplyingIterator<vertex_iterator_type, Vertex, 2>> vertices(bool unique = false) {
-            std::function<std::array<Vertex*, 2>(std::pair<const htype, Vertex> &)> apply =
-                    [unique](std::pair<const htype, Vertex> &it) -> std::array<Vertex*, 2> {
+            std::function<std::array<Vertex*, 2>(std::pair<const hashing::htype, Vertex> &)> apply =
+                    [unique](std::pair<const hashing::htype, Vertex> &it) -> std::array<Vertex*, 2> {
                 if(unique)
                     return {&it.second};
                 else
@@ -532,7 +503,7 @@ namespace dbg {
 
 
         IterableStorage<ApplyingIterator<vertex_iterator_type, Edge, 8>> edges(bool unique = false) {
-            std::function<std::array<Edge*, 8>(const std::pair<const htype, Vertex> &)> apply = [unique](const std::pair<const htype, Vertex> &it) {
+            std::function<std::array<Edge*, 8>(const std::pair<const hashing::htype, Vertex> &)> apply = [unique](const std::pair<const hashing::htype, Vertex> &it) {
                 std::array<Edge*, 8> res = {};
                 size_t cur = 0;
                 for(Edge &edge : it.second) {
@@ -622,7 +593,7 @@ namespace dbg {
 
         void removeIsolated() {
             vertex_map_type newv;
-            std::vector<htype> todelete;
+            std::vector<hashing::htype> todelete;
             for (auto it = v.begin(); it != v.end();) {
                 if (it->second.outDeg() == 0 && it->second.inDeg() == 0) {
                     it = v.erase(it);
@@ -642,6 +613,7 @@ namespace dbg {
             }
         }
     };
+
 }
 
 namespace std {

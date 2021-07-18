@@ -1,6 +1,7 @@
 #include "dbg_disjointigs.hpp"
 #include "graph_stats.hpp"
 
+using namespace hashing;
 Sequence buildDisjointig(Path &path) {
     Sequence disjointig = path.Seq();
     const Vertex &last = path.finish().rc();

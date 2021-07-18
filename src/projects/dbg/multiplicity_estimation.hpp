@@ -316,20 +316,17 @@ public:
                               const std::function<bool(const dbg::Edge &)> &is_unique, double rel_coverage) const {
         double max_cov = 0;
         double min_cov = 100000;
-        for(htype hash : subcomponent.v) {
-            for(Vertex *v_it : {&subcomponent.graph.getVertex(hash), &subcomponent.graph.getVertex(hash).rc()}) {
-                Vertex &v = *v_it;
-                for(Edge &edge : v) {
-                    if(is_unique(edge)) {
-                        const VertexRecord & record = reads_storage.getRecord(edge.end()->rc());
-                        std::string s = edge.rc().seq.Subseq(0, 1).str();
-                        size_t cnt = record.countStartsWith(Sequence(s + "A")) +
-                                     record.countStartsWith(Sequence(s + "C")) +
-                                     record.countStartsWith(Sequence(s + "G")) +
-                                     record.countStartsWith(Sequence(s + "T"));
-                        min_cov = std::min<double>(min_cov, cnt);
-                        max_cov = std::max<double>(max_cov, cnt);
-                    }
+        for(Vertex &v : subcomponent.vertices()) {
+            for(Edge &edge : v) {
+                if(is_unique(edge)) {
+                    const VertexRecord & record = reads_storage.getRecord(edge.end()->rc());
+                    std::string s = edge.rc().seq.Subseq(0, 1).str();
+                    size_t cnt = record.countStartsWith(Sequence(s + "A")) +
+                                 record.countStartsWith(Sequence(s + "C")) +
+                                 record.countStartsWith(Sequence(s + "G")) +
+                                 record.countStartsWith(Sequence(s + "T"));
+                    min_cov = std::min<double>(min_cov, cnt);
+                    max_cov = std::max<double>(max_cov, cnt);
                 }
             }
         }
@@ -337,8 +334,8 @@ public:
         double rel_threshold = std::min(min_cov * 0.9, max_cov * 0.7);
         logger << "Attempting to use coverage for multiplicity estimation with coverage threshold " << threshold << std::endl;
         logger << "Component: ";
-        for(htype hash : subcomponent.v) {
-            logger << " " << hash % 100000;
+        for(Vertex &vertex : subcomponent.verticesUnique()) {
+            logger << " " << vertex.hash() % 100000;
         }
         logger << std::endl;
         MappedNetwork net2(subcomponent, is_unique, rel_coverage, threshold);
@@ -369,16 +366,9 @@ public:
     }
 
     Edge &getStart(const Component &component) const {
-        for(htype hash : component.v) {
-            Vertex &start = component.graph.getVertex(hash);
-            for(Edge &edge : start) {
-                if(!component.contains(*edge.end()))
-                    return edge.rc();
-            }
-            for(Edge &edge : start.rc()) {
-                if(!component.contains(*edge.end()))
-                    return edge.rc();
-            }
+        for(Edge &edge : component.edges()) {
+            if(!component.contains(*edge.end()))
+                return edge.rc();
         }
         VERIFY(false);
     }
@@ -411,22 +401,13 @@ public:
                 break;
         }
         VERIFY(end != nullptr);
-        for(htype hash : component.v) {
-            Vertex &v = component.graph.getVertex(hash);
-            for(Edge &edge : v) {
-                if(component.contains(*edge.end()))
-                    edge.is_reliable = false;
-            }
-            for(Edge &edge : v.rc()) {
-                if(component.contains(*edge.end()))
-                    edge.is_reliable = false;
-            }
+        for(Edge &edge : component.edgesInner()) {
+            edge.is_reliable = false;
         }
         while(component.contains(*end->start())) {
             end->is_reliable = true;
             end = prev[end->start()];
         }
-
     }
 
     std::vector<const dbg::Edge *> processComponent(logging::Logger &logger, const Component &component,

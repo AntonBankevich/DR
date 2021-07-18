@@ -1,5 +1,6 @@
 #include "graph_algorithms.hpp"
 
+using namespace hashing;
 template<class Iterator>
 void fillCoverage(SparseDBG &sdbg, logging::Logger &logger, Iterator begin, Iterator end, size_t threads,
                   const RollingHash &hasher, const size_t min_read_size) {

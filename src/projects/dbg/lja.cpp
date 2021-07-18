@@ -1,3 +1,4 @@
+#include "gap_closing.hpp"
 #include "mult_correction.hpp"
 #include "parameter_estimator.hpp"
 #include "visualization.hpp"

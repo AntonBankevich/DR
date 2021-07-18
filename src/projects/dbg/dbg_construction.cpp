@@ -1,8 +1,9 @@
 #include "graph_stats.hpp"
 #include "dbg_construction.hpp"
 
-std::vector<htype>
-findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs, const RollingHash &hasher,
+using namespace hashing;
+std::vector<hashing::htype>
+findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs, const hashing::RollingHash &hasher,
               size_t threads) {
     bloom_parameters parameters;
     parameters.projected_element_count = std::max(total_size(disjointigs) - hasher.getK() * disjointigs.size(), size_t(1000));
@@ -22,12 +23,12 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
     VERIFY(!!parameters);
     parameters.compute_optimal_parameters();
     BloomFilter filter(parameters);
-    const RollingHash ehasher = hasher.extensionHash();
+    const hashing::RollingHash ehasher = hasher.extensionHash();
     std::function<void(const Sequence &)> task = [&filter, &ehasher](const Sequence & seq) {
         if (seq.size() < ehasher.getK()) {
             return;
         }
-        KWH kmer(ehasher, seq, 0);
+        hashing::KWH kmer(ehasher, seq, 0);
         while (true) {
             filter.insert(kmer.hash());
             if (!kmer.hasNext())
@@ -40,7 +41,7 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
     std::pair<size_t, size_t> bits = filter.count_bits();
     logger.info() << "Filled " << bits.first << " bits out of " << bits.second << std::endl;
     logger.info() << "Finished filling bloom filter. Selecting junctions." << std::endl;
-    ParallelRecordCollector<htype> junctions(threads);
+    ParallelRecordCollector<hashing::htype> junctions(threads);
     std::function<void(const Sequence &)> junk_task = [&filter, &hasher, &junctions](const Sequence & seq) {
         KWH kmer(hasher, seq, 0);
         size_t cnt = 0;
@@ -66,7 +67,7 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
     };
 
     processRecords(split_disjointigs.begin(), split_disjointigs.end(), logger, threads, junk_task);
-    std::vector<htype> res = junctions.collect();
+    std::vector<hashing::htype> res = junctions.collect();
     __gnu_parallel::sort(res.begin(), res.end());
     res.erase(std::unique(res.begin(), res.end()), res.end());
     logger.info() << "Collected " << res.size() << " junctions." << std::endl;
@@ -74,7 +75,7 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
 }
 
 SparseDBG
-constructDBG(logging::Logger &logger, const std::vector<htype> &vertices, const std::vector<Sequence> &disjointigs,
+constructDBG(logging::Logger &logger, const std::vector<hashing::htype> &vertices, const std::vector<Sequence> &disjointigs,
              const RollingHash &hasher, size_t threads) {
     logger.info() << "Starting DBG construction." << std::endl;
     SparseDBG dbg(vertices.begin(), vertices.end(), hasher);
@@ -87,8 +88,8 @@ constructDBG(logging::Logger &logger, const std::vector<htype> &vertices, const 
     logger.info() << "Filled dbg edges. Adding hanging vertices " << std::endl;
     ParallelRecordCollector<std::pair<Vertex*, Edge *>> tips(threads);
 
-    std::function<void(std::pair<const htype, Vertex> &)> task =
-            [&tips](std::pair<const htype, Vertex> & pair) {
+    std::function<void(std::pair<const hashing::htype, Vertex> &)> task =
+            [&tips](std::pair<const hashing::htype, Vertex> & pair) {
                 Vertex &rec = pair.second;
                 for (Edge &edge : rec) {
                     if(edge.end() == nullptr) {
@@ -119,13 +120,44 @@ constructDBG(logging::Logger &logger, const std::vector<htype> &vertices, const 
     return std::move(dbg);
 }
 
+inline void writeHashs(std::ostream &os, const std::vector<htype> &hash_list) {
+    os << "hashes " << hash_list.size() << std::endl;
+    for (htype h : hash_list) {
+        os << h << std::endl;
+    }
+}
+
+inline std::vector<htype> readHashs(std::istream &is) {
+    std::vector<htype> result;
+    std::string first;
+    is >> first;
+    if(first == "hashes"){
+        size_t len;
+        is >> len;
+        for (size_t i = 0; i < len; i++) {
+            htype tmp;
+            is >> tmp;
+            result.push_back(tmp);
+        }
+    } else {
+        size_t len = std::stoull(first);
+        size_t a[2];
+        for (size_t i = 0; i < len; i++) {
+            is >> a[0] >> a[1];
+            auto *tmp = reinterpret_cast<htype *>(a);
+            result.push_back(*tmp);
+        }
+    }
+    return std::move(result);
+}
+
 SparseDBG DBGPipeline(logging::Logger &logger, const RollingHash &hasher, size_t w, const io::Library &lib,
                       const std::experimental::filesystem::path &dir, size_t threads, const string &disjointigs_file,
                       const string &vertices_file) {
     std::experimental::filesystem::path df;
     if (disjointigs_file == "none") {
         std::function<void()> task = [&logger, &lib, &threads, &w, &dir, &hasher]() {
-            std::vector<htype> hash_list;
+            std::vector<hashing::htype> hash_list;
             hash_list = constructMinimizers(logger, lib, threads, hasher, w);
             std::vector<Sequence> disjointigs = constructDisjointigs(hasher, w, lib, hash_list, threads, logger);
             hash_list.clear();
@@ -148,7 +180,7 @@ SparseDBG DBGPipeline(logging::Logger &logger, const RollingHash &hasher, size_t
     while(!reader.eof()) {
         disjointigs.push_back(reader.read().makeSequence());
     }
-    std::vector<htype> vertices;
+    std::vector<hashing::htype> vertices;
     if (vertices_file == "none") {
         vertices = findJunctions(logger, disjointigs, hasher, threads);
         std::ofstream os;

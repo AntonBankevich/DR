@@ -109,7 +109,7 @@ void LoadCoverage(const std::experimental::filesystem::path &fname, Logger &logg
     size_t n;
     is >> n;
     for (size_t i = 0; i < n; i++) {
-        htype vid;
+        hashing::htype vid;
         is >> vid;
         Vertex *v = &dbg.getVertex(vid);
         size_t inDeg, outDeg;
@@ -184,7 +184,7 @@ int main(int argc, char **argv) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
         k += 1;
     }
-    RollingHash hasher(k, std::stoi(parser.getValue("base")));
+    hashing::RollingHash hasher(k, std::stoi(parser.getValue("base")));
     const size_t w = std::stoi(parser.getValue("window"));
     io::Library pseudo_reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("pseudo-reads"));
     io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
@@ -531,7 +531,7 @@ int main(int argc, char **argv) {
         logger.info() << "Removing low covered edges" << std::endl;
         size_t threshold = std::stoull(parser.getValue("cov-threshold"));
         std::vector<Sequence> edges;
-        std::vector<htype> vertices_again;
+        std::vector<hashing::htype> vertices_again;
         for(auto & it : dbg) {
             Vertex &vert = it.second;
             bool add = false;

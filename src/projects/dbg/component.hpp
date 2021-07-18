@@ -9,8 +9,8 @@ namespace dbg {
     class Component {
     public:
         SparseDBG &graph;
-        std::unordered_set<htype, alt_hasher<htype>> v;
-        typedef std::unordered_set<htype, alt_hasher<htype>>::const_iterator iterator;
+        std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> v;
+        typedef std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>>::const_iterator iterator;
         struct EdgeRec {
             Vertex *start;
             Vertex *end;
@@ -34,7 +34,7 @@ namespace dbg {
 
         size_t borderEdges() const {
             size_t res = 0;
-            for (htype hash : v) {
+            for (hashing::htype hash : v) {
                 const Vertex &vert = graph.getVertex(hash);
                 for(Edge &edge : vert) {
                     if(!contains(*edge.end()))
@@ -50,7 +50,7 @@ namespace dbg {
 
         size_t isAcyclic() const {
             std::unordered_set<Vertex *> visited;
-            for(htype hash : v) {
+            for(hashing::htype hash : v) {
                 Vertex & compStart = graph.getVertex(hash);
                 for(Vertex *vit : {&compStart, &compStart.rc()}) {
                     if(visited.find(vit) != visited.end())
@@ -84,7 +84,7 @@ namespace dbg {
         size_t realCC() const {
             std::unordered_set<Vertex *> visited;
             size_t cnt = 0;
-            for(htype hash : v) {
+            for(hashing::htype hash : v) {
                 Vertex & compStart = graph.getVertex(hash);
                 for(Vertex *vit : {&compStart, &compStart.rc()}) {
                     if(visited.find(vit) != visited.end())
@@ -122,7 +122,7 @@ namespace dbg {
         }
 
         IterableStorage<ApplyingIterator<iterator, Vertex, 2>> vertices(bool unique = false) const {
-            std::function<std::array<Vertex*, 2>(const htype &)> apply = [this, unique](const htype &hash) -> std::array<Vertex*, 2> {
+            std::function<std::array<Vertex*, 2>(const hashing::htype &)> apply = [this, unique](const hashing::htype &hash) -> std::array<Vertex*, 2> {
                 size_t cur = 0;
                 Vertex &vertex = graph.getVertex(hash);
                 if(unique)
@@ -135,12 +135,12 @@ namespace dbg {
             return {begin, end};
         }
 
-        IterableStorage<ApplyingIterator<iterator, Vertex, 2>> verticesUniques(bool unique = false) const {
+        IterableStorage<ApplyingIterator<iterator, Vertex, 2>> verticesUnique(bool unique = false) const {
             return vertices(true);
         }
 
         IterableStorage<ApplyingIterator<iterator, Edge, 16>> edges(bool inner = false, bool unique = false) const {
-            std::function<std::array<Edge*, 16>(const htype &)> apply = [this, inner, unique](const htype &hash) {
+            std::function<std::array<Edge*, 16>(const hashing::htype &)> apply = [this, inner, unique](const hashing::htype &hash) {
                 std::array<Edge*, 16> res = {};
                 size_t cur = 0;
                 for(Vertex * vertex : graph.getVertices(hash)) {
@@ -215,8 +215,8 @@ namespace dbg {
 
         template<class I>
         static Component neighbourhood(SparseDBG &graph, I begin, I end, size_t radius, size_t min_coverage = 0) {
-            std::unordered_set<htype, alt_hasher<htype>> v;
-            typedef std::pair<size_t, htype> StoredValue;
+            std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> v;
+            typedef std::pair<size_t, hashing::htype> StoredValue;
             std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<>> queue;
             while (begin != end) {
                 queue.emplace(0, *begin);
@@ -275,8 +275,8 @@ namespace dbg {
         }
 
         static Component neighbourhood(SparseDBG &graph, Contig &contig, size_t radius, size_t min_coverage = 0) {
-            std::unordered_set<htype, alt_hasher<htype>> v;
-            typedef std::pair<size_t, htype> StoredValue;
+            std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> v;
+            typedef std::pair<size_t, hashing::htype> StoredValue;
             std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<StoredValue>> queue;
             std::vector<PerfectAlignment<Contig, Edge>> als1 = GraphAligner(graph).carefulAlign(contig);
             Contig rc_contig = contig.RC();
@@ -295,7 +295,7 @@ namespace dbg {
                 }
             }
             while (!queue.empty()) {
-                std::pair<size_t, htype> val = queue.top();
+                std::pair<size_t, hashing::htype> val = queue.top();
                 queue.pop();
                 if (v.find(val.second) != v.end() || val.first > radius)
                     continue;
@@ -333,15 +333,15 @@ namespace dbg {
         std::vector<Component> split(Component comp) const override {
             SparseDBG &dbg = comp.graph;
             std::vector<Component> res;
-            std::unordered_set<htype, alt_hasher<htype>> visited;
-            for (const htype &vid : comp.v) {
-                std::vector<htype> queue;
+            std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> visited;
+            for (const hashing::htype &vid : comp.v) {
+                std::vector<hashing::htype> queue;
                 if (visited.find(vid) != visited.end())
                     continue;
                 queue.push_back(vid);
-                std::vector<htype> component;
+                std::vector<hashing::htype> component;
                 while (!queue.empty()) {
-                    htype val = queue.back();
+                    hashing::htype val = queue.back();
                     queue.pop_back();
                     if (visited.find(val) != visited.end())
                         continue;

@@ -27,14 +27,14 @@ void RefillSparseDBGEdges(SparseDBG &sdbg, Iterator begin, Iterator end, logging
     logger.info() << "Sparse graph edges filled." << std::endl;
 }
 
-SparseDBG LoadDBGFromFasta(const io::Library &lib, RollingHash &hasher, logging::Logger &logger, size_t threads);
+SparseDBG LoadDBGFromFasta(const io::Library &lib, hashing::RollingHash &hasher, logging::Logger &logger, size_t threads);
 
 template<class Iterator>
 void fillCoverage(SparseDBG &sdbg, logging::Logger &logger, Iterator begin, Iterator end, size_t threads,
-                  const RollingHash &hasher, size_t min_read_size);
+                  const hashing::RollingHash &hasher, size_t min_read_size);
 
-SparseDBG constructSparseDBGFromReads(logging::Logger & logger, const io::Library &reads_file, size_t threads, const RollingHash &hasher,
-                                      const std::vector<htype> &hash_list, size_t w);
+SparseDBG constructSparseDBGFromReads(logging::Logger & logger, const io::Library &reads_file, size_t threads,
+                                      const hashing::RollingHash &hasher, const std::vector<hashing::htype> &hash_list, size_t w);
 
 void tieTips(logging::Logger &logger, SparseDBG &sdbg, size_t w, size_t threads);
 
@@ -52,8 +52,8 @@ void mergeCyclicPaths(logging::Logger & logger, SparseDBG &sdbg, size_t threads)
 
 void mergeAll(logging::Logger & logger, SparseDBG &sdbg, size_t threads);
 
-void CalculateCoverage(const std::experimental::filesystem::path &dir, const RollingHash &hasher, const size_t w,
+void CalculateCoverage(const std::experimental::filesystem::path &dir, const hashing::RollingHash &hasher, const size_t w,
                        const io::Library &lib, size_t threads, logging::Logger &logger, SparseDBG &dbg);
 
-std::experimental::filesystem::path alignLib(logging::Logger &logger, SparseDBG &dbg, const io::Library &align_lib, const RollingHash &hasher,
-                                             const size_t w, const std::experimental::filesystem::path &dir, size_t threads);
+std::experimental::filesystem::path alignLib(logging::Logger &logger, SparseDBG &dbg, const io::Library &align_lib,
+        const hashing::RollingHash &hasher, const size_t w, const std::experimental::filesystem::path &dir, size_t threads);

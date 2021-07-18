@@ -406,11 +406,11 @@ dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq, dbg::Edge *edg
 }
 
 dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq) const {
-    std::vector<KWH> kmers = dbg.extractVertexPositions(seq);
+    std::vector<hashing::KWH> kmers = dbg.extractVertexPositions(seq);
     size_t k = dbg.hasher().getK();
     std::vector<Segment<Edge>> res;
     if (kmers.size() == 0) {
-        KWH kwh(dbg.hasher(), seq, 0);
+        hashing::KWH kwh(dbg.hasher(), seq, 0);
         while (true) {
             if (dbg.isAnchor(kwh.hash())) {
                 EdgePosition pos = dbg.getAnchor(kwh);
@@ -447,7 +447,7 @@ dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq) const {
         Segment<Edge> seg(edge, edge.size() - kmers.front().pos, edge.size());
         res.emplace_back(seg);
     }
-    for (const KWH &kmer : kmers) {
+    for (const hashing::KWH &kmer : kmers) {
         if (kmer.pos + dbg.hasher().getK() < seq.size()) {
             Vertex &vertex = dbg.getVertex(kmer);
             if (!vertex.hasOutgoing(seq[kmer.pos + dbg.hasher().getK()])) {
@@ -500,7 +500,7 @@ dbg::GraphAligner::oldEdgeAlign(dbg::Edge
                                 &contig) const {
     Sequence seq = contig.start()->seq + contig.seq;
     std::vector<PerfectAlignment<Edge, Edge>> res;
-    KWH kwh(dbg.hasher(), seq, 0);
+    hashing::KWH kwh(dbg.hasher(), seq, 0);
     size_t k = dbg.hasher().getK();
     while (true) {
         if (!kwh.hasNext())
@@ -533,7 +533,7 @@ dbg::GraphAligner::oldEdgeAlign(dbg::Edge
 std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> dbg::GraphAligner::carefulAlign(Contig &contig) const {
     Sequence seq = contig.seq;
     std::vector<PerfectAlignment<Contig, Edge>> res;
-    KWH kwh(dbg.hasher(), seq, 0);
+    hashing::KWH kwh(dbg.hasher(), seq, 0);
     size_t k = dbg.hasher().getK();
     while (true) {
         if (res.empty() || kwh.pos >= res.back().seg_from.right) {

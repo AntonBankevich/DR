@@ -141,7 +141,12 @@ std::string Edge::getShortId() const {
     return start_->getShortId() + "ACGT"[seq[0]];
 }
 
-Vertex::Vertex(htype hash, Vertex *_rc) : hash_(hash), rc_(_rc), canonical(false) {
+//std::ostream &operator<<(std::ostream &os, const Edge &edge) {
+//    os << edge.getShortId();
+//    return os;
+//}
+
+Vertex::Vertex(hashing::htype hash, Vertex *_rc) : hash_(hash), rc_(_rc), canonical(false) {
     omp_init_lock(&writelock);
 }
 
@@ -296,7 +301,7 @@ void Vertex::clearOutgoing() {
     outgoing_.clear();
 }
 
-Vertex::Vertex(htype hash) : hash_(hash), rc_(new Vertex(hash, this)), canonical(true) {
+Vertex::Vertex(hashing::htype hash) : hash_(hash), rc_(new Vertex(hash, this)), canonical(true) {
     omp_init_lock(&writelock);
 }
 
@@ -324,3 +329,38 @@ bool Vertex::operator!=(const Vertex &other) const {
     return this != &other;
 }
 
+void SparseDBG::checkSeqFilled(size_t threads, logging::Logger &logger) {
+    logger.info() << "Checking vertex sequences" << std::endl;
+    std::function<void(std::pair<const hashing::htype, Vertex> &)> task =
+            [&logger](std::pair<const hashing::htype, Vertex> &pair) {
+                const Vertex &vert = pair.second;
+                if (vert.seq.empty() || vert.rc().seq.empty()) {
+                    logger.info() << "Sequence not filled " << pair.first << std::endl;
+                    VERIFY(false);
+                }
+                if (!vert.isCanonical()) {
+                    logger.info() << "Canonical vertex marked not canonical " << pair.first << std::endl;
+                    VERIFY(false);
+                }
+                if (vert.rc().isCanonical()) {
+                    logger.info() << "Noncanonical vertex marked canonical " << pair.first << std::endl;
+                    VERIFY(false);
+                }
+            };
+    processObjects(v.begin(), v.end(), logger, threads, task);
+    logger.info() << "Vertex sequence check success" << std::endl;
+}
+
+void SparseDBG::printEdge(std::ostream &os, Vertex &start, Edge &edge, bool output_coverage) {
+    Vertex &end = *edge.end();
+    os << "\"";
+    if (!start.isCanonical())
+        os << "-";
+    os << start.hash() % 100000 << "\" -> \"";
+    if (!end.isCanonical())
+        os << "-";
+    if (output_coverage)
+        os << end.hash() % 100000 << "\" [label=\"" << edge.size() << "(" << edge.getCoverage() << ")\"]\n";
+    else
+        os << end.hash() % 100000 << "\" [label=\"" << edge.size() << "\"]\n";
+}

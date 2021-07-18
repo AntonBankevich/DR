@@ -16,6 +16,6 @@ void prepareVertex(Vertex &vertex);
 void extractLinearDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequence> &res, logging::Logger & logger, size_t threads);
 void extractCircularDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequence> &res, logging::Logger & logger, size_t threads);
 std::vector<Sequence> extractDisjointigs(logging::Logger & logger, SparseDBG &sdbg, size_t threads);
-std::vector<Sequence> constructDisjointigs(const RollingHash &hasher, size_t w, const io::Library &reads_file,
-                                           const std::vector<htype> & hash_list, size_t threads,
+std::vector<Sequence> constructDisjointigs(const hashing::RollingHash &hasher, size_t w, const io::Library &reads_file,
+                                           const std::vector<hashing::htype> & hash_list, size_t threads,
                                            logging::Logger & logger);

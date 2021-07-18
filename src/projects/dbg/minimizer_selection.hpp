@@ -10,6 +10,6 @@
 #include "common/logging.hpp"
 #include "common/omp_utils.hpp"
 
-std::vector<htype> constructMinimizers(logging::Logger &logger, const io::Library &reads_file, size_t threads,
-                                       const RollingHash &hasher, const size_t w);
+std::vector<hashing::htype> constructMinimizers(logging::Logger &logger, const io::Library &reads_file, size_t threads,
+                                       const hashing::RollingHash &hasher, const size_t w);
 

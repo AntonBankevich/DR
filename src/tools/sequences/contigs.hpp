@@ -209,6 +209,11 @@ public:
 //    }
 };
 
+inline std::ostream& operator<<(std::ostream& os, const Contig& contig) {
+    os << contig.getId();
+    return os;
+}
+
 class StringContig {
 private:
     static std::string extractId(const std::string &s) {

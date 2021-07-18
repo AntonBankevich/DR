@@ -11,7 +11,7 @@
 double avgCoverage(const SparseDBG &dbg) {
     size_t cov = 0;
     size_t len = 0;
-    for(const std::pair<const htype, Vertex> &it : dbg) {
+    for(const std::pair<const hashing::htype, Vertex> &it : dbg) {
         const Vertex &v = it.second;
         for (const Edge &edge : v) {
             if (edge.intCov() >= 2 * edge.size()) {
@@ -94,7 +94,7 @@ std::unordered_set<const Edge *> filterEdges(const SparseDBG &dbg, size_t thresh
 SparseDBG simplifyGraph(logging::Logger &logger, SparseDBG &dbg,
                                   std::unordered_set<const Edge *> &to_skip, size_t threads) {
     std::vector<Sequence> edges;
-    std::vector<htype> vertices_again;
+    std::vector<hashing::htype> vertices_again;
     for(auto & it : dbg) {
         Vertex &vert = it.second;
         bool add = false;
@@ -351,7 +351,7 @@ bool handleSubcomponent(Vertex &v, double avg_cov, std::unordered_map<const Edge
 std::experimental::filesystem::path CrudeCorrect(logging::Logger &logger, SparseDBG  &dbg,
                                                  const std::experimental::filesystem::path &dir,
                                                  const size_t w, const io::Library &reads_lib, size_t threads, size_t threshold) {
-    const RollingHash &hasher = dbg.hasher();
+    const hashing::RollingHash &hasher = dbg.hasher();
     logger.info() << "Crude error correction based of removing low covered edges and heterozygous bulges" << std::endl;
     logger.info() << "Removing tips and low covered edges" << std::endl;
     double avg_cov = avgCoverage(dbg);
@@ -372,7 +372,7 @@ std::experimental::filesystem::path CrudeCorrect(logging::Logger &logger, Sparse
     simp_dbg.fillAnchors(w, logger, threads);
 
     std::unordered_map<const Edge *, Sequence> edge_map;
-    for(std::pair<const htype, Vertex> &it : simp_dbg) {
+    for(std::pair<const hashing::htype, Vertex> &it : simp_dbg) {
         for (Vertex *vit : {&it.second, &it.second.rc()}) {
             Vertex &v = *vit;
             if (v.inDeg() == 1 && v.outDeg() == 2) {

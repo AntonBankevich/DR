@@ -111,22 +111,22 @@ inline void printEdge(std::ostream &os, Vertex & start, Edge &edge, const std::s
 inline void printDot(std::ostream &os, const Component &component, const std::function<std::string(Edge &)> &labeler,
               const std::function<std::string(Edge &)> &edge_colorer) {
     os << "digraph {\nnodesep = 0.5;\n";
-    std::unordered_set<htype, alt_hasher<htype>> extended;
-    for(htype vid : component.v)
+    std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> extended;
+    for(hashing::htype vid : component.v)
         for(Vertex * vit : component.graph.getVertices(vid)) {
             Vertex &start = *vit;
             for (Edge &edge : start) {
                 extended.emplace(edge.end()->hash());
             }
         }
-    for(htype vid : extended) {
+    for(hashing::htype vid : extended) {
         for(Vertex * vit : component.graph.getVertices(vid)) {
             Vertex &vert = *vit;
             std::string color = component.covers(vert) ? "white" : "yellow";
             os << vert.getShortId() << " [style=filled fillcolor=\"" + color + "\"]\n";
         }
     }
-    for(htype vid : component.v) {
+    for(hashing::htype vid : component.v) {
         for(Vertex * vit : component.graph.getVertices(vid)) {
             Vertex &start = *vit;
             for (Edge &edge : start) {
