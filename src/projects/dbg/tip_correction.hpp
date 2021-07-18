@@ -1,6 +1,6 @@
 #pragma once
 
-void FillReliableWithConnections(logging::Logger &logger, dbg::SparseDBG &sdbg, double reliable_threshold) {
+void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, double reliable_threshold) {
     logger << "Remarking reliable edges" << std::endl;
     for(auto &vit : sdbg) {
         for(Vertex * vp : {&vit.second, &vit.second.rc()}) {

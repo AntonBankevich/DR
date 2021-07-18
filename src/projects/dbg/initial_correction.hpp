@@ -552,7 +552,7 @@ bool checkInner(Vertex &v) {
     return out_rel >= 1 && inc_rel >= 1;
 }
 
-void FillReliableWithConnections(logging::Logger &logger, SparseDBG &sdbg, double threshold) {
+inline void FillReliableWithConnections(logging::Logger &logger, SparseDBG &sdbg, double threshold) {
     logger << "Remarking reliable edges" << std::endl;
     for(auto &vit : sdbg) {
         for(Vertex * vp : {&vit.second, &vit.second.rc()}) {
