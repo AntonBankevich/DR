@@ -1,4 +1,3 @@
-#include <alignment/aligner.hpp>
 #include <sequences/contigs.hpp>
 #include <common/cl_parser.hpp>
 #include <common/logging.hpp>
@@ -158,7 +157,7 @@ struct ContigInfo {
 //Magic consts from spoa default settings
         auto alignment_engine = spoa::AlignmentEngine::Create(
 // -8 in default for third parameter(gap) opening, -6 for forth(gap extension)
-                spoa::AlignmentType::kNW, 5, -4, -8, -6, -10, -4);  // linear gaps
+                spoa::AlignmentType::kNW, 10, -8, -8, -1);  // linear gaps
 
         spoa::Graph graph{};
         size_t cov = 0;
@@ -171,20 +170,45 @@ struct ContigInfo {
                 break;
             }
         }
+        vector<uint32_t > coverages;
+        string consensus = graph.GenerateConsensus(&coverages);
+        size_t pref_remove = 0;
+        int suf_remove = coverages.size() - 1;
+        cout << endl;
+        while (pref_remove < coverages.size() && coverages[pref_remove] < cov / 2 )
+            pref_remove ++;
+        while (suf_remove >= 0 && coverages[suf_remove] < cov / 2 )
+            suf_remove --;
+        if (pref_remove > suf_remove) {
+            cout << "MSA cleanup stupid case" << endl;
+            return "";
+        }
+        return consensus.substr(pref_remove, suf_remove - pref_remove + 1);
 
-        return graph.GenerateConsensus();
     }
 
-    string checkMSAConsensus(string s) {
+    string checkMSAConsensus(string s, vector<string> &all) {
+        size_t cons_len = s.length();
+//consensus in last
+        vector<size_t> all_len(all.size() - 1);
+        for (size_t i = 0; i < all.size() - 1; i ++) {
+            all_len[i] = all[i].length();
+        }
+        sort(all_len.begin(), all_len.end());
         s.erase(std::unique(s.begin(), s.end()), s.end());
         if (s.length() <= 2 * COMPLEX_EPS + 2) return "TOO SHORT";
+        if (cons_len != all_len[all_len.size()/2]) {
+            return "CONSENSUS LENGTH DIFFER FROM MEDIAN";
+        }
+        return "AAAAAAA!";
 //What are other suspicious cases? Since we can glue two dimeric regions, commented case is  actually OK
 /*        size_t len = s.length();
         for (size_t i = COMPLEX_EPS + 2; i < len - COMPLEX_EPS; i++) {
             if (s[i] != s[COMPLEX_EPS] && s[i] != s[COMPLEX_EPS + 1])
                 return "On position " + to_string(i) + " of " + to_string(len) + " not dimeric nucleo";
         } */
-        return "";
+
+
     }
 
 
@@ -203,27 +227,27 @@ struct ContigInfo {
         for (size_t i = 0; i < complex_regions.size(); i++) {
             size_t start_pos = complex_regions[i].first;
             auto consensus = MSAConsensus(complex_strings[start_pos]);
-            auto check = checkMSAConsensus(consensus);
-//            logger.info() << "consensus of " << complex_strings[start_pos].size() << ": " << consensus.length() << endl << "At position " <<start_pos << endl;
-            if (check != ""){
-#pragma omp critical
-                {
-                    logger.info() << "Problematic consensus starting on compressed position " << start_pos <<" " << check <<" of " <<complex_strings[start_pos].size() << " sequences "<< endl;
-                    for (auto s: complex_strings[start_pos]) {
-                        logger.info() << s << endl;
-                    }
-                }
-            }
             complex_strings[start_pos].push_back(consensus);
         }
         logger.info() << " Consenus for contig " << name << " calculated "<< endl;
         string consensus = "";
         for (size_t i = 0; i < len; ) {
-
             if (complex_regions[cur_complex_ind].first == i ) {
                 consensus = complex_strings[i][complex_strings[i].size() - 1];
-//                logger.trace() <<"Adding consensus string \n"<< consensus << endl;
                 ss << consensus;
+                auto check = checkMSAConsensus(consensus, complex_strings[i]);
+ //            logger.info() << "consensus of " << complex_strings[start_pos].size() << ": " << consensus.length() << endl << "At position " <<start_pos << endl;
+                if (check != ""){
+                    {
+                        logger.info() << "Problematic consensus starting on decompressed position " << total_count <<" " << check <<" of " <<complex_strings[i].size() - 1 << " sequences "<< endl;
+                        for (size_t j = 0; j < complex_strings[i].size() - 1; j++) {
+                            logger.trace() << complex_strings[i][j] << endl;
+                        }
+                        logger.trace() << endl;
+                        logger.trace() << consensus << endl;
+                    }
+                }
+
                 if (debug_f != "none" )
                     for (size_t j = 0; j < consensus.length(); j++) {
                         debug << total_count + 1 << " 0 "<< complex_strings[i].size() <<" 0 " << consensus[j] << endl;
@@ -375,15 +399,23 @@ struct AssemblyInfo {
     }
 
 //Some strange cigars are output
-    bool verifyCigar(vector<cigar_pair> &cigars) {
+    bool verifyCigar(vector<cigar_pair> &cigars, int bandwidth ) {
 //TODO constant??
         if (cigars.size() > 200) {
             return false;
         }
+        int shift = 0;
         for(size_t i = 0; i + 1 < cigars.size(); i++) {
             if (cigars[i].type != 'M' && cigars[i+1].type != 'M') {
                 return false;
             }
+            if (cigars[i].type == 'D') {
+                shift -= cigars[i].length;
+            } else if (cigars[i].type == 'I') {
+                shift += cigars[i].length;
+            }
+            if (shift > bandwidth || shift < -bandwidth)
+                return false;
         }
         return true;
     }
@@ -417,23 +449,38 @@ struct AssemblyInfo {
         string compressed_read = read_seq.str();
         compressed_read.erase(std::unique(compressed_read.begin(), compressed_read.end()), compressed_read.end());
         string contig_seq = current_contig.sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
-
+        size_t cur_bandwidth = SW_BANDWIDTH;
 //strings, match, mismatch, gap_open, gap_extend, width
-        auto cigars = align_ksw( contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, SW_BANDWIDTH);
-
+        auto cigars = align_ksw( contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, cur_bandwidth);
         auto str_cigars = str(cigars);
-        /*if (!verifyCigar(cigars) || cigars.size() > 100) {
-            logger.info() << "STATS: aln length " << aln.length() <<" read length "<< compressed_read.length() << " matched length " << matchedLength(cigars)<<endl;
-        } */
         size_t matched_l = matchedLength(cigars);
+        bool valid_cigar = true;
+        while ((matched_l + 300 < aln.length() || !(valid_cigar = verifyCigar(cigars, cur_bandwidth)))) {
+            if (matched_l < 100) {
+                logger.trace() << aln.read_id << " ultrashort alignmnent, doing nothing" << endl;
+                break;
+            } else {
+                cur_bandwidth *= 2;
+                if (cur_bandwidth > 200) {
+                    break;
+                }
+                logger.trace() << aln.read_id << endl << str(cigars) << endl << "aln length " << aln.length()
+                               << " read length " << compressed_read.length()
+                               << " matched length " << matched_l << endl;
+                cigars = align_ksw(contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, cur_bandwidth);
+                size_t new_matched_len = matchedLength(cigars);
+                logger.trace() << aln.read_id << " alignment replaced using bandwindth " << cur_bandwidth << endl
+                               << str(cigars) << endl;
+                if (new_matched_len <= matched_l && valid_cigar) {
+                    logger.trace() << aln.read_id << " alignmnent length did not improve after moving to bandwidth " << cur_bandwidth << endl;
+                    matched_l = new_matched_len;
+                    break;
+                }
+                matched_l = new_matched_len;
+            }
+        }
+/*
         if (matched_l + 300 < aln.length() || !verifyCigar(cigars)) {
-/*            Contig cref(contig_seq, "ref");
-            std::vector<Contig > ref = {cref};
-            Contig cread(compressed_read, "read");
-            RawAligner<Contig> minimapaligner(ref, 1, "ava-hifi");
-            auto minimapaln = minimapaligner.align(cread);
-            logger.info() <<"minimapped\n";
-            logger.info() << minimapaln[0].cigarString() << endl; */
 
 //Likely long prefix clipped
 //#pragma omp critical
@@ -456,7 +503,7 @@ struct AssemblyInfo {
 
             }
         }
-
+*/
 //        logger.info() << "Aligned " << minimapaln.size()<<"\n";
 //        if (minimapaln.size() == 0) {
 //            return;
@@ -646,7 +693,7 @@ struct AssemblyInfo {
  *
  */
 int main(int argc, char **argv) {
-    CLParser parser({"aligned=", "contigs=", "output=", "debug=none", "threads="}, {"reads"},
+    CLParser parser({"alignments=", "contigs=", "output=", "debug=none", "threads="}, {"reads"},
                     {});
 
     parser.parseCL(argc, argv);

@@ -1,6 +1,12 @@
 #include "ksw2.h"
-std::vector<cigar_pair> align_ksw(const char *tseq, const char *qseq, int sc_mch, int sc_mis, int gapo, int gape, int width){
-    int i, a = sc_mch, b = sc_mis < 0? sc_mis : -sc_mis; // a>0 and b<0
+
+struct cigar_pair {
+    char type;
+    size_t length;
+    cigar_pair(char type, size_t len):type(type), length(len) {}
+};
+std::vector<cigar_pair> align_ksw(const char *tseq, const char *qseq, int8_t sc_mch, int8_t sc_mis, int gapo, int gape, int width){
+    int i; int8_t a = sc_mch, b = sc_mis < 0? sc_mis : -sc_mis; // a>0 and b<0
     int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
     int tl = strlen(tseq), ql = strlen(qseq);
     uint8_t *ts, *qs, c[256];
