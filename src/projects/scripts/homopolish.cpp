@@ -231,8 +231,9 @@ struct ContigInfo {
         }
         logger.info() << " Consenus for contig " << name << " calculated "<< endl;
         string consensus = "";
+
         for (size_t i = 0; i < len; ) {
-            if (complex_regions[cur_complex_ind].first == i ) {
+            if (complex_regions.size() > 0 && complex_regions[cur_complex_ind].first == i ) {
                 consensus = complex_strings[i][complex_strings[i].size() - 1];
                 ss << consensus;
                 auto check = checkMSAConsensus(consensus, complex_strings[i]);
