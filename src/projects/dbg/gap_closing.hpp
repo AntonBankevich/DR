@@ -1,40 +1,10 @@
 #pragma once
 
+#include "graph_modification.hpp"
 #include "sparse_dbg.hpp"
+#include "compact_path.hpp"
+#include "tip_correction.hpp"
 #include <sequences/sequence.hpp>
-
-class Connection {
-private:
-    dbg::EdgePosition pos1;
-    dbg::EdgePosition pos2;
-    Sequence connection;
-public:
-    Connection(dbg::EdgePosition pos1, dbg::EdgePosition pos2, Sequence connection) :
-            pos1(pos1), pos2(pos2), connection(connection) {
-        VERIFY(connection.startsWith(pos1.kmerSeq()));
-        VERIFY(!connection.startsWith(pos2.RC().kmerSeq()));
-    }
-
-    Connection shrink() {
-        size_t k = pos1.edge->start()->seq.size();
-        size_t left = 0;
-        size_t right = 0;
-        while(left + k < connection.size() && pos1.pos + left < pos1.edge->seq.size() &&
-            pos1.edge->seq[pos1.pos + left] == connection[left + k]) {
-            left++;
-        }
-        dbg::EdgePosition rc = pos2.RC();
-        Sequence rcSeq = !connection;
-        while(right + k < connection.size() && pos2.pos + right < pos2.edge->seq.size() &&
-              pos2.edge->seq[pos2.pos + right] == rcSeq[right + k]) {
-            right++;
-        }
-        VERIFY(left + right + k < connection.size());
-        return {dbg::EdgePosition(*pos1.edge, pos1.pos + left),
-                dbg::EdgePosition(*pos2.edge, pos2.pos - right),
-                connection.Subseq(left, connection.size() - right)};
-    }
-};
 
 class GapCloser {
 private:
@@ -63,22 +33,22 @@ public:
         Sequence a = s1.Subseq(s1.size() - std::min(s1.size(), max_overlap));
         Sequence b = s2.Subseq(s2.size() - std::min(s2.size(), max_overlap));
         int64_t mult = a.size() + 1;
-        int64_t match = 2 * mult;
-        int64_t mismatch = 1 * mult;
-        int64_t indel = 1 * mult;
+        int64_t match = 1 * mult;
+        int64_t mismatch = 10 * mult;
+        int64_t indel = 10 * mult;
         std::vector<int64_t> res(a.size() + 1);
         for(size_t i = 0; i <= a.size(); i++) {
             res[i] = i;
         }
         std::vector<int64_t> prev(a.size() + 1);
         size_t best = 0;
-        size_t best_val = res[a.size()];
+        int64_t best_val = res[a.size()];
         for(size_t j = 1; j <= b.size(); j++) {
-            prev = std::move(res);
-            res[0] = prev[0] - indel; // NOLINT(bugprone-use-after-move)
-            for(size_t i = 1; i < a.size(); i++) {
+            std::swap(prev, res);
+            res[0] = prev[0] - indel;
+            for(size_t i = 1; i <= a.size(); i++) {
                 if(a[i - 1] == b[j - 1]) {
-                    res[i] = prev[j - 1] + match;
+                    res[i] = prev[i - 1] + match;
                 } else {
                     res[i] = std::max(res[i - 1] - indel, std::max(prev[i] - indel, prev[i - 1] - mismatch));
                 }
@@ -97,7 +67,7 @@ public:
         return {l1, l2};
     }
 
-    std::vector<Connection> GapPatches(dbg::SparseDBG &dbg, logging::Logger &logger, size_t threads) {
+    std::vector<Connection> GapPatches(logging::Logger &logger, dbg::SparseDBG &dbg, size_t threads) {
         logger.info() << "Started gap closing procedure" << std::endl;
         size_t k = dbg.hasher().getK();
         std::vector<dbg::Edge *> tips;
@@ -148,6 +118,7 @@ public:
                 filtered_pairs.emplace_back(pairs[i].first, pairs[i].second, overlap.first, overlap.second);
             }
         }
+        logger.info() << "Collected " << filtered_pairs.size() << " overlaps. Looking for unique overlaps" << std::endl;
         std::vector<size_t> degs(tips.size(), 0);
         for(OverlapRecord &rec : filtered_pairs) {
             degs[rec.from]++;
@@ -158,12 +129,56 @@ public:
             if(degs[rec.from] == 1 && degs[rec.to] == 1) {
                 Sequence seq1 = tips[rec.from]->suffix(tips[rec.from]->size() - rec.match_size_from);
                 Sequence seq2 = tips[rec.to]->kmerSeq(tips[rec.to]->size() - rec.match_size_to);
-                Connection gap(dbg::EdgePosition(*tips[rec.from], tips[rec.from]->size() - rec.match_size_from - k),
-                               dbg::EdgePosition(tips[rec.to]->rc(), rec.match_size_to + k),
-                               seq1 +!seq2);
+                EdgePosition p1(*tips[rec.from], tips[rec.from]->size() - rec.match_size_from);
+                EdgePosition p2(tips[rec.to]->rc(), rec.match_size_to);
+                Sequence seq = seq1 + !seq2;
+                Connection gap(p1, p2, seq);
                 res.emplace_back(gap.shrink());
+                logger << "New connection" <<std::endl;
+                logger << gap.pos1.edge->suffix(gap.pos1.pos) << std::endl;
+                logger << !(gap.pos2.RC().edge->suffix(gap.pos2.RC().pos)) << std::endl;
+                logger << gap.connection << std::endl;
             }
         }
+        logger.info() << "Collected " << res.size() << " unique overlaps." << std::endl;
         return std::move(res);
     }
 };
+
+void MarkUnreliableTips(SparseDBG &dbg, const std::vector<Connection> &patches) {
+    size_t k = dbg.hasher().getK();
+    for(Edge &edge : dbg.edges()) {
+        edge.is_reliable = true;
+    }
+    for(const Connection &connection : patches) {
+        Vertex &v1 = dbg.getVertex(connection.connection.Subseq(0, k));
+        Vertex &v2 = dbg.getVertex((!connection.connection).Subseq(0, k));
+        for(Edge &edge : v1) {
+            if(edge.getCoverage() > 0) {
+                edge.is_reliable = false;
+                edge.rc().is_reliable = false;
+            }
+        }
+        for(Edge &edge : v2) {
+            if(edge.getCoverage() > 0) {
+                edge.is_reliable = false;
+                edge.rc().is_reliable = false;
+            }
+        }
+    }
+}
+
+void GapColserPipeline(logging::Logger &logger, dbg::SparseDBG &dbg,
+                       RecordStorage &readStorage, RecordStorage &refStorage, size_t threads) {
+    GapCloser gap_closer(700, 10000, 311, 0.05);
+    std::vector<Connection> patches = gap_closer.GapPatches(logger, dbg, threads);
+    AddConnections(logger, threads, dbg, {&readStorage, &refStorage}, patches);
+    MarkUnreliableTips(dbg, patches);
+    CorrectTips(logger, dbg, readStorage, threads);
+    std::ofstream os;
+    os.open("oppa.dot");
+    dbg.printDot(os, true);
+    os.close();
+    printStats(logger, dbg);
+    RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
+}

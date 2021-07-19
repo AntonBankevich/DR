@@ -1,47 +1,8 @@
 #pragma once
+#include "graph_modification.hpp"
 #include "compact_path.hpp"
 #include "multiplicity_estimation.hpp"
-
-size_t edit_distance(Sequence s1, Sequence s2) {
-    size_t left_skip = 0;
-    while(left_skip < s1.size() && left_skip < s2.size() && s1[left_skip] == s2[left_skip]) {
-        left_skip++;
-    }
-    s1 = s1.Subseq(left_skip, s1.size());
-    s2 = s2.Subseq(left_skip, s2.size());
-    size_t right_skip = 0;
-    while(right_skip < s1.size() && right_skip < s2.size() && s1[s1.size() - 1 - right_skip] == s2[s2.size() - 1 - right_skip]) {
-        right_skip++;
-    }
-    s1 = s1.Subseq(0, s1.size() - right_skip);
-    s2 = s2.Subseq(0, s2.size() - right_skip);
-    std::vector<std::vector<size_t>> d(s1.size() + 1, std::vector<size_t>(s2.size() + 1));
-    d[0][0] = 0;
-    for(unsigned int i = 1; i <= s1.size(); ++i) d[i][0] = i;
-    for(unsigned int i = 1; i <= s2.size(); ++i) d[0][i] = i;
-
-    for(unsigned int i = 1; i <= s1.size(); ++i)
-        for(unsigned int j = 1; j <= s2.size(); ++j)
-            d[i][j] = std::min({ d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (s1[i - 1] == s2[j - 1] ? 0 : 1) });
-    return d[s1.size()][s2.size()];
-}
-
-size_t bestPrefix(const Sequence &s1, const Sequence &s2) {
-    std::vector<size_t> prev(s2.size() + 1);
-    std::vector<size_t> cur(s2.size() + 1);
-    for(unsigned int i = 0; i <= s1.size(); ++i) cur[i] = i;
-    for(unsigned int i = 1; i <= s1.size(); ++i) {
-        std::swap(prev, cur);
-        cur[0] = i;
-        for(unsigned int j = 1; j <= s2.size(); ++j)
-            cur[j] = std::min({ prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (s1[i - 1] == s2[j - 1] ? 0 : 1) });
-    }
-    size_t res = s2.size();
-    for(size_t j = 0; j < s2.size(); j++)
-        if(cur[j] < cur[res])
-            res = j;
-    return res;
-}
+#include "edit_distance.hpp"
 
 size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates, bool dump = false) {
     size_t winner = 0;
@@ -117,16 +78,16 @@ std::unordered_map<Vertex *, size_t> findReachable(Vertex &start, double min_cov
 
 std::vector<GraphAlignment> FindPlausibleBulgeAlternatives(logging::Logger &logger, const GraphAlignment &path,
                                                            size_t max_diff, double min_cov) {
-    logger << "Looking for plausible alternative bulge paths" << std::endl;
+//    logger << "Looking for plausible alternative bulge paths" << std::endl;
     size_t k = path.start().seq.size();
     size_t max_len = path.len() + max_diff;
     std::unordered_map<Vertex *, size_t> reachable = findReachable(path.finish().rc(), min_cov, max_len);
-    logger << "Calculated reachable vertices " << path.len() << std::endl;
-    if(reachable.find(&path.start().rc()) != reachable.end()) {
-        logger << "Calculated reachable vertices. Start is reachable using " << reachable[&path.start().rc()] << std::endl;
-    } else {
-        logger << "Start is not reachable from end" << std::endl;
-    }
+//    logger << "Calculated reachable vertices " << path.len() << std::endl;
+//    if(reachable.find(&path.start().rc()) != reachable.end()) {
+//        logger << "Calculated reachable vertices. Start is reachable using " << reachable[&path.start().rc()] << std::endl;
+//    } else {
+//        logger << "Start is not reachable from end" << std::endl;
+//    }
     std::vector<GraphAlignment> res;
     GraphAlignment alternative(path.start());
     size_t iter_cnt = 0;
@@ -139,9 +100,9 @@ std::vector<GraphAlignment> FindPlausibleBulgeAlternatives(logging::Logger &logg
         if(forward) {
             if(alternative.finish() == path.finish() && len + max_diff >= path.len()) {
                 res.emplace_back(alternative);
-                logger << "Found plausible alternative path " << alternative.len() << std::endl;
+//                logger << "Found plausible alternative path " << alternative.len() << std::endl;
                 if(res.size() > 30) {
-                    logger << "Too many plausible alternatives. Aborting." << std::endl;
+//                    logger << "Too many plausible alternatives. Aborting." << std::endl;
                     return {path};
                 }
             }
@@ -178,13 +139,13 @@ std::vector<GraphAlignment> FindPlausibleBulgeAlternatives(logging::Logger &logg
             }
         }
     }
-    logger << "Found " << res.size() << " plausible alternative paths" << std::endl;
+//    logger << "Found " << res.size() << " plausible alternative paths" << std::endl;
     return std::move(res);
 }
 
 std::vector<GraphAlignment> FindPlausibleTipAlternatives(logging::Logger &logger, const GraphAlignment &path,
                                                            size_t max_diff, double min_cov) {
-    logger << "Looking for plausible alternative tip paths" << std::endl;
+//    logger << "Looking for plausible alternative tip paths" << std::endl;
     size_t k = path.start().seq.size();
     size_t max_len = path.len() + max_diff;
     std::vector<GraphAlignment> res;
@@ -201,9 +162,9 @@ std::vector<GraphAlignment> FindPlausibleTipAlternatives(logging::Logger &logger
             forward = false;
             if(len >= tip_len + max_diff) {
                 res.emplace_back(alternative);
-                logger << "Found plausible alternative path " << alternative.len() << std::endl;
+//                logger << "Found plausible alternative path " << alternative.len() << std::endl;
                 if(res.size() > 10) {
-                    logger << "Too many plausible alternatives. Aborting." << std::endl;
+//                    logger << "Too many plausible alternatives. Aborting." << std::endl;
                     return {path};
                 }
             } else {
@@ -237,7 +198,7 @@ std::vector<GraphAlignment> FindPlausibleTipAlternatives(logging::Logger &logger
             }
         }
     }
-    logger << "Found " << res.size() << " plausible alternative paths" << std::endl;
+//    logger << "Found " << res.size() << " plausible alternative paths" << std::endl;
     return std::move(res);
 }
 
@@ -975,7 +936,7 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &out_file,
                     RecordStorage &reads_storage,
                     RecordStorage &ref_storage,
-                    double threshold, double bulge_threshold, double reliable_coverage, bool remove_bad, size_t threads, bool dump) {
+                    double threshold, double bulge_threshold, double reliable_coverage, size_t threads, bool dump) {
     size_t k = sdbg.hasher().getK();
     correctAT(logger, reads_storage, k, threads);
     correctLowCoveredRegions(logger,sdbg, reads_storage, ref_storage, out_file, threshold, reliable_coverage, k, threads, dump);
@@ -986,9 +947,8 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
     logger << "Running second round of error correction" << std::endl;
     correctAT(logger, reads_storage, k, threads);
     correctLowCoveredRegions(logger,sdbg, reads_storage, ref_storage, out_file, threshold, reliable_coverage, k, threads, dump);
+    TipCorrectionPipeline(logger, sdbg, reads_storage, threads, reliable_coverage);
     collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
-    reads_storage.invalidateBad(logger, threshold);
     logger.info() << "Applying changes to the graph" << std::endl;
     RemoveUncovered(logger, threads, sdbg, {&reads_storage, &ref_storage});
-    logger.info() << "Printing reads to disk" << std::endl;
 }

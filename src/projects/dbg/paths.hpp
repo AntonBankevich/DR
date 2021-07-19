@@ -54,6 +54,8 @@ namespace dbg {
         Vertex &finish() const {return als.empty() ? *start_ : *als.back().contig().end();}
         Segment<Edge> &back() {return als.back();}
         Segment<Edge> &front() {return als.front();}
+        const Segment<Edge> &back() const {return als.back();}
+        const Segment<Edge> &front() const {return als.front();}
         const Segment<Edge> &operator[](size_t i) const {return als[i];}
         Segment<Edge> &operator[](size_t i) {return als[i];}
         Vertex &getVertex(size_t i) const {return i == 0 ? *start_ : *als[i - 1].contig().end();}
@@ -101,7 +103,7 @@ namespace dbg {
 
         Sequence Seq() const;
         Sequence truncSeq() const;
-        Sequence truncSeq(size_t start_position, size_t size) const;
+        Sequence truncSeq(size_t start_position, size_t size = 10000000) const;
 
         bool operator==(const GraphAlignment &other) const {return start_ == other.start_ && als == other.als;}
         bool operator!=(const GraphAlignment &other) const {return !operator==(other);}

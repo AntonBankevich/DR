@@ -145,10 +145,14 @@ namespace dbg {
         size_t pos;
 
         EdgePosition(Edge &_edge, size_t _pos) : edge(&_edge), pos(_pos) {
-            VERIFY(pos > 0);
+            VERIFY(pos >= 0 && pos <= edge->size());
         }
 
         EdgePosition() : edge(nullptr), pos(0) {
+        }
+
+        bool isBorder() const {
+            return pos == 0 || pos == edge->size();
         }
 
         std::vector<EdgePosition> step() const {
@@ -246,16 +250,21 @@ namespace dbg {
             return std::move(res);
         }
 
-//        SparseDBG Subgraph(const std::vector<EdgePosition> &breaks) {
-//            SparseDBG res(hasher_);
-//            for(auto &it : v) {
-//                res.addVertex(it.second.seq);
-//            }
-//            for(const EdgePosition &epos : breaks) {
-//                res.addVertex(hasher_.hash(epos.kmerSeq(), 0));
-//            }
-//            return std::move(res);
-//        }
+        SparseDBG SplitGraph(const std::vector<EdgePosition> &breaks) {
+            SparseDBG res(hasher_);
+            for(auto &it : v) {
+                res.addVertex(it.second.seq);
+            }
+            for(const EdgePosition &epos : breaks) {
+                if(!epos.isBorder())
+                    res.addVertex(hasher_.hash(epos.kmerSeq(), 0));
+            }
+            for(Edge &edge : edges()) {
+                Vertex &newVertex = edge.start()->isCanonical() ? res.getVertex(edge.start()->hash()): res.getVertex(edge.start()->hash()).rc();
+                res.processEdge(newVertex, edge.seq);
+            }
+            return std::move(res);
+        }
 
         bool containsVertex(const hashing::htype &hash) const {
             return v.find(hash) != v.end();
@@ -317,6 +326,13 @@ namespace dbg {
 
         Vertex &getVertex(hashing::htype hash) {
             return v.find(hash)->second;
+        }
+
+        Vertex &getVertex(const Vertex &other_graph_vertex) {
+            if(other_graph_vertex.isCanonical())
+                return v.find(other_graph_vertex.hash())->second;
+            else
+                return v.find(other_graph_vertex.hash())->second.rc();
         }
 
         std::array<Vertex *, 2> getVertices(hashing::htype hash) {

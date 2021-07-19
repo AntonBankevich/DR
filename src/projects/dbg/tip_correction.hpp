@@ -1,5 +1,17 @@
 #pragma once
 
+#include "edit_distance.hpp"
+
+void MakeUnreliable(Edge &e) {
+    e.is_reliable = false;
+    for(Edge &edge : *e.end()) {
+        if(edge.is_reliable) {
+            edge.is_reliable = false;
+            MakeUnreliable(edge);
+        }
+    }
+}
+
 void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, double reliable_threshold) {
     logger << "Remarking reliable edges" << std::endl;
     for(auto &vit : sdbg) {
@@ -25,13 +37,102 @@ void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, double reli
         Vertex &v = *new_edge.start();
         bool good = true;
         size_t val = 0;
+        Edge *best = nullptr;
         for(Edge &out : v) {
-            if(out.size() >= 10000 || out.getCoverage() > reliable_threshold || max_tip.find(out.end()) == max_tip.end()) {
+            if(max_tip.find(out.end()) == max_tip.end()) {
                 good = false;
                 break;
             } else {
-                val = std::max(val, max_tip[out.end()] + out.size());
+                if(val < max_tip[out.end()] + out.size()) {
+                    val = max_tip[out.end()] + out.size();
+                    best = &out;
+                }
+            }
+        }
+        if(good && val < 30000) {
+            max_tip[&v] = val;
+            for(Edge &out : v) {
+                if(&out == best) {
+                    out.is_reliable = true;
+                } else {
+                    MakeUnreliable(out);
+                }
+            }
+            if(v.inDeg() == 1 && v.rc().begin()->size() < 10000 && v.rc().begin()->getCoverage() < reliable_threshold) {
+                queue.emplace_back(&(v.rc().begin()->rc()));
             }
         }
     }
+}
+
+Path ReliablePath(Vertex &v, size_t max_size = 1000000000) {
+    Path path(v);
+    size_t len = 0;
+    while(len < max_size) {
+        Edge *next = nullptr;
+        for (Edge &edge : path.finish()) {
+            if (edge.is_reliable) {
+                if(next != nullptr) {
+                    next = nullptr;
+                    break;
+                }
+                next = &edge;
+            }
+        }
+        if(next == nullptr)
+            break;
+        path += *next;
+        len += next->size();
+    }
+    return path;
+}
+
+
+
+GraphAlignment CorrectSuffix(const GraphAlignment &al) {
+    size_t first_unreliable = al.size();
+    size_t bad_end_size = 0;
+    while(first_unreliable > 0 && !al[first_unreliable - 1].contig().is_reliable) {
+        first_unreliable--;
+        bad_end_size += al[first_unreliable].size();
+    }
+    if(first_unreliable == al.size()) {
+        return al;
+    }
+    size_t max_len = bad_end_size  * 11/10 + 100;
+    Path alternative = ReliablePath(al.getVertex(first_unreliable), max_len);
+    if(alternative.finish().outDeg() != 0 && alternative.len() < max_len) {
+        std::cout << "Could not find alternative for a tip" << std::endl;
+        return al;
+    }
+    Sequence tip = al.truncSeq(first_unreliable);
+    Sequence alt = alternative.truncSeq();
+    Sequence projection = alt.Subseq(0, bestPrefix(tip, alt));
+    GraphAlignment res = al.subalignment(0, first_unreliable);
+    res.extend(projection);
+    return res;
+}
+
+void CorrectTips(logging::Logger &logger, SparseDBG &dbg, RecordStorage &reads, size_t threads) {
+    logger.info() << "Correcting tips using reliable edge marks" << std::endl;
+    omp_set_num_threads(threads);
+    ParallelCounter cnt(threads);
+#pragma omp parallel for default(none) shared(reads, cnt)
+    for(size_t i = 0; i < reads.size(); i++) {
+        AlignedRead &read = reads[i];
+        GraphAlignment al = read.path.getAlignment();
+        GraphAlignment al1 = CorrectSuffix(al);
+        GraphAlignment al2 = CorrectSuffix(al1.RC()).RC();
+        if(al1 != al2) {
+            cnt += 1;
+            reads.reroute(read, al, al2, "Tip corrected");
+        }
+    }
+    logger.info() << "Corrected tips for " << cnt.get() << " reads" << std::endl;
+}
+
+void TipCorrectionPipeline(logging::Logger &logger, SparseDBG &dbg, RecordStorage &reads,
+                           size_t threads,double reliable_threshold) {
+    FillReliableTips(logger, dbg, reliable_threshold);
+    CorrectTips(logger, dbg, reads, threads);
 }

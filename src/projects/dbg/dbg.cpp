@@ -259,7 +259,7 @@ int main(int argc, char **argv) {
             ref_vector = io::SeqReader(parser.getValue("reference")).readAll();
         }
         initialCorrect(dbg, logger, dir / "correction.txt", readStorage, refStorage, threshold, 2 * threshold, reliable,
-                       false, threads, parser.getCheck("dump"));
+                       threads, parser.getCheck("dump"));
         Component comp(dbg);
         DrawSplit(comp, dir / "split");
     }

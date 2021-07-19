@@ -28,7 +28,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
                                                             const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
                                                             size_t threads, size_t k, size_t w,
                                                             double threshold, double reliable_coverage,
-                                                            bool remove_bad, bool skip, bool dump) {
+                                                            bool close_gaps, bool remove_bad, bool skip, bool dump) {
     logger.info() << "Performing initial correction with k = " << k << std::endl;
     if (k % 2 == 0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
@@ -36,7 +36,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
     }
     ensure_dir_existance(dir);
     hashing::RollingHash hasher(k, 239);
-    std::function<void()> ic_task = [&dir, &logger, &hasher, remove_bad, k, w, &reads_lib, &pseudo_reads_lib, threads, threshold, reliable_coverage, dump] {
+    std::function<void()> ic_task = [&dir, &logger, &hasher, close_gaps, remove_bad, k, w, &reads_lib, &pseudo_reads_lib, threads, threshold, reliable_coverage, dump] {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
         SparseDBG dbg = DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
@@ -46,7 +46,13 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
         initialCorrect(dbg, logger, dir / "correction.txt", readStorage, refStorage,
-                       threshold, 2 * threshold, reliable_coverage, remove_bad, threads, dump);
+                       threshold, 2 * threshold, reliable_coverage, threads, dump);
+        if(close_gaps)
+            GapColserPipeline(logger, dbg, readStorage, refStorage, threads);
+        if(remove_bad) {
+            readStorage.invalidateBad(logger, threshold);
+            RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
+        }
         readStorage.printFasta(logger, dir / "corrected.fasta");
         DrawSplit(Component(dbg), dir / "split");
         dbg.printFastaOld(dir / "graph.fasta");
@@ -102,7 +108,8 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         MultCorrect(dbg, logger, dir, readStorage, unique_threshold, threads, dump);
         std::ofstream edges;
         dbg.printFastaOld(dir / "graph.fasta");
-        readStorage.printAlignments(logger, dir/"corrected.fasta");
+        readStorage.printAlignments(logger, dir/"alignments.txt");
+        readStorage.printFasta(logger, dir/"corrected.fasta");
     };
     if(!skip)
         runInFork(mc_task);
@@ -277,7 +284,7 @@ int main(int argc, char **argv) {
         skip = false;
     std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected1 =
             InitialCorrection(logger, dir / "initial1", lib, {}, threads, k, w,
-                              threshold, reliable_coverage, false, skip, dump);
+                              threshold, reliable_coverage, false, false, skip, dump);
 
     size_t K = std::stoi(parser.getValue("K-mer-size"));
     size_t W = std::stoi(parser.getValue("Window"));
@@ -289,7 +296,7 @@ int main(int argc, char **argv) {
         skip = false;
     std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected2 =
             InitialCorrection(logger, dir / "initial2", {corrected1.first}, {corrected1.second}, threads, K, W,
-                              Threshold, Reliable_coverage, true, skip, dump);
+                              Threshold, Reliable_coverage, true, true, skip, dump);
 
 //    double crude_threshold = std::stod(parser.getValue("crude-threshold"));
 //    if(first_stage == "crude")
