@@ -604,7 +604,7 @@ struct AssemblyInfo {
         ifstream compressed_reads;
         ofstream corrected_contigs;
         corrected_contigs.open(parser.getValue("output"));
-        compressed_reads.open(parser.getValue("aligned"));
+        compressed_reads.open(parser.getValue("alignments"));
         io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
 //        io::Library lib = oneline::initialize<std::experimental::filesystem::path>("reads.fasta");
         io::SeqReader reader(lib);
