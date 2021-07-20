@@ -169,8 +169,19 @@ void AddConnections(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
     SparseDBG subgraph = dbg.SplitGraph(break_positions);
     logger.info() << "Adding new edges" << std::endl;
     for(const Connection &connection : connections) {
+//        size_t k = subgraph.hasher().getK();
+//        Sequence start = connection.connection.Subseq(0, k);
+//        Sequence end = connection.connection.Subseq(connection.connection.size() - k);
+//        std::cout << connection.connection.size() << " " << connection.pos1.pos << " " << connection.pos1.edge->size() <<
+//            " " << connection.pos2.pos << " " << connection.pos2.edge->size()<< std::endl;
+//        std::cout << subgraph.containsVertex(subgraph.hasher().hash(start, 0)) << " " << subgraph.containsVertex(subgraph.hasher().hash(end, 0)) << std::endl;
+//        for(hashing::KWH kwh : subgraph.extractVertexPositions(connection.connection)) {
+//            std::cout << kwh.pos << " ";
+//        }
+//        std::cout << std::endl;
         subgraph.processRead(connection.connection);
     }
+    subgraph.checkConsistency(threads, logger);
     subgraph.fillAnchors(500, logger, threads);
     logger.info() << "Realigning reads to the new graph" << std::endl;
     for(RecordStorage* sit : storages) {

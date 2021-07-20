@@ -72,7 +72,7 @@ public:
         size_t k = dbg.hasher().getK();
         std::vector<dbg::Edge *> tips;
         for (dbg::Edge &edge : dbg.edges()) {
-            if (edge.size() > min_overlap && edge.end()->outDeg() == 0 && edge.end()->inDeg() == 1)
+            if (edge.size() > min_overlap && edge.getCoverage() > 2 && edge.end()->outDeg() == 0 && edge.end()->inDeg() == 1)
                 tips.emplace_back(&edge);
         }
         ParallelRecordCollector<std::pair<hashing::htype, size_t>> candidates(threads);
@@ -134,7 +134,7 @@ public:
                 Sequence seq = seq1 + !seq2;
                 Connection gap(p1, p2, seq);
                 res.emplace_back(gap.shrink());
-                logger << "New connection" <<std::endl;
+                logger << "New connection " << gap.connection.size() << std::endl;
                 logger << gap.pos1.edge->suffix(gap.pos1.pos) << std::endl;
                 logger << !(gap.pos2.RC().edge->suffix(gap.pos2.RC().pos)) << std::endl;
                 logger << gap.connection << std::endl;

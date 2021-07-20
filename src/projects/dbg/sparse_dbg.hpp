@@ -255,13 +255,25 @@ namespace dbg {
             for(auto &it : v) {
                 res.addVertex(it.second.seq);
             }
+            std::unordered_set<Edge *> broken_edges;
             for(const EdgePosition &epos : breaks) {
-                if(!epos.isBorder())
-                    res.addVertex(hasher_.hash(epos.kmerSeq(), 0));
+                if(!epos.isBorder()) {
+                    res.addVertex(epos.kmerSeq());
+                    broken_edges.emplace(epos.edge);
+                    broken_edges.emplace(&epos.edge->rc());
+                }
             }
             for(Edge &edge : edges()) {
-                Vertex &newVertex = edge.start()->isCanonical() ? res.getVertex(edge.start()->hash()): res.getVertex(edge.start()->hash()).rc();
-                res.processEdge(newVertex, edge.seq);
+                if(broken_edges.find(&edge) == broken_edges.end()) {
+                    Vertex &start = res.getVertex(*edge.start());
+                    Vertex &end = res.getVertex(*edge.end());
+                    Edge new_edge(&start, &end, edge.seq);
+                    start.addEdge(new_edge);
+                } else {
+                    Vertex &newVertex = edge.start()->isCanonical() ? res.getVertex(edge.start()->hash())
+                                                                    : res.getVertex(edge.start()->hash()).rc();
+                    res.processEdge(newVertex, edge.seq);
+                }
             }
             return std::move(res);
         }
