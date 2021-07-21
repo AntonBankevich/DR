@@ -31,7 +31,7 @@ public:
 
     std::pair<size_t, size_t> CheckOverlap(const Sequence &s1, const Sequence &s2) {
         Sequence a = s1.Subseq(s1.size() - std::min(s1.size(), max_overlap));
-        Sequence b = s2.Subseq(s2.size() - std::min(s2.size(), max_overlap));
+        Sequence b = s2.Subseq(0, std::min(s2.size(), max_overlap));
         int64_t mult = a.size() + 1;
         int64_t match = 1 * mult;
         int64_t mismatch = 10 * mult;

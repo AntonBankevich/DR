@@ -946,7 +946,9 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
     sdbg.checkConsistency(threads, logger);
     logger << "Running second round of error correction" << std::endl;
     correctAT(logger, reads_storage, k, threads);
+    correctAT(logger, reads_storage, k, threads);
     correctLowCoveredRegions(logger,sdbg, reads_storage, ref_storage, out_file, threshold, reliable_coverage, k, threads, dump);
+    correctAT(logger, reads_storage, k, threads);
     TipCorrectionPipeline(logger, sdbg, reads_storage, threads, reliable_coverage);
     collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
     logger.info() << "Applying changes to the graph" << std::endl;

@@ -252,8 +252,8 @@ namespace dbg {
 
         SparseDBG SplitGraph(const std::vector<EdgePosition> &breaks) {
             SparseDBG res(hasher_);
-            for(auto &it : v) {
-                res.addVertex(it.second.seq);
+            for(Vertex &it : verticesUnique()) {
+                res.addVertex(it);
             }
             std::unordered_set<Edge *> broken_edges;
             for(const EdgePosition &epos : breaks) {
@@ -270,8 +270,7 @@ namespace dbg {
                     Edge new_edge(&start, &end, edge.seq);
                     start.addEdge(new_edge);
                 } else {
-                    Vertex &newVertex = edge.start()->isCanonical() ? res.getVertex(edge.start()->hash())
-                                                                    : res.getVertex(edge.start()->hash()).rc();
+                    Vertex &newVertex = res.getVertex(*edge.start());
                     res.processEdge(newVertex, edge.seq);
                 }
             }
@@ -313,6 +312,17 @@ namespace dbg {
 
         Vertex &addVertex(const Sequence &seq) {
             return addVertex(hashing::KWH(hasher_, seq, 0));
+        }
+
+        Vertex &addVertex(const Vertex &other_graph_vertex) {
+            Vertex &newVertex = innerAddVertex(other_graph_vertex.hash());
+            if(other_graph_vertex.isCanonical()) {
+                newVertex.setSequence(other_graph_vertex.seq);
+                return newVertex;
+            } else {
+                newVertex.setSequence(!other_graph_vertex.seq);
+                return newVertex.rc();
+            }
         }
 
         Vertex &bindTip(Vertex &start, Edge &tip) {
