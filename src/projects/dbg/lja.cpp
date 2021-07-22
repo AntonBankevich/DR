@@ -28,7 +28,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
                                                             const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
                                                             size_t threads, size_t k, size_t w,
                                                             double threshold, double reliable_coverage,
-                                                            bool close_gaps, bool remove_bad, bool skip, bool dump) {
+                                                            bool close_gaps, bool remove_bad, bool skip, bool dump, bool load) {
     logger.info() << "Performing initial correction with k = " << k << std::endl;
     if (k % 2 == 0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
@@ -36,9 +36,10 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
     }
     ensure_dir_existance(dir);
     hashing::RollingHash hasher(k, 239);
-    std::function<void()> ic_task = [&dir, &logger, &hasher, close_gaps, remove_bad, k, w, &reads_lib, &pseudo_reads_lib, threads, threshold, reliable_coverage, dump] {
+    std::function<void()> ic_task = [&dir, &logger, &hasher, close_gaps, load, remove_bad, k, w, &reads_lib, &pseudo_reads_lib, threads, threshold, reliable_coverage, dump] {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
-        SparseDBG dbg = DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
+        SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
+                DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
         size_t extension_size = std::max<size_t>(k * 5 / 2, 3000);
         RecordStorage readStorage(dbg, 0, extension_size, threads, dir/"read_log.txt", true);
@@ -245,7 +246,7 @@ void ConstructSubdataset(logging::Logger &logger, const std::experimental::files
 int main(int argc, char **argv) {
     CLParser parser({"output-dir=", "threads=16", "k-mer-size=511", "window=2000", "K-mer-size=5001", "Window=500",
                      "cov-threshold=2", "rel-threshold=7", "Cov-threshold=2", "Rel-threshold=7", "crude-threshold=3",
-                     "unique-threshold=50000", "dump", "dimer-compress=1000000000,1000000000,1", "restart-from=none"},
+                     "unique-threshold=50000", "dump", "dimer-compress=1000000000,1000000000,1", "restart-from=none", "load"},
                     {"reads"},
                     {"o=output-dir", "t=threads", "k=k-mer-size","w=window", "K=K-mer-size","W=Window"},
                     "Error message not implemented");
@@ -269,6 +270,7 @@ int main(int argc, char **argv) {
     logger << std::endl;
     std::string first_stage = parser.getValue("restart-from");
     bool skip = first_stage != "none";
+    bool load = parser.getCheck("load");
     logger.info() << "LJA pipeline started" << std::endl;
 
     size_t threads = std::stoi(parser.getValue("threads"));
@@ -284,7 +286,9 @@ int main(int argc, char **argv) {
         skip = false;
     std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected1 =
             InitialCorrection(logger, dir / "initial1", lib, {}, threads, k, w,
-                              threshold, reliable_coverage, false, false, skip, dump);
+                              threshold, reliable_coverage, false, false, skip, dump, load);
+    if(first_stage == "initial1")
+        load = false;
 
     size_t K = std::stoi(parser.getValue("K-mer-size"));
     size_t W = std::stoi(parser.getValue("Window"));
@@ -296,7 +300,9 @@ int main(int argc, char **argv) {
         skip = false;
     std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected2 =
             InitialCorrection(logger, dir / "initial2", {corrected1.first}, {corrected1.second}, threads, K, W,
-                              Threshold, Reliable_coverage, true, true, skip, dump);
+                              Threshold, Reliable_coverage, true, true, skip, dump, load);
+    if(first_stage == "initial2")
+        load = false;
 
 //    double crude_threshold = std::stod(parser.getValue("crude-threshold"));
 //    if(first_stage == "crude")
@@ -309,11 +315,15 @@ int main(int argc, char **argv) {
         skip = false;
     std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected4 =
             MultCorrection(logger, dir / "mult", {corrected2.first}, {corrected2.second}, threads, K, W, unique_threshold, skip, dump);
+    if(first_stage == "mult")
+        load = false;
 
     if(first_stage == "split")
         skip = false;
     std::experimental::filesystem::path split_dir =
             SplitDataset(logger, dir / "subdatasets", {corrected4.first}, {corrected4.second}, threads, K, W, skip, dump);
+    if(first_stage == "split")
+        load = false;
 
 //    if(first_stage == "sub")
 //        skip = false;
