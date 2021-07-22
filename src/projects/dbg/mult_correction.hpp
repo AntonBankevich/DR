@@ -173,8 +173,8 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
                  size_t threads, bool dump) {
     const std::experimental::filesystem::path fig_before = dir / "before.dot";
     const std::experimental::filesystem::path fig_after = dir / "after.dot";
-    const std::experimental::filesystem::path out_reads = dir / "corrected.fasta";
-    const std::experimental::filesystem::path out_alignments = dir / "alignments.txt";
+//    const std::experimental::filesystem::path out_reads = dir / "corrected.fasta";
+//    const std::experimental::filesystem::path out_alignments = dir / "alignments.txt";
     const std::experimental::filesystem::path full_alignments = dir / "full_alignments.txt";
     const std::experimental::filesystem::path multiplicity_figures = dir / "figs";
     size_t k = sdbg.hasher().getK();
@@ -211,19 +211,19 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
         }
     }
     logger.info() << "Printing corrected reads to disk" << std::endl;
-    std::ofstream ors;
+//    std::ofstream ors;
     std::ofstream brs;
-    ors.open(out_reads);
+//    ors.open(out_reads);
     std::function<bool(const Edge&)> is_bad = [&bad_edges](const Edge &edge) {
         return edge.getCoverage() < 2 || bad_edges.find(&edge) != bad_edges.end();
     };
     reads_storage.invalidateBad(logger, is_bad);
-    for(auto & alignedRead : reads_storage) {
-        if(alignedRead.valid()) {
-            ors << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
-        }
-    }
-    RemoveUncovered(logger, threads, sdbg, {&reads_storage});
-    reads_storage.printAlignments(logger, out_alignments);
-    ors.close();
+//    for(auto & alignedRead : reads_storage) {
+//        if(alignedRead.valid()) {
+//            ors << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
+//        }
+//    }
+//    RemoveUncovered(logger, threads, sdbg, {&reads_storage});
+//    reads_storage.printAlignments(logger, out_alignments);
+//    ors.close();
 }

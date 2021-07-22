@@ -149,7 +149,7 @@ public:
 void MarkUnreliableTips(SparseDBG &dbg, const std::vector<Connection> &patches) {
     size_t k = dbg.hasher().getK();
     for(Edge &edge : dbg.edges()) {
-        edge.is_reliable = true;
+        edge.is_reliable = edge.getCoverage() >= 2;
     }
     for(const Connection &connection : patches) {
         Vertex &v1 = dbg.getVertex(connection.connection.Subseq(0, k));
@@ -158,12 +158,18 @@ void MarkUnreliableTips(SparseDBG &dbg, const std::vector<Connection> &patches) 
             if(edge.getCoverage() > 0) {
                 edge.is_reliable = false;
                 edge.rc().is_reliable = false;
+            } else {
+                edge.is_reliable = true;
+                edge.rc().is_reliable = true;
             }
         }
         for(Edge &edge : v2) {
             if(edge.getCoverage() > 0) {
                 edge.is_reliable = false;
                 edge.rc().is_reliable = false;
+            } else {
+                edge.is_reliable = true;
+                edge.rc().is_reliable = true;
             }
         }
     }
