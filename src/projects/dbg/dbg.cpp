@@ -334,7 +334,7 @@ int main(int argc, char **argv) {
             os.back()->open(subdatasets_dir / (std::to_string(i + 1) + ".fasta"));
         }
         io::SeqReader read_reader(reads_lib);
-        std::function<void(StringContig &)> task = [&dbg, &comps, &os, &hasher, w, &logger](StringContig & scontig) {
+        std::function<void(size_t, StringContig &)> task = [&dbg, &comps, &os, &hasher, w, &logger](size_t pos, StringContig & scontig) {
             string initial_seq = scontig.seq;
             Contig contig = scontig.makeContig();
             if(contig.size() < hasher.getK() + w - 1)
@@ -377,7 +377,7 @@ int main(int argc, char **argv) {
             cnt += 1;
         }
         io::SeqReader read_reader(reads_lib);
-        std::function<void(StringContig &)> task = [&dbg, &comps, &os, &hasher, w, &logger](StringContig & scontig) {
+        std::function<void(size_t, StringContig &)> task = [&dbg, &comps, &os, &hasher, w, &logger](size_t pos, StringContig & scontig) {
             string initial_seq = scontig.seq;
             Contig contig = scontig.makeContig();
             if(contig.size() < hasher.getK() + w - 1)
@@ -482,7 +482,7 @@ int main(int argc, char **argv) {
         std::experimental::filesystem::path out = dir / "tip_correct.fasta";
         ParallelRecordCollector<Contig> alignment_results(threads);
 
-        std::function<void(StringContig &)> task = [&dbg, &alignment_results, &hasher, w, &logger](StringContig & contig) {
+        std::function<void(size_t, StringContig &)> task = [&dbg, &alignment_results, &hasher, w, &logger](size_t pos, StringContig & contig) {
             Contig read = contig.makeContig();
             if(read.size() < w + hasher.getK() - 1)
                 return;

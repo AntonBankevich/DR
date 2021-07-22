@@ -397,7 +397,7 @@ std::experimental::filesystem::path CrudeCorrect(logging::Logger &logger, Sparse
     logger.info() << "Finished graph correction. Correcting reads." << std::endl;
     ParallelRecordCollector<Contig> alignment_results(threads);
 
-    std::function<void(StringContig &)> task = [&simp_dbg, &dbg, &to_skip, &alignment_results, &hasher, &threshold, w, &edge_map](StringContig & contig) {
+    std::function<void(size_t, StringContig &)> task = [&simp_dbg, &dbg, &to_skip, &alignment_results, &hasher, &threshold, w, &edge_map](size_t pos, StringContig & contig) {
         Contig read = contig.makeContig();
         if(read.size() < w + hasher.getK() - 1)
             return;

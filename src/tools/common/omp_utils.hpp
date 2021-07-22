@@ -146,7 +146,7 @@ std::ostream& operator<<(std::ostream& out, const ParallelRecordCollector<T>& tr
 template<class V>
 class ParallelProcessor {
 public:
-    std::function<void(V &)> task = [] (V &) {};
+    std::function<void(size_t, V &)> task = [] (size_t, V &) {};
     std::function<void ()> doBefore = [] () {};
     std::function<void ()> doAfter = [] () {};
     std::function<void ()> doInParallel = [] () {};
@@ -155,7 +155,7 @@ public:
     logging::Logger &logger;
     size_t threads;
 
-    ParallelProcessor(std::function<void(V &)> _task, logging::Logger & _logger, size_t _threads) :
+    ParallelProcessor(std::function<void(size_t, V &)> _task, logging::Logger & _logger, size_t _threads) :
                     task(_task), logger(_logger), threads(_threads) {
     }
 
@@ -182,7 +182,7 @@ public:
             std::vector<V> items;
             items.reserve(buffer_size);
             doBefore();
-#pragma omp parallel default(none) shared(begin, end, items, buffer_size, clen, max_length, bucket_length, self, std::cout)
+#pragma omp parallel default(none) shared(begin, end, items, buffer_size, clen, max_length, bucket_length, self, std::cout, total)
             {
 #pragma omp single
                 {
@@ -201,10 +201,10 @@ public:
                         cur_length += items.back().size();
                         right += 1;
                         if(cur_length >= bucket_length || begin == end || items.size() >= buffer_size || clen >= max_length) {
-#pragma omp task default(none) shared(items, self, std::cout) firstprivate(left, right)
+#pragma omp task default(none) shared(items, self, std::cout) firstprivate(total, left, right)
                             {
                                 for(size_t i = left; i < right; i++)
-                                    self.task(items[i]);
+                                    self.task(total + i, items[i]);
                             }
                             left = right;
                             cur_length = 0;
@@ -236,7 +236,7 @@ public:
             std::vector<V*> items;
             items.reserve(buffer_size);
             doBefore();
-#pragma omp parallel default(none) shared(begin, end, items, buffer_size, bucket_size, self)
+#pragma omp parallel default(none) shared(begin, end, items, buffer_size, bucket_size, self, total)
             {
 #pragma omp single
                 {
@@ -253,10 +253,10 @@ public:
                             ++begin;
                             right += 1;
                         }
-#pragma omp task default(none) shared(items, self) firstprivate(left, right)
+#pragma omp task default(none) shared(items, self) firstprivate(total, left, right)
                         {
                             for(size_t i = left; i < right; i++)
-                                self.task(*items[i]);
+                                self.task(total + i, *items[i]);
                         }
                     }
                 }
@@ -274,7 +274,7 @@ public:
 
 //This method expects that iterators return references to objects instead of temporary objects.
 template<class I>
-void processObjects(I begin, I end, logging::Logger &logger, size_t threads, std::function<void(typename I::value_type &)> task,
+void processObjects(I begin, I end, logging::Logger &logger, size_t threads, std::function<void(size_t, typename I::value_type &)> task,
                     size_t bucket_size = 1024) {
     typedef typename I::value_type V;
     ParallelProcessor<V>(task, logger, threads).processObjects(begin, end, bucket_size);
@@ -283,7 +283,7 @@ void processObjects(I begin, I end, logging::Logger &logger, size_t threads, std
 //This method expects iterator to be a generator, i.e. it returns temporary objects. Thus we have to store them in a buffer and
 //keep track of total size of stored objects.
 template<class I>
-void processRecords(I begin, I end, logging::Logger &logger, size_t threads, std::function<void(typename I::value_type &)> task,
+void processRecords(I begin, I end, logging::Logger &logger, size_t threads, std::function<void(size_t, typename I::value_type &)> task,
                     size_t bucket_length = 1024 * 1024) {
     typedef typename I::value_type V;
     ParallelProcessor<V>(task, logger, threads).processRecords(begin, end, bucket_length);

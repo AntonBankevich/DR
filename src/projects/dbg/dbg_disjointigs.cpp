@@ -68,16 +68,16 @@ void prepareVertex(Vertex &vertex) {
 void extractLinearDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequence> &res, logging::Logger &logger,
                               size_t threads) {
 //    TODO support sorted edge list at all times since we compare them during construction anyway
-    std::function<void(std::pair<const htype, Vertex> &)> prepare_task =
-            [&sdbg, &res](std::pair<const htype, Vertex> & pair) {
+    std::function<void(size_t, std::pair<const htype, Vertex> &)> prepare_task =
+            [&sdbg, &res](size_t pos, std::pair<const htype, Vertex> & pair) {
                 if(pair.second.isJunction()) {
                     prepareVertex(pair.second);
                     prepareVertex(pair.second.rc());
                 }
             };
     processObjects(sdbg.begin(), sdbg.end(), logger, threads, prepare_task);
-    std::function<void(std::pair<const htype, Vertex> &)> task =
-            [&sdbg, &res](std::pair<const htype, Vertex> & pair) {
+    std::function<void(size_t, std::pair<const htype, Vertex> &)> task =
+            [&sdbg, &res](size_t pos, std::pair<const htype, Vertex> & pair) {
                 htype hash = pair.first;
                 Vertex &rec = pair.second;
                 if(rec.isJunction()) {
@@ -102,8 +102,8 @@ void extractLinearDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequence>
 
 void extractCircularDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequence> &res, logging::Logger &logger,
                                 size_t threads) {
-    std::function<void(std::pair<const htype, Vertex> &)> task =
-            [&sdbg, &res](std::pair<const htype, Vertex> & pair) {
+    std::function<void(size_t, std::pair<const htype, Vertex> &)> task =
+            [&sdbg, &res](size_t pos, std::pair<const htype, Vertex> & pair) {
                 Vertex &rec = pair.second;
                 htype hash = pair.first;
                 if(rec.isJunction() || rec.seq.empty())

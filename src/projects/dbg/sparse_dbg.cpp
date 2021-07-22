@@ -341,8 +341,8 @@ bool Vertex::operator!=(const Vertex &other) const {
 
 void SparseDBG::checkSeqFilled(size_t threads, logging::Logger &logger) {
     logger.info() << "Checking vertex sequences" << std::endl;
-    std::function<void(std::pair<const hashing::htype, Vertex> &)> task =
-            [&logger](std::pair<const hashing::htype, Vertex> &pair) {
+    std::function<void(size_t, std::pair<const hashing::htype, Vertex> &)> task =
+            [&logger](size_t pos, std::pair<const hashing::htype, Vertex> &pair) {
                 const Vertex &vert = pair.second;
                 if (vert.seq.empty() || vert.rc().seq.empty()) {
                     logger.info() << "Sequence not filled " << pair.first << std::endl;

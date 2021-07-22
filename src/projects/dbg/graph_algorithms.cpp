@@ -7,7 +7,7 @@ void fillCoverage(SparseDBG &sdbg, logging::Logger &logger, Iterator begin, Iter
     typedef typename Iterator::value_type ContigType;
     logger.info() << "Starting to fill edge coverages" << std::endl;
     ParallelRecordCollector<size_t> lens(threads);
-    std::function<void(ContigType &)> task = [&sdbg, &lens, min_read_size](ContigType & contig) {
+    std::function<void(size_t, ContigType &)> task = [&sdbg, &lens, min_read_size](size_t pos, ContigType & contig) {
         Sequence seq = std::move(contig.makeSequence());
         if(seq.size() >= min_read_size) {
             GraphAlignment path = GraphAligner(sdbg).align(seq);
@@ -42,8 +42,8 @@ void tieTips(logging::Logger &logger, SparseDBG &sdbg, size_t w, size_t threads)
     ParallelRecordCollector<std::pair<Vertex *, Sequence>> old_edges(threads);
     ParallelRecordCollector<Sequence> new_edges(threads);
     ParallelRecordCollector<htype> new_minimizers(threads);
-    std::function<void(std::pair<const htype, Vertex> &)> task =
-            [&sdbg, &old_edges, &new_minimizers, &new_edges](std::pair<const htype, Vertex> & pair) {
+    std::function<void(size_t, std::pair<const htype, Vertex> &)> task =
+            [&sdbg, &old_edges, &new_minimizers, &new_edges](size_t pos, std::pair<const htype, Vertex> & pair) {
                 Vertex &cvertex = pair.second;
                 for(auto *vit : {&cvertex, &cvertex.rc()}) {
                     Vertex &vertex = *vit;
@@ -182,8 +182,8 @@ void MergeEdge(SparseDBG &sdbg, Vertex &start, Edge &edge) {
 
 void mergeLinearPaths(logging::Logger &logger, SparseDBG &sdbg, size_t threads) {
     logger.info() << "Merging linear unbranching paths" << std::endl;
-    std::function<void(std::pair<const htype, Vertex> &)> task =
-            [&sdbg](std::pair<const htype, Vertex> & pair) {
+    std::function<void(size_t, std::pair<const htype, Vertex> &)> task =
+            [&sdbg](size_t pos, std::pair<const htype, Vertex> & pair) {
                 Vertex &start = pair.second;
                 if (!start.isJunction())
                     return;
@@ -205,8 +205,8 @@ void mergeLinearPaths(logging::Logger &logger, SparseDBG &sdbg, size_t threads) 
 void mergeCyclicPaths(logging::Logger &logger, SparseDBG &sdbg, size_t threads) {
     logger.info() << "Merging cyclic paths" << std::endl;
     ParallelRecordCollector<htype> loops(threads);
-    std::function<void(std::pair<const htype, Vertex> &)> task =
-            [&sdbg, &loops](std::pair<const htype, Vertex> & pair) {
+    std::function<void(size_t, std::pair<const htype, Vertex> &)> task =
+            [&sdbg, &loops](size_t pos, std::pair<const htype, Vertex> & pair) {
                 Vertex &start = pair.second;
                 if(start.isJunction() || start.marked()) {
                     return;
@@ -276,7 +276,7 @@ alignLib(logging::Logger &logger, SparseDBG &dbg, const io::Library &align_lib, 
     ParallelRecordCollector<std::string> alignment_results(threads);
     std::string acgt = "ACGT";
 
-    std::function<void(StringContig &)> task = [&dbg, &alignment_results, &hasher, w, acgt](StringContig & contig) {
+    std::function<void(size_t, StringContig &)> task = [&dbg, &alignment_results, &hasher, w, acgt](size_t pos, StringContig & contig) {
         Contig read = contig.makeContig();
         if(read.size() < w + hasher.getK() - 1)
             return;
@@ -313,7 +313,7 @@ SparseDBG LoadDBGFromFasta(const io::Library &lib, RollingHash &hasher, logging:
     io::SeqReader reader(lib);
     ParallelRecordCollector<Sequence> sequences(threads);
     ParallelRecordCollector<htype> vertices(threads);
-    std::function<void(StringContig &)> collect_task = [&sequences, &vertices, hasher](StringContig &contig) {
+    std::function<void(size_t, StringContig &)> collect_task = [&sequences, &vertices, hasher](size_t pos, StringContig &contig) {
         Sequence seq = contig.makeSequence();
         KWH start(hasher, seq, 0);
         KWH end(hasher, !seq, 0);

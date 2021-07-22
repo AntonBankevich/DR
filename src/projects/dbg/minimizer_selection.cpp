@@ -11,7 +11,7 @@ constructMinimizers(logging::Logger &logger, const io::Library &reads_file, size
     logger.info() << "Extracting minimizers" << std::endl;
     size_t min_read_size = hasher.getK() + w - 1;
     ParallelRecordCollector<htype> hashs(threads);
-    std::function<void(StringContig &)> task = [min_read_size, w, &hasher, &hashs](StringContig & contig) {
+    std::function<void(size_t, StringContig &)> task = [min_read_size, w, &hasher, &hashs](size_t pos, StringContig & contig) {
         Sequence seq = contig.makeSequence();
         if(seq.size() >= min_read_size) {
             MinimizerCalculator calc(seq, hasher, w);

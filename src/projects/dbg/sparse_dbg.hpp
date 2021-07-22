@@ -283,8 +283,8 @@ namespace dbg {
 
         void checkConsistency(size_t threads, logging::Logger &logger) {
             logger.info() << "Checking consistency" << std::endl;
-            std::function<void(std::pair<const hashing::htype, Vertex> &)> task =
-                    [this](std::pair<const hashing::htype, Vertex> &pair) {
+            std::function<void(size_t, std::pair<const hashing::htype, Vertex> &)> task =
+                    [this](size_t pos, std::pair<const hashing::htype, Vertex> &pair) {
                         const Vertex &vert = pair.second;
                         vert.checkConsistency();
                         vert.rc().checkConsistency();
@@ -375,7 +375,7 @@ namespace dbg {
         void fillAnchors(size_t w, logging::Logger &logger, size_t threads) {
             logger.info() << "Adding anchors from long edges for alignment" << std::endl;
             ParallelRecordCollector<std::pair<const hashing::htype, EdgePosition>> res(threads);
-            std::function<void(Edge &)> task = [&res, w, this](Edge &edge) {
+            std::function<void(size_t, Edge &)> task = [&res, w, this](size_t pos, Edge &edge) {
                 Vertex &vertex = *edge.start();
                 if (edge.size() > w) {
                     Sequence seq = vertex.seq + edge.seq;
@@ -402,7 +402,7 @@ namespace dbg {
         void fillAnchors(size_t w, logging::Logger &logger, size_t threads, const std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> &to_add) {
             logger.info() << "Adding anchors from long edges for alignment" << std::endl;
             ParallelRecordCollector<std::pair<const hashing::htype, EdgePosition>> res(threads);
-            std::function<void(Edge &)> task = [&res, w, this, &to_add](Edge &edge) {
+            std::function<void(size_t, Edge &)> task = [&res, w, this, &to_add](size_t pos, Edge &edge) {
                 Vertex &vertex = *edge.start();
                 if (edge.size() > w || !to_add.empty()) {
                     Sequence seq = vertex.seq + edge.seq;

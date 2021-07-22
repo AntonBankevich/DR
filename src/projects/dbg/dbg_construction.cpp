@@ -24,7 +24,7 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
     parameters.compute_optimal_parameters();
     BloomFilter filter(parameters);
     const hashing::RollingHash ehasher = hasher.extensionHash();
-    std::function<void(const Sequence &)> task = [&filter, &ehasher](const Sequence & seq) {
+    std::function<void(size_t, const Sequence &)> task = [&filter, &ehasher](size_t pos, const Sequence & seq) {
         if(seq.size() < ehasher.getK())
             return;
         hashing::KWH kmer(ehasher, seq, 0);
@@ -41,7 +41,7 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
     logger.info() << "Filled " << bits.first << " bits out of " << bits.second << std::endl;
     logger.info() << "Finished filling bloom filter. Selecting junctions." << std::endl;
     ParallelRecordCollector<hashing::htype> junctions(threads);
-    std::function<void(const Sequence &)> junk_task = [&filter, &hasher, &junctions](const Sequence & seq) {
+    std::function<void(size_t, const Sequence &)> junk_task = [&filter, &hasher, &junctions](size_t pos, const Sequence & seq) {
         KWH kmer(hasher, seq, 0);
         size_t cnt = 0;
         while (true) {
@@ -79,7 +79,7 @@ constructDBG(logging::Logger &logger, const std::vector<hashing::htype> &vertice
     logger.info() << "Starting DBG construction." << std::endl;
     SparseDBG dbg(vertices.begin(), vertices.end(), hasher);
     logger.info() << "Vertices created." << std::endl;
-    std::function<void(Sequence &)> edge_filling_task = [&dbg](Sequence & seq) {
+    std::function<void(size_t, Sequence &)> edge_filling_task = [&dbg](size_t pos, Sequence & seq) {
         dbg.processRead(seq);
     };
     processRecords(disjointigs.begin(), disjointigs.end(), logger, threads, edge_filling_task);
@@ -87,8 +87,8 @@ constructDBG(logging::Logger &logger, const std::vector<hashing::htype> &vertice
     logger.info() << "Filled dbg edges. Adding hanging vertices " << std::endl;
     ParallelRecordCollector<std::pair<Vertex*, Edge *>> tips(threads);
 
-    std::function<void(std::pair<const hashing::htype, Vertex> &)> task =
-            [&tips](std::pair<const hashing::htype, Vertex> & pair) {
+    std::function<void(size_t, std::pair<const hashing::htype, Vertex> &)> task =
+            [&tips](size_t pos, std::pair<const hashing::htype, Vertex> & pair) {
                 Vertex &rec = pair.second;
                 for (Edge &edge : rec) {
                     if(edge.end() == nullptr) {

@@ -637,7 +637,7 @@ public:
         logger.info() << "Collecting alignments of sequences to the graph" << std::endl;
         ParallelRecordCollector<AlignedRead> tmpReads(threads);
         ParallelCounter cnt(threads);
-        std::function<void(StringContig &)> read_task = [this, min_read_size, &tmpReads, &cnt, &dbg](StringContig & scontig) {
+        std::function<void(size_t, StringContig &)> read_task = [this, min_read_size, &tmpReads, &cnt, &dbg](size_t pos, StringContig & scontig) {
             Contig contig = scontig.makeContig();
             if(contig.size() < min_read_size)
                 return;

@@ -8,7 +8,7 @@ void FillSparseDBGEdges(SparseDBG &sdbg, Iterator begin, Iterator end, logging::
                         const size_t min_read_size) {
     typedef typename Iterator::value_type ContigType;
     logger.info() << "Starting to fill edges" << std::endl;
-    std::function<void(ContigType &)> task = [&sdbg, min_read_size](ContigType &contig) {
+    std::function<void(size_t, ContigType &)> task = [&sdbg, min_read_size](size_t pos, ContigType &contig) {
         Sequence seq = contig.makeSequence();
         if (seq.size() >= min_read_size)
             sdbg.processRead(seq);
@@ -20,7 +20,7 @@ void FillSparseDBGEdges(SparseDBG &sdbg, Iterator begin, Iterator end, logging::
 template<class Iterator>
 void RefillSparseDBGEdges(SparseDBG &sdbg, Iterator begin, Iterator end, logging::Logger &logger, size_t threads) {
     logger.info() << "Starting to fill edges" << std::endl;
-    std::function<void(std::pair<Vertex *, Sequence> &)> task = [&sdbg](std::pair<Vertex *, Sequence> &contig) {
+    std::function<void(size_t, std::pair<Vertex *, Sequence> &)> task = [&sdbg](size_t pos, std::pair<Vertex *, Sequence> &contig) {
         sdbg.processEdge(*contig.first, contig.second);
     };
     processObjects(begin, end, logger, threads, task);
