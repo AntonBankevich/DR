@@ -133,7 +133,8 @@ public:
                 EdgePosition p2(tips[rec.to]->rc(), rec.match_size_to);
                 Sequence seq = seq1 + !seq2;
                 Connection gap(p1, p2, seq);
-                res.emplace_back(gap.shrink());
+                gap = gap.shrink();
+                res.emplace_back(gap);
                 logger << "New connection " << gap.connection.size() << std::endl;
                 logger << gap.pos1.edge->suffix(gap.pos1.pos) << std::endl;
                 logger << !(gap.pos2.RC().edge->suffix(gap.pos2.RC().pos)) << std::endl;

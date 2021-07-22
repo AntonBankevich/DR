@@ -157,11 +157,14 @@ public:
 void AddConnections(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
                     const std::vector<RecordStorage*> &storages, const std::vector<Connection> &connections) {
     logger.info() << "Adding new connections to the graph" << std::endl;
+    size_t k = dbg.hasher().getK();
     std::vector<EdgePosition> break_positions;
     std::unordered_set<Edge *> broken_edges;
     for(const Connection &connection : connections) {
         VERIFY(connection.connection.startsWith(connection.pos1.kmerSeq()));
+        VERIFY(connection.pos1.pos == connection.pos1.edge->size() || connection.pos1.edge->seq[connection.pos1.pos] != connection.connection[k])
         VERIFY((!connection.connection).startsWith(connection.pos2.RC().kmerSeq()));
+        VERIFY(connection.pos2.RC().pos == connection.pos2.edge->size() || connection.pos2.RC().edge->seq[connection.pos2.RC().pos] != (!connection.connection)[k])
         break_positions.emplace_back(connection.pos1);
         break_positions.emplace_back(connection.pos2);
         broken_edges.emplace(connection.pos1.edge);
