@@ -25,9 +25,8 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
     BloomFilter filter(parameters);
     const hashing::RollingHash ehasher = hasher.extensionHash();
     std::function<void(const Sequence &)> task = [&filter, &ehasher](const Sequence & seq) {
-        if (seq.size() < ehasher.getK()) {
+        if(seq.size() < ehasher.getK())
             return;
-        }
         hashing::KWH kmer(ehasher, seq, 0);
         while (true) {
             filter.insert(kmer.hash());

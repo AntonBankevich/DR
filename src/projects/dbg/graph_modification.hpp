@@ -169,9 +169,12 @@ void AddConnections(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
     }
     logger.info() << "Splitting graph edges" << std::endl;
     SparseDBG subgraph = dbg.SplitGraph(break_positions);
+    subgraph.checkConsistency(threads, logger);
     logger.info() << "Adding new edges" << std::endl;
     for(const Connection &connection : connections) {
+        logger.info() << "Processing connection" << std::endl;
         subgraph.processRead(connection.connection);
+        subgraph.checkConsistency(threads, logger);
     }
     subgraph.checkConsistency(threads, logger);
     subgraph.fillAnchors(500, logger, threads);
