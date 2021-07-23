@@ -182,9 +182,6 @@ void AddConnections(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
         RecordStorage new_storage(subgraph, storage.min_len, storage.max_len, threads, "/dev/null", storage.track_cov);
         for(AlignedRead &al : storage) {
             new_storage.addRead(AlignedRead(al.id));
-            std::cout << "oppa1" << std::endl;
-            GraphAlignment oppa_al = new_storage[new_storage.size() - 1].path.getAlignment();
-            std::cout << "oppa2" << std::endl;
         }
         omp_set_num_threads(threads);
 #pragma omp parallel for default(none) shared(storage, new_storage, broken_edges, subgraph)
