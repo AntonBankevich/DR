@@ -123,7 +123,7 @@ void CorrectTips(logging::Logger &logger, SparseDBG &dbg, RecordStorage &reads, 
         GraphAlignment al = read.path.getAlignment();
         GraphAlignment al1 = CorrectSuffix(al);
         GraphAlignment al2 = CorrectSuffix(al1.RC()).RC();
-        if(al1 != al2) {
+        if(al != al2) {
             cnt += 1;
             reads.reroute(read, al, al2, "Tip corrected");
         }

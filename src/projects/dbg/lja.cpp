@@ -24,11 +24,27 @@
 #include <unordered_set>
 #include <wait.h>
 
-void SplitDataset(const SparseDBG &dbg, RecordStorage &readStorage);
+static size_t stage_num = 0;
+void PrintPaths(logging::Logger &logger, const std::experimental::filesystem::path &dir, const std::string &stage,
+                SparseDBG &dbg, RecordStorage &readStorage, const io::Library &paths_lib) {
+    stage_num += 1;
+    ensure_dir_existance(dir);
+    std::vector<Contig> paths = io::SeqReader(paths_lib).readAllContigs();
+    GraphAlignmentStorage storage(dbg);
+    for(Contig &contig : paths) {
+        storage.fill(contig);
+    }
+    for(Contig &contig : paths) {
+        ensure_dir_existance(dir / contig.getId());
+        Component comp = Component::neighbourhood(dbg, contig, dbg.hasher().getK() + 500);
+        printDot(dir / contig.getId() / (logging::itos(stage_num) + "_" + stage + ".dot"), comp,
+                 readStorage.labeler() + storage.labeler());
+    }
+}
 
 std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> InitialCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
                                                                                                       const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
-                                                                                                      size_t threads, size_t k, size_t w,
+                                                                                                      const io::Library &paths_lib, size_t threads, size_t k, size_t w,
                                                                                                       double threshold, double reliable_coverage,
                                                                                                       bool close_gaps, bool remove_bad, bool skip, bool dump, bool load) {
     logger.info() << "Performing initial correction with k = " << k << std::endl;
@@ -38,7 +54,8 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
     }
     ensure_dir_existance(dir);
     hashing::RollingHash hasher(k, 239);
-    std::function<void()> ic_task = [&dir, &logger, &hasher, close_gaps, load, remove_bad, k, w, &reads_lib, &pseudo_reads_lib, threads, threshold, reliable_coverage, dump] {
+    std::function<void()> ic_task = [&dir, &logger, &hasher, close_gaps, load, remove_bad, k, w, &reads_lib,
+                                     &pseudo_reads_lib, &paths_lib, threads, threshold, reliable_coverage, dump] {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
         SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
                 DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
@@ -48,13 +65,18 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         RecordStorage refStorage(dbg, 0, extension_size, threads, "/dev/null", false);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
+        PrintPaths(logger, dir/ "paths", "paths1", dbg, readStorage, paths_lib);
         initialCorrect(dbg, logger, dir / "correction.txt", readStorage, refStorage,
                        threshold, 2 * threshold, reliable_coverage, threads, dump);
-        if(close_gaps)
+        PrintPaths(logger, dir/ "paths", "paths2", dbg, readStorage, paths_lib);
+        if(close_gaps) {
             GapColserPipeline(logger, dbg, readStorage, refStorage, threads);
+            PrintPaths(logger, dir/ "paths", "paths3", dbg, readStorage, paths_lib);
+        }
         if(remove_bad) {
             readStorage.invalidateBad(logger, threshold);
             RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
+            PrintPaths(logger, dir/ "paths", "paths4", dbg, readStorage, paths_lib);
         }
         readStorage.printFasta(logger, dir / "corrected.fasta");
         DrawSplit(Component(dbg), dir / "split");
@@ -128,7 +150,7 @@ void SplitDataset(SparseDBG &dbg, RecordStorage &readStorage, const std::experim
 
 std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> SecondPhase(logging::Logger &logger, const std::experimental::filesystem::path &dir,
                                                                                                       const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
-                                                                                                      size_t threads, size_t k, size_t w,
+                                                                                                      const io::Library &paths_lib, size_t threads, size_t k, size_t w,
                                                                                                       double threshold, double reliable_coverage, size_t unique_threshold,
                                                                                                       bool skip, bool dump, bool load) {
     logger.info() << "Performing initial correction with k = " << k << std::endl;
@@ -138,7 +160,8 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
     }
     ensure_dir_existance(dir);
     hashing::RollingHash hasher(k, 239);
-    std::function<void()> ic_task = [&dir, &logger, &hasher, load, k, w, &reads_lib, &pseudo_reads_lib, threads, threshold, reliable_coverage, dump, unique_threshold] {
+    std::function<void()> ic_task = [&dir, &logger, &hasher, load, k, w, &reads_lib, &pseudo_reads_lib, &paths_lib,
+                                     threads, threshold, reliable_coverage, dump, unique_threshold] {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
         SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
                         DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
@@ -148,13 +171,20 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         RecordStorage refStorage(dbg, 0, extension_size, threads, "/dev/null", false);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
+        PrintPaths(logger, dir/ "paths", "paths1", dbg, readStorage, paths_lib);
         initialCorrect(dbg, logger, dir / "correction.txt", readStorage, refStorage,
                        threshold, 2 * threshold, reliable_coverage, threads, dump);
+        PrintPaths(logger, dir/ "paths", "paths2", dbg, readStorage, paths_lib);
         GapColserPipeline(logger, dbg, readStorage, refStorage, threads);
+        PrintPaths(logger, dir/ "paths", "paths3", dbg, readStorage, paths_lib);
         readStorage.invalidateBad(logger, threshold);
+        PrintPaths(logger, dir/ "paths", "paths4", dbg, readStorage, paths_lib);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
+        PrintPaths(logger, dir/ "paths", "paths5", dbg, readStorage, paths_lib);
         MultCorrect(dbg, logger, dir, readStorage, unique_threshold, threads, dump);
+        PrintPaths(logger, dir/ "paths", "paths6", dbg, readStorage, paths_lib);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
+        PrintPaths(logger, dir/ "paths", "paths7", dbg, readStorage, paths_lib);
         DrawSplit(Component(dbg), dir / "figs");
         SplitDataset(dbg, readStorage, dir / "split");
         readStorage.printFasta(logger, dir / "corrected.fasta");
@@ -294,7 +324,7 @@ int main(int argc, char **argv) {
     CLParser parser({"output-dir=", "threads=16", "k-mer-size=511", "window=2000", "K-mer-size=5001", "Window=500",
                      "cov-threshold=2", "rel-threshold=7", "Cov-threshold=2", "Rel-threshold=7", "crude-threshold=3",
                      "unique-threshold=50000", "dump", "dimer-compress=1000000000,1000000000,1", "restart-from=none", "load"},
-                    {"reads"},
+                    {"reads", "paths"},
                     {"o=output-dir", "t=threads", "k=k-mer-size","w=window", "K=K-mer-size","W=Window"},
                     "Error message not implemented");
     parser.parseCL(argc, argv);
@@ -308,6 +338,7 @@ int main(int argc, char **argv) {
     StringContig::SetDimerParameters(parser.getValue("dimer-compress"));
     const std::experimental::filesystem::path dir(parser.getValue("output-dir"));
     ensure_dir_existance(dir);
+    ensure_dir_existance(dir / "paths");
     logging::LoggerStorage ls(dir, "dbg");
     logging::Logger logger;
     logger.addLogFile(ls.newLoggerFile());
@@ -324,6 +355,7 @@ int main(int argc, char **argv) {
     bool dump = parser.getCheck("dump");
 
     io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
+    io::Library paths = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("paths"));
 
     size_t k = std::stoi(parser.getValue("k-mer-size"));
     size_t w = std::stoi(parser.getValue("window"));
@@ -332,7 +364,7 @@ int main(int argc, char **argv) {
     if(first_stage == "initial1")
         skip = false;
     std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected1 =
-            InitialCorrection(logger, dir / "initial1", lib, {}, threads, k, w,
+            InitialCorrection(logger, dir / "initial1", lib, {}, paths, threads, k, w,
                               threshold, reliable_coverage, false, false, skip, dump, load);
     if(first_stage == "initial1")
         load = false;
@@ -347,8 +379,8 @@ int main(int argc, char **argv) {
     if(first_stage == "phase2")
         skip = false;
     std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected2 =
-            SecondPhase(logger, dir / "phase2", {corrected1.first}, {corrected1.second}, threads, K, W,
-                              Threshold, Reliable_coverage, unique_threshold, skip, dump, load);
+            SecondPhase(logger, dir / "phase2", {corrected1.first}, {corrected1.second}, paths,
+                        threads, K, W, Threshold, Reliable_coverage, unique_threshold, skip, dump, load);
     if(first_stage == "phase2")
         load = false;
 

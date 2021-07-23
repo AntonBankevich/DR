@@ -47,12 +47,7 @@ int main(int argc, char **argv) {
     refos.open(dir/"contigs.fasta");
     for(StringContig scontig : reader) {
         Contig new_contig = scontig.makeContig();
-        bool rc = false;
-        for(Contig &c : ref) {
-            if(c.seq == !new_contig.seq)
-                rc = true;
-        }
-        if (!rc) {
+        if (new_contig.seq <= !new_contig.seq) {
             ref.emplace_back(scontig.makeContig());
             ref.emplace_back(ref.back().RC());
             refos << ">" << scontig.id << "\n" << scontig.seq << std::endl;
@@ -97,9 +92,14 @@ int main(int argc, char **argv) {
         res.erase(std::unique(res.begin(), res.end()), res.end());
 //        VERIFY(res.size() > 0);
         bool ok = false;
+        if(res.size() != 1) {
+            for(std::pair<Segment<Contig>, Segment<Contig>> &al : res) {
+                std::cout << al.first << " " << al.second << std::endl;
+            }
+        }
         for(std::pair<Segment<Contig>, Segment<Contig>> &al : res) {
             if(al.first.seq() == al.second.seq())
-                os << read.id << " " << al.second.contig().getId() << " " << al.second.left << " " << al.second.right << std::endl;
+                os << read.id << " " << al.first.left << " " << al.first.right << al.second.contig().getId() << " " << al.second.left << " " << al.second.right << std::endl;
         }
 //        VERIFY(ok);
     }

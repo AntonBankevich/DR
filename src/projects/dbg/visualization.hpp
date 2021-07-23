@@ -108,6 +108,14 @@ inline void printEdge(std::ostream &os, Vertex & start, Edge &edge, const std::s
     os << "\", color=\"" + color + "\"]\n";
 }
 
+namespace std {
+    inline std::function<std::string(Edge &)> operator+(const std::function<std::string(Edge &)> &l1, const std::function<std::string(Edge &)> &l2) {
+        return [l1, l2](Edge &edge) ->std::string {
+            return l1(edge) + "\n" + l2(edge);
+        };
+    }
+}
+
 inline void printDot(std::ostream &os, const Component &component, const std::function<std::string(Edge &)> &labeler,
               const std::function<std::string(Edge &)> &edge_colorer) {
     os << "digraph {\nnodesep = 0.5;\n";
@@ -155,6 +163,28 @@ inline void printDot(std::ostream &os, const Component &component, const std::fu
     printDot(os, component, labeler, colorer);
 }
 
+inline void printDot(const std::experimental::filesystem::path &f, const Component &component, const std::function<std::string(Edge &)> &labeler,
+                     const std::function<std::string(Edge &)> &edge_colorer) {
+    std::ofstream os;
+    os.open(f);
+    printDot(os, component, labeler, edge_colorer);
+    os.close();
+}
+
+
+inline void printDot(const std::experimental::filesystem::path &f, const Component &component) {
+    std::ofstream os;
+    os.open(f);
+    printDot(os, component);
+    os.close();
+}
+
+inline void printDot(const std::experimental::filesystem::path &f, const Component &component, const std::function<std::string(Edge &)> &labeler) {
+    std::ofstream os;
+    os.open(f);
+    printDot(os, component, labeler);
+    os.close();
+}
 
 inline void DrawSplit(const Component &component, const std::experimental::filesystem::path &dir,
                const std::function<std::string(Edge &)> &labeler, const std::function<std::string(Edge &)> &colorer,
