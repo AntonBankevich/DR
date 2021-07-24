@@ -182,10 +182,6 @@ void GapColserPipeline(logging::Logger &logger, dbg::SparseDBG &dbg,
     AddConnections(logger, threads, dbg, {&readStorage, &refStorage}, patches);
     MarkUnreliableTips(dbg, patches);
     CorrectTips(logger, dbg, readStorage, threads);
-    std::ofstream os;
-    os.open("oppa.dot");
-    dbg.printDot(os, true);
-    os.close();
     printStats(logger, dbg);
     RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
 }

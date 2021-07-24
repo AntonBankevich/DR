@@ -101,7 +101,7 @@ GraphAlignment CorrectSuffix(const GraphAlignment &al) {
     }
     size_t max_len = bad_end_size  * 11/10 + 100;
     Path alternative = ReliablePath(al.getVertex(first_unreliable), max_len);
-    if(alternative.finish().outDeg() != 0 && alternative.len() < max_len) {
+    if(alternative.finish().outDeg() != 0 && alternative.len() + 10 < bad_end_size) {
         std::cout << "Could not find alternative for a tip" << std::endl;
         return al;
     }

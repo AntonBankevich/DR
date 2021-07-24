@@ -86,7 +86,9 @@ void dbg::Path::operator+=(dbg::Edge &edge) {
 }
 
 dbg::GraphAlignment dbg::GraphAlignment::RC() const {
-    GraphAlignment res;
+    if(!valid())
+        return {};
+    GraphAlignment res(finish().rc());
     for (size_t i = 0; i < als.size(); i++) {
         res += als[als.size() - 1 - i].RC();
     }

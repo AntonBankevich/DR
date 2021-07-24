@@ -29,7 +29,7 @@ size_t edit_distance(Sequence s1, Sequence s2) {
 size_t bestPrefix(const Sequence &s1, const Sequence &s2) {
     std::vector<size_t> prev(s2.size() + 1);
     std::vector<size_t> cur(s2.size() + 1);
-    for(unsigned int i = 0; i <= s1.size(); ++i) cur[i] = i;
+    for(unsigned int j = 0; j <= s2.size(); ++j) cur[j] = j;
     for(unsigned int i = 1; i <= s1.size(); ++i) {
         std::swap(prev, cur);
         cur[0] = i;
@@ -37,7 +37,7 @@ size_t bestPrefix(const Sequence &s1, const Sequence &s2) {
             cur[j] = std::min({ prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (s1[i - 1] == s2[j - 1] ? 0 : 1) });
     }
     size_t res = s2.size();
-    for(size_t j = 0; j < s2.size(); j++)
+    for(size_t j = 0; j <= s2.size(); j++)
         if(cur[j] < cur[res])
             res = j;
     return res;

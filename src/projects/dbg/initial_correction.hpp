@@ -144,7 +144,7 @@ std::vector<GraphAlignment> FindPlausibleBulgeAlternatives(logging::Logger &logg
 }
 
 std::vector<GraphAlignment> FindPlausibleTipAlternatives(logging::Logger &logger, const GraphAlignment &path,
-                                                           size_t max_diff, double min_cov) {
+                                                           size_t max_diff, double min_cov, bool dump) {
 //    logger << "Looking for plausible alternative tip paths" << std::endl;
     size_t k = path.start().seq.size();
     size_t max_len = path.len() + max_diff;
@@ -162,9 +162,10 @@ std::vector<GraphAlignment> FindPlausibleTipAlternatives(logging::Logger &logger
             forward = false;
             if(len >= tip_len + max_diff) {
                 res.emplace_back(alternative);
-//                logger << "Found plausible alternative path " << alternative.len() << std::endl;
-                if(res.size() > 10) {
-//                    logger << "Too many plausible alternatives. Aborting." << std::endl;
+                if(dump)
+                    logger << "Found plausible alternative path " << alternative.len() << std::endl;
+                if(dump && res.size() > 10) {
+                    logger << "Too many plausible alternatives. Aborting." << std::endl;
                     return {path};
                 }
             } else {
@@ -198,7 +199,8 @@ std::vector<GraphAlignment> FindPlausibleTipAlternatives(logging::Logger &logger
             }
         }
     }
-//    logger << "Found " << res.size() << " plausible alternative paths" << std::endl;
+    if(dump)
+        logger << "Found " << res.size() << " plausible alternative paths" << std::endl;
     return std::move(res);
 }
 
@@ -394,7 +396,8 @@ void InitialCorrectionPipeline(logging::Logger &logger, SparseDBG &sdbg, RecordS
 
 GraphAlignment BestAlignmentPrefix(const GraphAlignment &al, const Sequence & seq) {
     Sequence candSeq = al.truncSeq();
-    Sequence prefix = candSeq.Subseq(0, bestPrefix(seq, candSeq));
+    size_t len = bestPrefix(seq, candSeq);
+    Sequence prefix = candSeq.Subseq(0, len);
     GraphAlignment res(al.start());
     res.extend(prefix);
     return res;
@@ -599,7 +602,7 @@ size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,RecordS
         GraphAlignment corrected_path(path.start());
         bool corrected = false;
         for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
-            VERIFY_OMP(corrected_path.finish() == path.getVertex(path_pos));
+            VERIFY_OMP(corrected_path.finish() == path.getVertex(path_pos), "End");
             Edge &edge = path[path_pos].contig();
             if (edge.getCoverage() >= reliable_threshold || edge.is_reliable ||
                     (edge.start()->inDeg() > 0 && edge.end()->outDeg() > 0 && edge.getCoverage() > threshold) ) {
@@ -673,11 +676,19 @@ size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,RecordS
                 if(tip.len() < max_size)
                     alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
                 if (alternatives.empty())
-                    alternatives = FindPlausibleTipAlternatives(logger, tip, std::max<size_t>(size * 3 / 100, 100), 3);
+                    alternatives = FindPlausibleTipAlternatives(logger, tip, std::max<size_t>(size * 3 / 100, 100), 3, dump);
                 GraphAlignment substitution = processTip(logger, ss, tip, alternatives, ref_storage,
                                                          threshold, dump);
+                VERIFY_OMP(substitution.start() == tip.start(), "samestart");
                 GraphAlignment rcSubstitution = substitution.RC();
                 corrected_path = std::move(rcSubstitution);
+                if(dump) {
+                    std::cout << badPath.size() << std::endl;
+                    std::cout << corrected_path.size() << std::endl;
+                    std::cout << badPath.finish().getId() << std::endl;
+                    std::cout << corrected_path.finish().getId() << std::endl;
+                }
+                VERIFY_OMP(corrected_path.finish() == badPath.finish(), "End1");
             } else if(step_front == path.size() - path_pos - 1) {
                 if (dump)
                     logger << "Processing outgoing tip" << std::endl;
@@ -686,7 +697,7 @@ size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,RecordS
                 if(tip.len() < max_size)
                     alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
                 if (alternatives.empty())
-                    alternatives = FindPlausibleTipAlternatives(logger, tip, std::max<size_t>(size * 3 / 100, 100), 3);
+                    alternatives = FindPlausibleTipAlternatives(logger, tip, std::max<size_t>(size * 3 / 100, 100), 3, dump);
                 GraphAlignment substitution = processTip(logger, ss, tip, alternatives, ref_storage,
                                                          threshold, dump);
                 for (const Segment<Edge> &seg : substitution) {
@@ -884,7 +895,7 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
                 size_t support = rec.countStartsWith(ccandidate.seq());
                 if(skip == 2 * max_variation) {
                     initial_support = support;
-                    VERIFY_OMP(support > 0);
+                    VERIFY_OMP(support > 0, "support");
                 }
                 if (support > best_support) {
                     best_seq = longest_candidate.Subseq(skip, longest_candidate.size());
@@ -899,14 +910,14 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
 //                    << at_cnt1 << " " << at_cnt2 << " " << max_variation << " "
 //                    << "ACGT"[seq[seq.size() - 2]] << "ACGT"[seq[seq.size() - 1]] << " "
 //                    << extension.size() << " " << best_seq.size() << std::endl;
-            VERIFY_OMP(best_support > 0);
+            VERIFY_OMP(best_support > 0, "support2");
             GraphAlignment rerouting(path.getVertex(path_pos));
             rerouting.extend(best_seq);
             GraphAlignment old_path(path.getVertex(path_pos));
             old_path.extend(extension);
-            VERIFY_OMP(old_path.valid());
-            VERIFY_OMP(rerouting.valid());
-            VERIFY_OMP(rerouting.back() == old_path.back());
+            VERIFY_OMP(old_path.valid(), "oldpathvalid");
+            VERIFY_OMP(rerouting.valid(), "reroutingvalid");
+            VERIFY_OMP(rerouting.back() == old_path.back(), "backsame");
             if (rerouting.back().right != rerouting.back().contig().size()) {
                 rerouting.pop_back();
                 old_path.pop_back();
