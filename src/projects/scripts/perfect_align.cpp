@@ -14,6 +14,7 @@ struct ReadAndAls {
     std::vector<Segment<Contig>> als;
     ReadAndAls(const std::string &id, const std::vector<Segment<Contig>> &als) : id(id), als(als) {}
 };
+
 int main(int argc, char **argv) {
     CLParser parser({"ref=", "kmer-size=", "width=", "output-dir=", "dimer-compress=1000000000,1000000000,1"}, {"reads"},
                     {"k=kmer-size", "w=width", "o=output-dir"});
