@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
     }
     const std::experimental::filesystem::path out_file(parser.getValue("output-file"));
     const std::experimental::filesystem::path ref_file(parser.getValue("ref"));
-    const std::experimental::filesystem::path coordinates_file(parser.getValue("ref"));
+    const std::experimental::filesystem::path coordinates_file(parser.getValue("coordinates"));
     for(size_t i = 0; i < argc; i++) {
         std::cout << argv[i] << " ";
     }
