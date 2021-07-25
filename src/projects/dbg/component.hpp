@@ -274,7 +274,7 @@ namespace dbg {
                 return Path(from);
         }
 
-        static Component neighbourhood(SparseDBG &graph, Contig &contig, size_t radius, size_t min_coverage = 0) {
+        static Component neighbourhood(SparseDBG &graph, Contig &contig, size_t radius) {
             std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> v;
             typedef std::pair<size_t, hashing::htype> StoredValue;
             std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<StoredValue>> queue;
@@ -285,7 +285,7 @@ namespace dbg {
                 if(al.seg_to.left < radius)
                     queue.emplace(0, al.seg_to.contig().start()->hash());
                 VERIFY(al.seg_to.right <= al.seg_to.contig().size());
-                if(al.seg_to.contig().size() - al.seg_to.right < radius)
+                if(al.seg_to.contig().size() < radius + al.seg_to.right)
                     queue.emplace(0, al.seg_to.contig().end()->hash());
             }
             if(queue.empty()) {
@@ -302,7 +302,32 @@ namespace dbg {
                 v.insert(val.second);
                 for(Vertex *vit : graph.getVertices(val.second))
                     for (Edge &edge : *vit) {
-                        if (edge.getCoverage() >= min_coverage)
+                        queue.emplace(val.first + edge.size(), edge.end()->hash());
+                    }
+            }
+            return Component(graph, v.begin(), v.end());
+        }
+
+        static Component longEdgeNeighbourhood(SparseDBG &graph, Contig &contig, size_t long_edge_threshold) {
+            std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> v;
+            typedef std::pair<size_t, hashing::htype> StoredValue;
+            std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<>> queue;
+            std::vector<PerfectAlignment<Contig, Edge>> als1 = GraphAligner(graph).carefulAlign(contig);
+            Contig rc_contig = contig.RC();
+//        TODO Every edge must have a full sequence stored as a composite sequence
+            for (PerfectAlignment<Contig, Edge> &al : als1) {
+                queue.emplace(0, al.seg_to.contig().start()->hash());
+                queue.emplace(0, al.seg_to.contig().end()->hash());
+            }
+            while (!queue.empty()) {
+                std::pair<size_t, hashing::htype> val = queue.top();
+                queue.pop();
+                if (v.find(val.second) != v.end())
+                    continue;
+                v.insert(val.second);
+                for(Vertex *vit : graph.getVertices(val.second))
+                    for (Edge &edge : *vit) {
+                        if (edge.size() < long_edge_threshold)
                             queue.emplace(val.first + edge.size(), edge.end()->hash());
                     }
             }

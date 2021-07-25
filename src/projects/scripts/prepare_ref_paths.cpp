@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
     std::ofstream os;
     is.open(coordinates_file);
     os.open(out_file);
-    while(getline(is, line)) {
+    while(getline(is, line) && line.size() > 0) {
         std::vector<std::string> s = split(line);
         std::string chr_name = s[0];
         size_t left = std::stoull(s[1]);
