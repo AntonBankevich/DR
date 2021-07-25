@@ -90,18 +90,10 @@ int main(int argc, char **argv) {
         }
         std::sort(res.begin(), res.end());
         res.erase(std::unique(res.begin(), res.end()), res.end());
-//        VERIFY(res.size() > 0);
-        bool ok = false;
-        if(res.size() != 1) {
-            for(std::pair<Segment<Contig>, Segment<Contig>> &al : res) {
-                std::cout << al.first << " " << al.second << std::endl;
-            }
-        }
         for(std::pair<Segment<Contig>, Segment<Contig>> &al : res) {
             if(al.first.seq() == al.second.seq())
-                os << read.id << " " << al.first.left << " " << al.first.right << al.second.contig().getId() << " " << al.second.left << " " << al.second.right << std::endl;
+                os << read.id << " " << al.second.contig().getId() << " " << al.second.left << " " << al.second.right << std::endl;
         }
-//        VERIFY(ok);
     }
     os.close();
 
