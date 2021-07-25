@@ -23,6 +23,7 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
     VERIFY(!!parameters);
     parameters.compute_optimal_parameters();
     BloomFilter filter(parameters);
+//    DelayedBloomFilter filter(parameters, threads);
     const hashing::RollingHash ehasher = hasher.extensionHash();
     std::function<void(size_t, const Sequence &)> task = [&filter, &ehasher](size_t pos, const Sequence & seq) {
         if(seq.size() < ehasher.getK())
@@ -30,12 +31,18 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
         hashing::KWH kmer(ehasher, seq, 0);
         while (true) {
             filter.insert(kmer.hash());
+//            filter.delayedInsert(kmer.hash());
             if (!kmer.hasNext())
                 break;
             kmer = kmer.next();
         }
     };
     logger.info() << "Filling bloom filter with k+1-mers." << std::endl;
+//    ParallelProcessor<Sequence> fill_processor(task, logger, threads);
+//    fill_processor.doAfter = [&filter, threads]() {
+//        filter.dump(threads);
+//    };
+//    fill_processor.processRecords(split_disjointigs.begin(), split_disjointigs.end());
     processRecords(split_disjointigs.begin(), split_disjointigs.end(), logger, threads, task);
     std::pair<size_t, size_t> bits = filter.count_bits();
     logger.info() << "Filled " << bits.first << " bits out of " << bits.second << std::endl;

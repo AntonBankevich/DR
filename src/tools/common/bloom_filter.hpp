@@ -158,15 +158,6 @@ protected:
 
 public:
 
-    BloomFilter()
-            : salt_count_(0),
-              table_size_(0),
-              projected_element_count_(0),
-              inserted_element_count_ (0),
-              random_seed_(0),
-              desired_false_positive_probability_(0.0)
-    {}
-
     BloomFilter(const bloom_parameters& p)
             : projected_element_count_(p.projected_element_count),
               inserted_element_count_(0),
@@ -181,10 +172,7 @@ public:
         bit_table_.resize(table_size_ / bits_per_char, static_cast<unsigned char>(0x00));
     }
 
-    BloomFilter(const BloomFilter& filter)
-    {
-        this->operator=(filter);
-    }
+    BloomFilter(const BloomFilter& f) = default;
 
     inline bool operator == (const BloomFilter& f) const
     {
@@ -230,22 +218,16 @@ public:
         return *this;
     }
 
-    virtual ~BloomFilter()
-    {}
+    virtual ~BloomFilter() = default;
 
-    inline bool operator!() const
-    {
-        return (0 == table_size_);
-    }
+    inline bool operator!() const {return (0 == table_size_);}
 
-    inline void clear()
-    {
+    inline void clear() {
         std::fill(bit_table_.begin(), bit_table_.end(), static_cast<unsigned char>(0x00));
         inserted_element_count_ = 0;
     }
 
-    inline void insert(const unsigned char* key_begin, const std::size_t& length)
-    {
+    inline void insert(const unsigned char* key_begin, const std::size_t& length) {
         std::size_t bit_index = 0;
         std::size_t bit       = 0;
 
@@ -263,7 +245,7 @@ public:
     inline void insert(const T& t)
     {
         // Note: T must be a C++ POD type.
-        insert(reinterpret_cast<const unsigned char*>(&t),sizeof(T));
+        insert(reinterpret_cast<const unsigned char*>(&t), sizeof(T));
     }
 
     inline void insert(const std::string& key)
@@ -635,83 +617,56 @@ inline BloomFilter operator ^ (const BloomFilter& a, const BloomFilter& b)
     return result;
 }
 
-class compressible_bloom_filter : public BloomFilter
-{
-public:
-
-    compressible_bloom_filter(const bloom_parameters& p)
-            : BloomFilter(p)
-    {
-        size_list.push_back(table_size_);
-    }
-
-    inline unsigned long long int size() const
-    {
-        return size_list.back();
-    }
-
-    inline bool compress(const double& percentage)
-    {
-        if (
-                (percentage <    0.0) ||
-                (percentage >= 100.0)
-                )
-        {
-            return false;
-        }
-
-        unsigned long long int original_table_size = size_list.back();
-        unsigned long long int new_table_size = static_cast<unsigned long long int>((size_list.back() * (1.0 - (percentage / 100.0))));
-
-        new_table_size -= new_table_size % bits_per_char;
-
-        if (
-                (bits_per_char  >       new_table_size) ||
-                (new_table_size >= original_table_size)
-                )
-        {
-            return false;
-        }
-
-        desired_false_positive_probability_ = effective_fpp();
-
-        const unsigned long long int new_tbl_raw_size = new_table_size / bits_per_char;
-
-        table_type tmp(new_tbl_raw_size);
-
-        std::copy(bit_table_.begin(), bit_table_.begin() + new_tbl_raw_size, tmp.begin());
-
-        typedef table_type::iterator itr_t;
-
-        itr_t itr     = bit_table_.begin() + (new_table_size      / bits_per_char);
-        itr_t end     = bit_table_.begin() + (original_table_size / bits_per_char);
-        itr_t itr_tmp = tmp.begin();
-
-        while (end != itr)
-        {
-            *(itr_tmp++) |= (*itr++);
-        }
-
-        std::swap(bit_table_, tmp);
-
-        size_list.push_back(new_table_size);
-
-        return true;
-    }
-
+class DelayedBloomFilter : public BloomFilter {
 private:
-
-    inline void compute_indices(const bloom_type& hash, std::size_t& bit_index, std::size_t& bit) const
-    {
-        bit_index = hash;
-
-        for (std::size_t i = 0; i < size_list.size(); ++i)
-        {
-            bit_index %= size_list[i];
-        }
-
-        bit = bit_index % bits_per_char;
+    ParallelRecordCollector<bloom_type> write_buffer;
+public:
+    DelayedBloomFilter(const bloom_parameters& p, size_t threads) :
+                BloomFilter(p), write_buffer(threads) {
     }
 
-    std::vector<unsigned long long int> size_list;
+    inline void delayedInsert(const unsigned char* key_begin, const std::size_t& length) {
+        std::size_t bit_index = 0;
+        std::size_t bit       = 0;
+
+        for (std::size_t i = 0; i < salt_.size(); i++) {
+            compute_indices(hash_ap(key_begin, length, salt_[i]), bit_index, bit);
+            write_buffer.emplace_back(bit_index);
+        }
+    }
+
+    template <typename T>
+    inline void delayedInsert(const T& t)
+    {
+        // Note: T must be a C++ POD type.
+        delayedInsert(reinterpret_cast<const unsigned char*>(&t), sizeof(T));
+    }
+
+    inline void dump(size_t threads) {
+        std::vector<bloom_type> b = write_buffer.collect();
+        write_buffer.clear();
+        if(b.empty())
+            return;
+        omp_set_num_threads(threads);
+        __gnu_parallel::sort(b.begin(), b.end());
+        std::vector<bloom_type> borders;
+        borders.emplace_back(0);
+        size_t max_cells = 32 * threads;
+        while(borders.back() < b.size()) {
+            bloom_type next = std::min(borders.back() + b.size() / max_cells, b.size());
+            while(next < b.size() && b[next] / 8 / 4096 == b[borders.back()] / 8 / 4096)
+                next++;
+            borders.emplace_back(next);
+        }
+        for(size_t mod2 = 0; mod2 < 2; mod2++) {
+#pragma omp parallel for default(none) shared(borders, bit_mask, mod2, bit_table_, b)
+            for (size_t i = mod2; i < borders.size() - 1; i += 2) {
+                for (size_t j = borders[i]; j < borders[i + 1]; j++) {
+                    bloom_type bit_index = b[j];
+                    bit_table_[bit_index / bits_per_char] |= bit_mask[bit_index % bits_per_char];
+                }
+            }
+        }
+        inserted_element_count_ += b.size();
+    }
 };
