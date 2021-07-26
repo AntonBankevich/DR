@@ -232,7 +232,7 @@ std::vector<GraphAlignment> FilterAlternatives(logging::Logger &logger1, const G
 
 GraphAlignment chooseBulgeCandidate(logging::Logger &logger, std::ostream &out, const GraphAlignment &bulge,
                                     const RecordStorage &reads_storage, const RecordStorage &ref_storage, double threshold,
-                                    std::vector<GraphAlignment> &read_alternatives, bool dump) {
+                                    std::vector<GraphAlignment> &read_alternatives, std::string &message, bool dump) {
     size_t size = bulge.len();
     out << size << " bulge " << bulge.size() << " " << bulge.minCoverage();
     if(dump) {
@@ -309,8 +309,13 @@ GraphAlignment chooseBulgeCandidate(logging::Logger &logger, std::ostream &out, 
     out << " " << (read_alternatives_filtered.size() == 1 ? "+" : "-");
     out << std::endl;
     if(read_alternatives_filtered.size() == 1) {
+        if(read_alternatives_filtered.size() > 1)
+            message += "m";
+        else
+            message += "s";
         return std::move(read_alternatives_filtered[0]);
     } else {
+        message = "";
         return bulge;
     }
 }
@@ -403,11 +408,10 @@ GraphAlignment BestAlignmentPrefix(const GraphAlignment &al, const Sequence & se
     return res;
 }
 
-GraphAlignment
-processTip(logging::Logger &logger, std::ostream &out, const GraphAlignment &tip,
+GraphAlignment processTip(logging::Logger &logger, std::ostream &out, const GraphAlignment &tip,
                          const std::vector<GraphAlignment> & alternatives,
                          const RecordStorage &ref_storage,
-                         double threshold, bool dump = false) {
+                         double threshold, std::string &message, bool dump = false) {
     size_t size = tip.len();
     out << size << " tip " << tip.size() << " " << tip.minCoverage();
     if(dump) {
@@ -446,7 +450,9 @@ processTip(logging::Logger &logger, std::ostream &out, const GraphAlignment &tip
     for(const GraphAlignment &al : read_alternatives_filtered) {
         trunc_alignments.emplace_back(BestAlignmentPrefix(al, old));
     }
+    message = "s";
     if(trunc_alignments.size() > 1) {
+        message = "m";
         if(dump)
             logger << "Multiple choice for tip " << trunc_alignments.size() << std::endl << tip.truncSeq() << std::endl;
         std::vector<Sequence> candidates;
@@ -477,6 +483,7 @@ processTip(logging::Logger &logger, std::ostream &out, const GraphAlignment &tip
     if(trunc_alignments.size() == 1) {
         return std::move(trunc_alignments[0]);
     } else {
+        message = "";
         return tip;
     }
 }
@@ -594,6 +601,7 @@ size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,RecordS
 #pragma omp parallel for default(none) shared(std::cout, reads_storage, ref_storage, results, threshold, k, max_size, logger, simple_bulge_cnt, bulge_cnt, dump, reliable_threshold)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;
+        std::vector<std::string> messages;
         AlignedRead &alignedRead = reads_storage[read_ind];
         if(dump)
             logger << "Processing read " << alignedRead.id << std::endl;
@@ -677,8 +685,11 @@ size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,RecordS
                     alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
                 if (alternatives.empty())
                     alternatives = FindPlausibleTipAlternatives(logger, tip, std::max<size_t>(size * 3 / 100, 100), 3, dump);
+                std::string new_message = "";
                 GraphAlignment substitution = processTip(logger, ss, tip, alternatives, ref_storage,
-                                                         threshold, dump);
+                                                         threshold, new_message, dump);
+                messages.emplace_back("it" + new_message);
+                messages.emplace_back(logging::itos(tip.size()));
                 VERIFY_OMP(substitution.start() == tip.start(), "samestart");
                 GraphAlignment rcSubstitution = substitution.RC();
                 corrected_path = std::move(rcSubstitution);
@@ -698,18 +709,30 @@ size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,RecordS
                     alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
                 if (alternatives.empty())
                     alternatives = FindPlausibleTipAlternatives(logger, tip, std::max<size_t>(size * 3 / 100, 100), 3, dump);
+                std::string new_message = "";
                 GraphAlignment substitution = processTip(logger, ss, tip, alternatives, ref_storage,
-                                                         threshold, dump);
+                                                         threshold, new_message, dump);
+                messages.emplace_back("ot" + new_message);
+                messages.emplace_back(logging::itos(tip.size()));
                 for (const Segment<Edge> &seg : substitution) {
                     corrected_path.push_back(seg);
                 }
             } else {
                 std::vector<GraphAlignment> read_alternatives;
+                std::string new_message = "br";
                 if(size < max_size)
                     read_alternatives = reads_storage.getRecord(badPath.start()).getBulgeAlternatives(badPath.finish(), threshold);
-                if(read_alternatives.empty())
-                    read_alternatives = FindPlausibleBulgeAlternatives(logger, badPath, std::max<size_t>(size * 3 / 100, 100), 3);
-                GraphAlignment substitution = chooseBulgeCandidate(logger, ss, badPath, reads_storage, ref_storage, threshold, read_alternatives, dump);
+                if(read_alternatives.empty()) {
+                    new_message = "bp";
+                    read_alternatives = FindPlausibleBulgeAlternatives(logger, badPath,
+                                                                       std::max<size_t>(size * 3 / 100, 100), 3);
+                }
+                GraphAlignment substitution = chooseBulgeCandidate(logger, ss, badPath, reads_storage, ref_storage, threshold,
+                                                                   read_alternatives, new_message, dump);
+                if(!new_message.empty()) {
+                    messages.emplace_back(new_message);
+                    messages.emplace_back(logging::itos(badPath.len()));
+                }
                 for (const Segment<Edge> &seg : substitution) {
                     corrected_path.push_back(seg);
                 }
@@ -721,7 +744,7 @@ size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,RecordS
             path_pos = path_pos + step_front;
         }
         if(path != corrected_path) {
-            reads_storage.reroute(alignedRead, path, corrected_path, "low coverage correction");
+            reads_storage.reroute(alignedRead, path, corrected_path, "low coverage correction "+ join("_", messages));
         }
         results.emplace_back(ss.str());
     }
