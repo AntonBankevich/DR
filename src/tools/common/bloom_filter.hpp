@@ -659,7 +659,7 @@ public:
             borders.emplace_back(next);
         }
         for(size_t mod2 = 0; mod2 < 2; mod2++) {
-#pragma omp parallel for default(none) shared(borders, bit_mask, mod2, bit_table_, b)
+#pragma omp parallel for default(none) shared(borders, bit_mask, mod2, b)
             for (size_t i = mod2; i < borders.size() - 1; i += 2) {
                 for (size_t j = borders[i]; j < borders[i + 1]; j++) {
                     bloom_type bit_index = b[j];
