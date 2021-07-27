@@ -591,6 +591,12 @@ struct AssemblyInfo {
 //        logger.info() << "Cigar " << alignment.cigar_string << endl;
 
     }
+    void removeWhitespace(string & s){
+        auto white = s.find(' ');
+        if (white != string::npos) {
+            s = s.substr(0, white);
+        }
+    }
 
     void processBatch(vector<string>& contigs, vector<AlignmentInfo>& alignments){
         size_t len = contigs.size();
@@ -631,6 +637,8 @@ struct AssemblyInfo {
                     break;
                 }
                 cur = reader.read();
+//Some tools clip read names after whitespaces
+                removeWhitespace(cur.id);
                 reads_count ++;
                 if (reads_count % 1000 == 0) {
                     logger.info() << "Processed " << reads_count << " original reads " << endl;
