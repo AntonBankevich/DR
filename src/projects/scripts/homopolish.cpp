@@ -540,8 +540,11 @@ struct AssemblyInfo {
 //TODO do not forget add complex regions here
                 indels += (*it).length;
             } else {
+                size_t cur_complex_coord = -1;
                 auto complex_regions_iter = lower_bound(current_contig.complex_regions.begin(), current_contig.complex_regions.end(),make_pair(cont_coords + aln.alignment_start, size_t(0)));
-                size_t cur_complex_coord = complex_regions_iter->first;
+                if (complex_regions_iter !=  current_contig.complex_regions.end()) {
+                    cur_complex_coord = complex_regions_iter->first;
+                }
                 for (size_t i = MATCH_EPS; i + MATCH_EPS< (*it).length; i++) {
                     size_t coord = cont_coords + aln.alignment_start + i;
 
