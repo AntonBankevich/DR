@@ -67,8 +67,9 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
     logger.info() << "Running repeat resolution" << std::endl;
     for(auto & subdataset : subdatasets) {
         std::experimental::filesystem::path outdir = subdataset.dir / "mltik";
-        std::string command = COMMAND.replace(COMMAND.find("{}"), 2, subdataset.dir.string());
-        command = command.replace(command.find("{}"), 2, outdir.string());
+        std::string command = COMMAND;
+        command.replace(COMMAND.find("{}"), 2, subdataset.dir.string());
+        command.replace(command.find("{}"), 2, outdir.string());
         system(command.c_str());
     }
     logger.info() << "Collecting repeat resolution results" << std::endl;
