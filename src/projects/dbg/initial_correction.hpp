@@ -568,7 +568,7 @@ inline void FillReliableWithConnections(logging::Logger &logger, SparseDBG &sdbg
                         next = res[next->start()].second;
                     }
 //                    logger << "Path of size " << al.size() << " and length " << al.len() << " marked as reliable." << std::endl;
-                    cnt_paths += 1;Remarking reliable edges
+                    cnt_paths += 1;
                     break;
                 } else {
                     for(Edge &edge : *next->end()) {
