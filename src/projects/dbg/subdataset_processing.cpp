@@ -73,6 +73,7 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
     }
     logger.info() << "Collecting repeat resolution results" << std::endl;
     ParallelRecordCollector<Contig> res(threads);
+#pragma omp parallel for default(none) shared(subdatasets, res)
     for(size_t snum = 0; snum < subdatasets.size(); snum++) {
         Subdataset &subdataset = subdatasets[snum];
         std::experimental::filesystem::path outdir = subdataset.dir / "mltik";
