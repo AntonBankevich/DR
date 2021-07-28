@@ -77,7 +77,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
             PrintPaths(logger, dir/ "paths", "gap", dbg, readStorage, paths_lib, true);
         }
         if(remove_bad) {
-            readStorage.invalidateBad(logger, threshold);
+            readStorage.invalidateBad(logger, threads, threshold);
             RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
             PrintPaths(logger, dir/ "paths", "bad", dbg, readStorage, paths_lib, false);
         }
@@ -123,7 +123,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         PrintPaths(logger, dir/ "paths", "low", dbg, readStorage, paths_lib, false);
         GapColserPipeline(logger, dbg, readStorage, refStorage, threads);
         PrintPaths(logger, dir/ "paths", "gap1", dbg, readStorage, paths_lib, false);
-        readStorage.invalidateBad(logger, threshold);
+        readStorage.invalidateBad(logger, threads, threshold);
         PrintPaths(logger, dir/ "paths", "bad", dbg, readStorage, paths_lib, false);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
         PrintPaths(logger, dir/ "paths", "uncovered1", dbg, readStorage, paths_lib, false);

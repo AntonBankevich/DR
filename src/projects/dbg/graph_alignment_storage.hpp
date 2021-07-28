@@ -141,8 +141,8 @@ public:
     void reroute(AlignedRead &alignedRead, const GraphAlignment &corrected, const std::string &message);
     void apply(AlignedRead &alignedRead);
 
-    void invalidateBad(logging::Logger &logger, double threshold);
-    void invalidateBad(logging::Logger &logger, const std::function<bool(const Edge &)> &is_bad);
+    void invalidateBad(logging::Logger &logger, size_t threads, double threshold);
+    void invalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(const Edge &)> &is_bad);
 
     template<class I>
     void fill(I begin, I end, SparseDBG &dbg, size_t min_read_size, logging::Logger &logger, size_t threads);

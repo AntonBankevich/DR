@@ -285,14 +285,14 @@ void RecordStorage::invalidateRead(AlignedRead &read) { // NOLINT(readability-co
     read.invalidate();
 }
 
-void RecordStorage::invalidateBad(logging::Logger &logger, double threshold) {
+void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, double threshold) {
     const std::function<bool(const Edge &)> &is_bad = [threshold](const Edge &edge) {
         return edge.getCoverage() < threshold;
     };
-    invalidateBad(logger, is_bad);
+    invalidateBad(logger, threads, is_bad);
 }
 
-void RecordStorage::invalidateBad(logging::Logger &logger, const std::function<bool(const Edge &)> &is_bad) {
+void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(const Edge &)> &is_bad) {
     size_t cnt = 0;
     for (AlignedRead &alignedRead : reads) {
         bool good = true;
@@ -307,7 +307,9 @@ void RecordStorage::invalidateBad(logging::Logger &logger, const std::function<b
             cnt++;
         }
     }
-    logger.info() << "Could not correct " << cnt << " reads. They were removed." << std::endl;
+    logger.info() << "Could not correct " << cnt << " reads. They will be removed." << std::endl;
+    applyCorrections(logger, threads);
+    logger.info() << "Uncorrected reads were removed." << std::endl;
 }
 
 void RecordStorage::addSubpath(const CompactPath &cpath) {
