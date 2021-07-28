@@ -21,12 +21,14 @@ namespace logging {
 
 const std::string endl = "\n";
 
-inline std::string itos(size_t val) {
+inline std::string itos(size_t val, size_t min_size = 2) {
     std::stringstream ss;
-    if(val < 10)
-        ss << "0";
     ss << val;
-    return ss.str();
+    std::string res = ss.str();
+    while(res.size() < min_size) {
+        res = "0" + res;
+    }
+    return res;
 }
 
 class TimeSpace {

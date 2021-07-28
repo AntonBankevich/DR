@@ -25,6 +25,14 @@ namespace basic {
     }
 }
 
+class RawSequence {
+public:
+    size_t id;
+    const std::string seq;
+    RawSequence(size_t _id, std::string _seq): id(_id), seq(std::move(_seq)) {
+    }
+};
+
 template<class T>
 class Segment{
     T *contig_ptr;

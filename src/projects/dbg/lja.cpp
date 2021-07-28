@@ -1,3 +1,4 @@
+#include "subdataset_processing.hpp"
 #include "gap_closing.hpp"
 #include "mult_correction.hpp"
 #include "visualization.hpp"
@@ -93,64 +94,6 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
     return {res, dir / "graph.fasta"};
 }
 
-void SplitDataset(SparseDBG &dbg, RecordStorage &readStorage, const std::experimental::filesystem::path &res) {
-    size_t k = dbg.hasher().getK();
-    std::vector<Component> comps = LengthSplitter(4000000000ul).split(dbg);
-    std::vector<std::ofstream *> os;
-    std::vector<std::ofstream *> alignments;
-    std::vector<std::experimental::filesystem::path> result;
-    for(size_t i = 0; i < comps.size(); i++) {
-        os.emplace_back(new std::ofstream());
-        alignments.emplace_back(new std::ofstream());
-        result.emplace_back(res / std::to_string(i + 1));
-        ensure_dir_existance(result.back());
-        os.back()->open(result.back() / "corrected.fasta");
-        alignments.back()->open(result.back() / "alignments.txt");
-        std::ofstream gos;
-        gos.open(result.back() / "graph.fasta");
-        printFasta(gos, comps[i]);
-        gos.close();
-        std::ofstream log;
-        log.open(result.back() / "dbg.log");
-        log << "-k " << k << std::endl;
-        log.close();
-        std::ofstream dot;
-        dot.open(result.back() / "graph.dot");
-        printDot(dot, comps[i], readStorage.labeler());
-        dot.close();
-    }
-    for(AlignedRead &read : readStorage) {
-        if(!read.valid())
-            continue;
-        GraphAlignment al = read.path.getAlignment();
-        Sequence seq = al.Seq();
-        std::stringstream ss;
-        ss  << read.id << " " << al.start().hash() << int(al.start().isCanonical())
-            << " " << read.path.cpath().str() << "\n";
-        CompactPath rc(al.RC());
-        ss  << "-" << read.id << " " << rc.start().hash() << int(rc.start().isCanonical())
-            << " " << rc.cpath().str() << "\n";
-        std::string alignment_record = ss.str();
-        for(size_t j = 0; j < comps.size(); j++) {
-            for(size_t i = 0; i <= al.size(); i++) {
-                if(comps[j].v.find(al.getVertex(i).hash()) != comps[j].v.end()) {
-                    *os[j] << ">" << read.id << "\n" << seq << "\n";
-                    *alignments[j] << alignment_record;
-                    break;
-                }
-            }
-        }
-    };
-    for(size_t j = 0; j < comps.size(); j++) {
-        os[j]->close();
-        alignments[j]->close();
-        delete os[j];
-        delete alignments[j];
-        os[j] = nullptr;
-        alignments[j] = nullptr;
-    }
-}
-
 std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> SecondPhase(logging::Logger &logger, const std::experimental::filesystem::path &dir,
                                                                                                       const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
                                                                                                       const io::Library &paths_lib, size_t threads, size_t k, size_t w,
@@ -191,7 +134,10 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         GapColserPipeline(logger, dbg, readStorage, refStorage, threads);
         PrintPaths(logger, dir/ "paths", "gap2", dbg, readStorage, paths_lib, false);
         DrawSplit(Component(dbg), dir / "figs");
-        SplitDataset(dbg, readStorage, dir / "split");
+        RepeatResolver rr(dbg, readStorage, dir / "split");
+        std::vector<Contig> contigs = rr.ResolveRepeats(logger, threads);
+        PrintAlignments(logger, threads, contigs, readStorage, k, w, dir / "uncompressing");
+//        SplitDataset(dbg, readStorage, dir / "split");
         readStorage.printFasta(logger, dir / "corrected.fasta");
         dbg.printFastaOld(dir / "graph.fasta");
     };
@@ -254,38 +200,6 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
     std::experimental::filesystem::path res = dir / "corrected.fasta";
     logger.info() << "Multiplicity-based correction results with k = " << k << " printed to " << res << std::endl;
     return {res, dir / "graph.fasta"};
-}
-
-std::experimental::filesystem::path SplitDatasetStage(logging::Logger &logger, const std::experimental::filesystem::path &dir,
-                                                   const io::Library &reads_lib, const io::Library &pseudo_reads_lib, size_t threads, size_t k, size_t w, bool skip, bool dump) {
-    logger.info() << "Performing dataset splitting with k = " << k << std::endl;
-    if (k % 2 == 0) {
-        logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
-        k += 1;
-    }
-    ensure_dir_existance(dir);
-    hashing::RollingHash hasher(k, 239);
-    std::experimental::filesystem::path res = dir/"split";
-    recreate_dir(res);
-    std::function<void()> split_task = [&dir, &logger, &hasher, k, w, &reads_lib, &pseudo_reads_lib, threads, &res, dump] {
-        io::Library construction_lib = reads_lib + pseudo_reads_lib;
-        SparseDBG dbg = DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
-        dbg.fillAnchors(w, logger, threads);
-        RecordStorage readStorage(dbg, 0, 1000000, threads, dir/"read_log.txt", true);
-        io::SeqReader reader(reads_lib);
-        readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
-        {
-            std::ofstream gos;
-            gos.open(dir / "graph.dot");
-            printDot(gos, Component(dbg), readStorage.labeler());
-            gos.close();
-        }
-        SplitDataset(dbg, readStorage, res);
-    };
-    if(!skip)
-        runInFork(split_task);
-    logger.info() << "Splitted datasets with k = " << k << " were printed to " << dir << std::endl;
-    return res;
 }
 
 void ConstructSubdataset(logging::Logger &logger, const std::experimental::filesystem::path &subdir,
