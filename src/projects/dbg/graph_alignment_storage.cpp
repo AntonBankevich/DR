@@ -288,6 +288,7 @@ void RecordStorage::addRead(AlignedRead &&read) {
 
 void RecordStorage::invalidateRead(AlignedRead &read) { // NOLINT(readability-convert-member-functions-to-static)
     removeSubpath(read.path);
+    removeSubpath(read.path.RC());
     read.invalidate();
 }
 
