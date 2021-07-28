@@ -1,4 +1,6 @@
 #include "ksw2.h"
+#include <vector>
+#include <cstring>
 
 struct cigar_pair {
     char type;
