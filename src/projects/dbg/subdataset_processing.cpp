@@ -139,14 +139,13 @@ void PrintAlignments(logging::Logger &logger, size_t threads, std::vector<Contig
         }
     }
     ParallelRecordCollector<std::pair<size_t, std::pair<RawSeg, Segment<Contig>>>> result(threads);
-    omp_set_num_threads(1);
+    omp_set_num_threads(threads);
 #pragma omp parallel for default(none) shared(readStorage, hasher, position_map, k, w, result, std::cout)
     for(size_t i = 0; i < readStorage.size(); i++) {
         const AlignedRead &alignedRead = readStorage[i];
         if(!alignedRead.valid())
             continue;
         Contig read(alignedRead.path.getAlignment().Seq(), alignedRead.id);
-        VERIFY(read.size() >= k + w - 1);
         std::vector<std::pair<Segment<Contig>, Segment<Contig>>> res;
         hashing::KWH kwh(hasher, read.seq, 0);
         while (true) {
