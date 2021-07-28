@@ -65,7 +65,9 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
     logger.info() << "Splitting dataset and printing subdatasets to disk" << std::endl;
     std::vector<Subdataset> subdatasets = SplitDataset([](const Edge &){return false;});
     logger.info() << "Running repeat resolution" << std::endl;
-    for(auto & subdataset : subdatasets) {
+#pragma omp parallel for default(none) shared(subdatasets, COMMAND)
+    for(size_t snum = 0; snum < subdatasets.size(); snum++) {
+        Subdataset &subdataset = subdatasets[snum];
         std::experimental::filesystem::path outdir = subdataset.dir / "mltik";
         std::string command = COMMAND;
         command.replace(COMMAND.find("{}"), 2, subdataset.dir.string());
