@@ -175,7 +175,7 @@ void MarkUnreliableTips(SparseDBG &dbg, const std::vector<Connection> &patches) 
     }
 }
 
-void GapColserPipeline(logging::Logger &logger, dbg::SparseDBG &dbg,
+inline void GapColserPipeline(logging::Logger &logger, dbg::SparseDBG &dbg,
                        RecordStorage &readStorage, RecordStorage &refStorage, size_t threads) {
     GapCloser gap_closer(700, 10000, 311, 0.05);
     std::vector<Connection> patches = gap_closer.GapPatches(logger, dbg, threads);

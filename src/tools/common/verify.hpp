@@ -35,6 +35,16 @@ inline void print_stacktrace() {
         };                                                       \
     } while(0);
 
+#define VERIFY_MSG(expr, msg)                                             \
+    do {                                                         \
+        if (!(expr)) {                                                \
+            std::cout << msg << std::endl;                        \
+            print_stacktrace();                                  \
+            assert(expr);                                             \
+            abort(); \
+        };                                                       \
+    } while(0);
+
 inline void VERIFY_OMP(bool expr) {
     VERIFY(expr);
 }

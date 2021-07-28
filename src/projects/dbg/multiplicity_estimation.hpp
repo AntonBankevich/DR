@@ -3,6 +3,7 @@
 #include <utility>
 
 
+#include "graph_alignment_storage.hpp"
 #include "ff.hpp"
 #include "sparse_dbg.hpp"
 #include "visualization.hpp"

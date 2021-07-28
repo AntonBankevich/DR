@@ -22,19 +22,19 @@ namespace dbg {
         for (Edge &edge : component.edges()) {
             if (edge.start()->isCanonical(edge)) {
                 if (calculate_coverage)
-                    out << "S\t" << edge.start()->edgeId(edge) << "\t" << edge.start()->seq << edge.seq
+                    out << "S\t" << edge.oldId() << "\t" << edge.start()->seq << edge.seq
                         << "\tKC:i:" << edge.intCov() << std::endl;
                 else
-                    out << "S\t" << edge.start()->edgeId(edge) << "\t" << edge.start()->seq << edge.seq << std::endl;
+                    out << "S\t" << edge.oldId() << "\t" << edge.start()->seq << edge.seq << std::endl;
             }
         }
         for (const auto &hash : component.v) {
             const Vertex &vertex = component.graph.getVertex(hash);
             for (const Edge &out_edge : vertex) {
-                std::string outid = vertex.edgeId(out_edge);
+                std::string outid = out_edge.oldId();
                 bool outsign = vertex.isCanonical(out_edge);
                 for (const Edge &inc_edge : vertex.rc()) {
-                    std::string incid = vertex.rc().edgeId(inc_edge);
+                    std::string incid = inc_edge.oldId();
                     bool incsign = !vertex.rc().isCanonical(inc_edge);
                     out << "L\t" << incid << "\t" << (incsign ? "+" : "-") << "\t" << outid << "\t"
                         << (outsign ? "+" : "-") << "\t" << component.graph.hasher().getK() << "M" << std::endl;

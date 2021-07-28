@@ -57,10 +57,7 @@ int main(int argc, char **argv) {
             printFasta(edges, Component(dbg));
             edges.close();
             logger.info() << "Printing graph to dot file " << (initial_dir / "graph.dot") << std::endl;
-            std::ofstream dot;
-            dot.open(initial_dir / "graph.dot");
-            dbg.printDot(dot, true);
-            dot.close();
+            printDot(initial_dir / "graph.dot", Component(dbg));
             Component comp(dbg);
             DrawSplit(comp, initial_dir/ "split");
         }
@@ -80,10 +77,7 @@ int main(int argc, char **argv) {
         printFasta(edges, dbg_corrected);
         edges.close();
         logger.info() << "Printing graph to dot file " << (dir / "graph.dot") << std::endl;
-        std::ofstream dot;
-        dot.open(dir / "graph.dot");
-        dbg_corrected.printDot(dot, true);
-        dot.close();
+        printDot(dir / "graph.dot", Component(subdbg));
     }
 
     std::experimental::filesystem::path alignments_file = alignLib(logger, dbg_corrected, corrected_lib, hasher, w, dir, threads);

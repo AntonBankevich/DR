@@ -184,6 +184,8 @@ public:
         return *this;
     }
 
+    Sequence &operator=(Sequence &&other) = default;
+
     Sequence copy() const {
         return Sequence(str());
     }

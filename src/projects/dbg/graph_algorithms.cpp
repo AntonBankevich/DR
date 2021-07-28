@@ -265,7 +265,7 @@ void CalculateCoverage(const std::experimental::filesystem::path &dir, const Rol
             os << size_t(edge.seq[0]) << " " << edge.intCov() << std::endl;
         }
     }
-    dbg.printCoverageStats(logger);
+//    dbg.printCoverageStats(logger);
     os.close();
 }
 

@@ -471,10 +471,7 @@ int main(int argc, char **argv) {
         printGFA(gfa, dbg, calculate_coverage);
         gfa.close();
         logger.info() << "Printing graph to dot file " << (dir / "graph.dot") << std::endl;
-        std::ofstream dot;
-        dot.open(dir / "graph.dot");
-        dbg.printDot(dot, calculate_coverage);
-        dot.close();
+        printDot(dir / "graph.dot", Component(dbg));
     }
 
     if (parser.getCheck("tip-correct")) {
@@ -564,19 +561,13 @@ int main(int argc, char **argv) {
                 edge.incCov(other.rc().getOutgoing(edge.seq[0]).intCov());
             }
         }
-        std::ofstream dot1;
-        dot1.open(dir / "simp_graph1.dot");
-        simp_dbg.printDot(dot1, calculate_coverage);
-        dot1.close();
+        printDot(dir / "simp_graph1.dot", Component(simp_dbg));
         mergeAll(logger, simp_dbg, threads);
         std::ofstream simp_os;
         simp_os.open(dir / "simp_graph.fasta");
         printFasta(simp_os, simp_dbg);
         simp_os.close();
-        std::ofstream dot;
-        dot.open(dir / "simp_graph.dot");
-        simp_dbg.printDot(dot, calculate_coverage);
-        dot.close();
+        printDot(dir / "simp_graph.dot", Component(simp_dbg));
     }
     logger.info() << "DBG construction finished" << std::endl;
     return 0;

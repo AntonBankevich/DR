@@ -5,6 +5,7 @@
 #include "sequences/seqio.hpp"
 #include "component.hpp"
 #include "graph_printing.hpp"
+#include "visualization.hpp"
 #include <iostream>
 #include <unordered_set>
 
@@ -364,10 +365,7 @@ std::experimental::filesystem::path CrudeCorrect(logging::Logger &logger, Sparse
     printFasta(simp_os, Component(simp_dbg));
     simp_os.close();
     logger.info() << "Printing initial simplified graph to dot" << std::endl;
-    std::ofstream dot;
-    dot.open(dir / "simp_graph.dot");
-    simp_dbg.printDot(dot, true);
-    dot.close();
+    printDot(dir / "simp_graph.dot", Component(simp_dbg));
 
     simp_dbg.fillAnchors(w, logger, threads);
 

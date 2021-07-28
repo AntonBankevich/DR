@@ -1,17 +1,14 @@
 #include "gap_closing.hpp"
 #include "mult_correction.hpp"
-#include "parameter_estimator.hpp"
 #include "visualization.hpp"
 #include "tip_correction.hpp"
 #include "graph_algorithms.hpp"
 #include "dbg_construction.hpp"
-#include "dbg_disjointigs.hpp"
 #include "minimizer_selection.hpp"
 #include "sparse_dbg.hpp"
 #include "common/rolling_hash.hpp"
 #include "common/hash_utils.hpp"
 #include "crude_correct.hpp"
-#include "common/hash_utils.hpp"
 #include "initial_correction.hpp"
 #include "sequences/seqio.hpp"
 #include "common/dir_utils.hpp"
@@ -20,7 +17,6 @@
 #include "graph_printing.hpp"
 #include <iostream>
 #include <queue>
-#include <omp.h>
 #include <unordered_set>
 #include <wait.h>
 
@@ -29,10 +25,11 @@ void PrintPaths(logging::Logger &logger, const std::experimental::filesystem::pa
                 SparseDBG &dbg, RecordStorage &readStorage, const io::Library &paths_lib, bool small) {
     stage_num += 1;
     std::string stage_name = logging::itos(stage_num) + "_" + stage;
+    ensure_dir_existance(dir);
     printDot(dir / (stage_name + ".dot"), Component(dbg));
     dbg.printFastaOld(dir / (stage_name + ".fasta"));
-    readStorage.printFullAlignments(logger, dir / (stage_name + ".als"));
-    ensure_dir_existance(dir);
+    if(!small)
+        readStorage.printFullAlignments(logger, dir / (stage_name + ".als"));
     std::vector<Contig> paths = io::SeqReader(paths_lib).readAllContigs();
     GraphAlignmentStorage storage(dbg);
     for(Contig &contig : paths) {
@@ -70,22 +67,23 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         RecordStorage refStorage(dbg, 0, extension_size, threads, "/dev/null", false);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
-        PrintPaths(logger, dir/ "paths", "paths1", dbg, readStorage, paths_lib, true);
+        PrintPaths(logger, dir/ "paths", "initial", dbg, readStorage, paths_lib, true);
         initialCorrect(dbg, logger, dir / "correction.txt", readStorage, refStorage,
                        threshold, 2 * threshold, reliable_coverage, threads, dump);
-        PrintPaths(logger, dir/ "paths", "paths2", dbg, readStorage, paths_lib, true);
+        PrintPaths(logger, dir/ "paths", "low", dbg, readStorage, paths_lib, true);
         if(close_gaps) {
             GapColserPipeline(logger, dbg, readStorage, refStorage, threads);
-            PrintPaths(logger, dir/ "paths", "paths3", dbg, readStorage, paths_lib, true);
+            PrintPaths(logger, dir/ "paths", "gap", dbg, readStorage, paths_lib, true);
         }
         if(remove_bad) {
             readStorage.invalidateBad(logger, threshold);
             RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
-            PrintPaths(logger, dir/ "paths", "paths4", dbg, readStorage, paths_lib, false);
+            PrintPaths(logger, dir/ "paths", "bad", dbg, readStorage, paths_lib, false);
         }
         readStorage.printFasta(logger, dir / "corrected.fasta");
         DrawSplit(Component(dbg), dir / "split");
         dbg.printFastaOld(dir / "graph.fasta");
+        readStorage.printFullAlignments(logger, dir / "fullals.txt");
     };
     if(!skip)
         runInFork(ic_task);
@@ -303,7 +301,7 @@ void ConstructSubdataset(logging::Logger &logger, const std::experimental::files
         io::Library sublib = {subdir/"corrected.fasta"};
         SparseDBG subdbg = DBGPipeline(logger, hasher, w, sublib, subdir, threads);
         subdbg.fillAnchors(w, logger, threads);
-        CalculateCoverage(subdir, hasher, w, sublib, threads, logger, subdbg);
+//        CalculateCoverage(subdir, hasher, w, sublib, threads, logger, subdbg);
         RecordStorage reads_storage(subdbg, 0, 100000, threads, subdir/"read_log.txt", true);
         io::SeqReader readReader(sublib);
         reads_storage.fill(readReader.begin(), readReader.end(), subdbg, hasher.getK() + w - 1, logger, threads);
@@ -316,10 +314,7 @@ void ConstructSubdataset(logging::Logger &logger, const std::experimental::files
         gfa.open(subdir / "graph.gfa");
         printGFA(gfa, Component(subdbg), true);
         gfa.close();
-        std::ofstream dot;
-        dot.open(subdir / "graph.dot");
-        subdbg.printDot(dot, true);
-        dot.close();
+        printDot(subdir / "graph.dot", Component(subdbg), reads_storage.labeler());
     };
     if (!skip)
         runInFork(split_task);
@@ -373,7 +368,7 @@ int main(int argc, char **argv) {
     std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected1 =
             InitialCorrection(logger, dir / "initial1", lib, {}, paths, threads, k, w,
                               threshold, reliable_coverage, false, false, skip, dump, load);
-    if(first_stage == "initial1")
+    if(first_stage == "initial1" || first_stage == "none")
         load = false;
 
     size_t K = std::stoi(parser.getValue("K-mer-size"));

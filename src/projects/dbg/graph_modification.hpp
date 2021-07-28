@@ -1,7 +1,46 @@
 #pragma once
 
 #include "compact_path.hpp"
+#include "graph_alignment_storage.hpp"
 #include <common/logging.hpp>
+inline GraphAlignment realignRead(const GraphAlignment &al,
+                                  const std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> &embedding) {
+    Edge &old_start_edge = al[0].contig();
+    size_t old_start_pos = al[0].left;
+    Edge *new_start_edge = nullptr;
+    size_t new_start_pos = 0;
+    auto it = embedding.find(&old_start_edge);
+    VERIFY(it != embedding.end());
+    for(const PerfectAlignment<Edge, Edge> &pal : it->second) {
+        if(pal.seg_from.left <= old_start_pos && old_start_pos < pal.seg_from.right) {
+            new_start_edge = &pal.seg_to.contig();
+            new_start_pos = pal.seg_to.left + old_start_pos - pal.seg_from.left;
+            break;
+        }
+    }
+    VERIFY_OMP(new_start_edge != nullptr, "Could not find start edge for alignment");
+    size_t cur = 0;
+    size_t read_length = al.len();
+    size_t position_in_read_path = 0;
+    size_t position_in_read_sequence = 0;
+    GraphAlignment new_al;
+    while(cur < read_length) {
+        size_t len = std::min(read_length - cur, new_start_edge->size() - new_start_pos);
+        new_al += Segment<Edge>(*new_start_edge, new_start_pos, new_start_pos + len);
+        cur += len;
+        if(cur < read_length) {
+            while(position_in_read_sequence + al[position_in_read_path].size() <= cur) {
+                position_in_read_sequence += al[position_in_read_path].size();
+                position_in_read_path += 1;
+                VERIFY_OMP(position_in_read_sequence < read_length, "Alignment inconsistency 1");
+                VERIFY_OMP(position_in_read_path < al.size(), "Alignment inconsistency 2");
+            }
+            new_start_edge = &new_start_edge->end()->getOutgoing(al[position_in_read_path].contig().seq[cur - position_in_read_sequence]);
+            new_start_pos = 0;
+        }
+    }
+    return new_al;
+}
 
 inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
                             const std::vector<RecordStorage*> &storages) {
@@ -105,12 +144,13 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
         }
 #pragma omp parallel for default(none) shared(storage, new_storage, embedding, std::cout)
         for(size_t i = 0; i < storage.size(); i++) {
-            AlignedRead alignedRead = storage[i];
+            AlignedRead &alignedRead = storage[i];
             if(!alignedRead.valid()) {
                 continue;
             }
             GraphAlignment al = alignedRead.path.getAlignment();
             new_storage.reroute(new_storage[i], realignRead(al, embedding), "Remapping");
+            new_storage.apply(new_storage[i]);
         }
         storage = std::move(new_storage);
     }
@@ -206,6 +246,7 @@ void AddConnections(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
                 new_al = GraphAligner(subgraph).align(al.Seq());
             }
             new_storage.reroute(new_read, new_al, "Remapping");
+            new_storage.apply(new_read);
         }
         storage = std::move(new_storage);
     }

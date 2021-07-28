@@ -603,6 +603,8 @@ size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,RecordS
         std::stringstream ss;
         std::vector<std::string> messages;
         AlignedRead &alignedRead = reads_storage[read_ind];
+        if(!alignedRead.valid())
+            continue;
         if(dump)
             logger << "Processing read " << alignedRead.id << std::endl;
         CompactPath &initial_cpath = alignedRead.path;
@@ -748,6 +750,7 @@ size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,RecordS
         }
         results.emplace_back(ss.str());
     }
+    reads_storage.applyCorrections(logger, threads);
     logger << "Corrected " << simple_bulge_cnt.get() << " simple bulges" << std::endl;
     logger << "Total " << bulge_cnt.get() << " bulges" << std::endl;
     std::ofstream out;
@@ -794,6 +797,8 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage,
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;
         AlignedRead &alignedRead = reads_storage[read_ind];
+        if(!alignedRead.valid())
+            continue;
         CompactPath &initial_cpath = alignedRead.path;
         GraphAlignment path = initial_cpath.getAlignment();
         bool corrected = false;
@@ -848,6 +853,7 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage,
         }
         results.emplace_back(ss.str());
     }
+    reads_storage.applyCorrections(logger, threads);
     size_t bulges = std::unordered_set<Edge*>(bulge_cnt.begin(), bulge_cnt.end()).size();
     size_t collapsable = std::unordered_set<Edge*>(collapsable_cnt.begin(), bulge_cnt.end()).size();
     size_t genome = std::unordered_set<Edge*>(genome_cnt.begin(), bulge_cnt.end()).size();
@@ -865,6 +871,8 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
 #pragma omp parallel for default(none) shared (reads_storage, results, k, logger, cnt, std::cout)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         AlignedRead &alignedRead = reads_storage[read_ind];
+        if(!alignedRead.valid())
+            continue;
         CompactPath &initial_cpath = alignedRead.path;
         GraphAlignment path = initial_cpath.getAlignment();
         size_t corrected = 0;
@@ -918,7 +926,7 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
                 size_t support = rec.countStartsWith(ccandidate.seq());
                 if(skip == 2 * max_variation) {
                     initial_support = support;
-                    VERIFY_OMP(support > 0, "support");
+//                    VERIFY_OMP(support > 0, "support");
                 }
                 if (support > best_support) {
                     best_seq = longest_candidate.Subseq(skip, longest_candidate.size());
@@ -926,7 +934,7 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
                 }
                 if (candidate_seq[0] != seq[seq.size() - 2] || candidate_seq[step - 1] != seq[seq.size() - 3 + step])
                     break;
-           }
+            }
             if (extension.startsWith(best_seq))
                 continue;
 //            logger  << "Correcting ATAT " << best_support << " " << initial_support  << " "
@@ -947,7 +955,6 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
             }
             GraphAlignment prev_path = path;
             path = path.reroute(path_pos, path_pos + old_path.size(), rerouting.path());
-            reads_storage.reroute(alignedRead, prev_path, path, "AT corrected");
 //            std::cout << "Rerouted " << alignedRead.id << " " << initial_support << " " << best_support << std::endl;
             if(path.size() > 10000) {
                 std::cout << extension << "\n" <<best_seq << std::endl;
@@ -955,6 +962,7 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
             corrected += std::max(prev_path.len(), path.len()) - std::min(prev_path.len(), path.len());
         }
         if(corrected > 0) {
+            reads_storage.reroute(alignedRead, path, "AT corrected");
 //#pragma omp critical
 //            {
 //                logger << "ATAT " << alignedRead.id << " " << corrected << std::endl;
@@ -962,6 +970,7 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
             ++cnt;
         }
     }
+    reads_storage.applyCorrections(logger, threads);
     logger.info() << "Corrected " << cnt.get() << " dinucleotide sequences" << std::endl;
     return cnt.get();
 }

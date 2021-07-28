@@ -120,6 +120,8 @@ void CorrectTips(logging::Logger &logger, SparseDBG &dbg, RecordStorage &reads, 
 #pragma omp parallel for default(none) shared(reads, cnt)
     for(size_t i = 0; i < reads.size(); i++) {
         AlignedRead &read = reads[i];
+        if(!read.valid())
+            continue;
         GraphAlignment al = read.path.getAlignment();
         GraphAlignment al1 = CorrectSuffix(al);
         GraphAlignment al2 = CorrectSuffix(al1.RC()).RC();
@@ -128,6 +130,7 @@ void CorrectTips(logging::Logger &logger, SparseDBG &dbg, RecordStorage &reads, 
             reads.reroute(read, al, al2, "Tip corrected");
         }
     }
+    reads.applyCorrections(logger, threads);
     logger.info() << "Corrected tips for " << cnt.get() << " reads" << std::endl;
 }
 

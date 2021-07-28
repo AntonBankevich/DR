@@ -4,13 +4,19 @@
 #include "multiplicity_estimation.hpp"
 #include "sparse_dbg.hpp"
 #include "compact_path.hpp"
+#include "graph_alignment_storage.hpp"
 #include <experimental/filesystem>
 
-void correctRead(logging::Logger &logger, std::unordered_map<const Edge *, CompactPath> &unique_extensions,
-                 const AlignedRead &alignedRead, GraphAlignment &al, bool &corrected);
-
 void printAl(logging::Logger &logger, std::unordered_map<const Edge *, CompactPath> &unique_extensions,
-             const GraphAlignment &al);
+             const GraphAlignment &al) {
+    for(auto &piece : al) {
+        logger << piece.contig().str() << " ";
+        if(unique_extensions.find(&piece.contig()) != unique_extensions.end()) {
+            logger << "+ ";
+        }
+    }
+    logger << std::endl;
+}
 
 std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger, SparseDBG &dbg,
                                                                   const RecordStorage &reads_storage, const UniqueClassificator &classificator) {
@@ -57,37 +63,30 @@ std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging:
     return std::move(unique_extensions);
 }
 
-GraphAlignment correctRead(logging::Logger &logger, std::string &read_id,
-                           std::unordered_map<const Edge *, CompactPath> &unique_extensions,
+GraphAlignment correctRead(std::unordered_map<const Edge *, CompactPath> &unique_extensions,
                            const GraphAlignment &initial_al) {
     CompactPath initialCompactPath(initial_al);
     GraphAlignment al = initial_al;
     bool bad;
     bool corrected = false;
     for(size_t i = 0; i + 1 < al.size(); i++) {
-        logger << al[i].contig().str() << std::endl;
         if(unique_extensions.find(&al[i].contig()) == unique_extensions.end())
             continue;
         CompactPath &compactPath = unique_extensions.find(&al[i].contig())->second;
-        logger << compactPath << " " << CompactPath(al.subalignment(i + 1, al.size())) << std::endl;
         if(compactPath.seq().nonContradicts(CompactPath(al.subalignment(i + 1, al.size())).cpath()))
             continue;
-        logger << "Corrected" << std::endl;
         corrected = true;
         GraphAlignment new_al = al.subalignment(0, i + 1);
         size_t corrected_len = al.subalignment(i + 1, al.size()).len();
         GraphAlignment replacement = compactPath.getAlignment();
-        logger << replacement.len() << " " << corrected_len << std::endl;
         while(replacement.len() < corrected_len &&
                     unique_extensions.find(&replacement.back().contig()) != unique_extensions.end()) {
             replacement += unique_extensions[&replacement.back().contig()].getAlignment();
         }
-        logger << CompactPath(replacement) << " " << CompactPath(al.subalignment(i + 1, al.size())) << std::endl;
-        logger << replacement.len() << " " << corrected_len << std::endl;
         if(replacement.len() < corrected_len) {
             size_t deficite = corrected_len - replacement.len();
-            logger.info() << "Need to correct more than known " << read_id << "\n"
-                          << CompactPath(al.subalignment(i + 1, al.size())) << "\n" << compactPath << std::endl;
+//            logger.info() << "Need to correct more than known " << read_id << "\n"
+//                          << CompactPath(al.subalignment(i + 1, al.size())) << "\n" << compactPath << std::endl;
             new_al += replacement;
             while(new_al.finish().outDeg() == 1 && deficite > 0) {
                 size_t len = std::min(deficite, new_al.finish()[0].size());
@@ -115,39 +114,25 @@ GraphAlignment correctRead(logging::Logger &logger, std::string &read_id,
         return initial_al;
 }
 
-void correctReads(logging::Logger &logger, RecordStorage &reads_storage,
+void correctReads(logging::Logger &logger, size_t threads, RecordStorage &reads_storage,
                   std::unordered_map<const Edge *, CompactPath> &unique_extensions) {
-    for(AlignedRead &alignedRead : reads_storage) {
+    omp_set_num_threads(threads);
+    logger.info() << "Correcting reads using unique edge extensions" << std::endl;
+#pragma omp parallel for default(none) shared(reads_storage, unique_extensions)
+    for(size_t i = 0; i < reads_storage.size(); i++) {
+        AlignedRead &alignedRead = reads_storage[i];
+        if(!alignedRead.valid())
+            continue;
         const GraphAlignment al = alignedRead.path.getAlignment();
         if(al.size() > 1) {
-            logger << "Processing " << alignedRead.id << std::endl;
-            printAl(logger, unique_extensions, al);
-            GraphAlignment corrected1 = correctRead(logger, alignedRead.id, unique_extensions, al);
-            printAl(logger, unique_extensions, corrected1);
-            printAl(logger, unique_extensions, corrected1.RC());
-            GraphAlignment corrected2 = correctRead(logger, alignedRead.id, unique_extensions, corrected1.RC()).RC();
-            printAl(logger, unique_extensions, corrected2.RC());
-            printAl(logger, unique_extensions, corrected2);
-            printAl(logger, unique_extensions, al);
+            GraphAlignment corrected1 = correctRead(unique_extensions, al);
+            GraphAlignment corrected2 = correctRead(unique_extensions, corrected1.RC()).RC();
             if(al != corrected2) {
                 reads_storage.reroute(alignedRead, al, corrected2, "mult correction");
-                logger << "Corrected read " << alignedRead.id << " " << alignedRead.path << std::endl;
-            } else {
-                logger << "No corrections were made" << std::endl;
             }
         }
     }
-}
-
-void printAl(logging::Logger &logger, std::unordered_map<const Edge *, CompactPath> &unique_extensions,
-             const GraphAlignment &al) {
-    for(auto &piece : al) {
-        logger << piece.contig().str() << " ";
-        if(unique_extensions.find(&piece.contig()) != unique_extensions.end()) {
-            logger << "+ ";
-        }
-    }
-    logger << std::endl;
+    reads_storage.applyCorrections(logger, threads);
 }
 
 void NewMultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
@@ -192,7 +177,7 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
             printDot(os, all, reads_storage.labeler(), colorer);
             os.close();
         }
-        correctReads(logger, reads_storage, unique_extensions);
+        correctReads(logger, threads, reads_storage, unique_extensions);
         {
             std::ofstream os;
             os.open(fig_after);
