@@ -3,6 +3,7 @@
 #include "compact_path.hpp"
 #include "multiplicity_estimation.hpp"
 #include "edit_distance.hpp"
+#include "tip_correction.hpp"
 
 size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates, bool dump = false) {
     size_t winner = 0;
@@ -524,7 +525,7 @@ bool checkInner(Vertex &v) {
 }
 
 inline void FillReliableWithConnections(logging::Logger &logger, SparseDBG &sdbg, double threshold) {
-    logger << "Remarking reliable edges" << std::endl;
+    logger.info() << "Marking reliable edges" << std::endl;
     for(auto &vit : sdbg) {
         for(Vertex * vp : {&vit.second, &vit.second.rc()}) {
             Vertex &v = *vp;
@@ -549,7 +550,7 @@ inline void FillReliableWithConnections(logging::Logger &logger, SparseDBG &sdbg
             while(!queue.empty()) {
                 cnt += 1;
                 if(cnt > 10000) {
-                    logger << "Dijkstra too long" << std::endl;
+//                    logger << "Dijkstra too long" << std::endl;
                     break;
                 }
                 Edge *next = queue.top().second;
@@ -563,11 +564,11 @@ inline void FillReliableWithConnections(logging::Logger &logger, SparseDBG &sdbg
                     while(next != last) {
                         al.push_back(Segment<Edge>(next->rc(), 0, next->size()));
                         new_reliable.emplace_back(next);
-                        logger << "New edge marked as reliable " << next->size() << "(" << next->getCoverage() << ")" << std::endl;
+//                        logger << "New edge marked as reliable " << next->size() << "(" << next->getCoverage() << ")" << std::endl;
                         next = res[next->start()].second;
                     }
-                    logger << "Path of size " << al.size() << " and length " << al.len() << " marked as reliable." << std::endl;
-                    cnt_paths += 1;
+//                    logger << "Path of size " << al.size() << " and length " << al.len() << " marked as reliable." << std::endl;
+                    cnt_paths += 1;Remarking reliable edges
                     break;
                 } else {
                     for(Edge &edge : *next->end()) {
@@ -578,7 +579,7 @@ inline void FillReliableWithConnections(logging::Logger &logger, SparseDBG &sdbg
             }
         }
     }
-    logger << "Marked " << new_reliable.size() << " edges in " << cnt_paths << " paths as reliable" << std::endl;
+    logger.info() << "Marked " << new_reliable.size() << " edges in " << cnt_paths << " paths as reliable" << std::endl;
     for(Edge *edge : new_reliable) {
         edge->is_reliable = true;
         edge->rc().is_reliable = true;
@@ -987,7 +988,7 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
     logger.info() << "Applying changes to the graph" << std::endl;
     RemoveUncovered(logger, threads, sdbg, {&reads_storage, &ref_storage});
     sdbg.checkConsistency(threads, logger);
-    logger << "Running second round of error correction" << std::endl;
+    logger.info() << "Running second round of error correction" << std::endl;
     correctAT(logger, reads_storage, k, threads);
     correctAT(logger, reads_storage, k, threads);
     correctLowCoveredRegions(logger,sdbg, reads_storage, ref_storage, out_file, threshold, reliable_coverage, k, threads, dump);

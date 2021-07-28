@@ -52,12 +52,12 @@ std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging:
         }
         CompactPath res(*edge.end(), seq.Subseq(1), 0, 0);
         unique_extensions.emplace(&edge, CompactPath(*edge.end(), seq.Subseq(1), 0, 0));
-        logger << "Unique extension for edge " << edge.str() << " " << seq.Subseq(1) << std::endl;
+//        logger << "Unique extension for edge " << edge.str() << " " << seq.Subseq(1) << std::endl;
         if(classificator.isUnique(path.back())) {
             Edge &last_rc_edge = path.back().rc();
             CompactPath res1(path.RC().subPath(1, path.size()));
             unique_extensions.emplace(&last_rc_edge, res1);
-            logger << "Unique extension for edge " << last_rc_edge.str() << " " << res1.cpath() << std::endl;
+//            logger << "Unique extension for edge " << last_rc_edge.str() << " " << res1.cpath() << std::endl;
         }
     }
     return std::move(unique_extensions);
