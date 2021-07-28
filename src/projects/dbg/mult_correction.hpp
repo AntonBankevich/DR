@@ -195,7 +195,7 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
             bad_edges.emplace(&edge);
         }
     }
-    logger.info() << "Printing corrected reads to disk" << std::endl;
+//    logger.info() << "Printing corrected reads to disk" << std::endl;
 //    std::ofstream ors;
     std::ofstream brs;
 //    ors.open(out_reads);

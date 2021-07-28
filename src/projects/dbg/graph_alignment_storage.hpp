@@ -18,7 +18,7 @@ public:
 
     bool operator<(const AlignedRead& other) const {return id < other.id;}
 
-    void invalidate() {correct(CompactPath());}
+    void invalidate();
     bool checkCorrected() const {return corrected_path.valid();}
     bool valid() const {return path.valid();}
 

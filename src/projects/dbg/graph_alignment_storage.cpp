@@ -11,6 +11,11 @@ void AlignedRead::applyCorrection() {
     corrected_path = {};
 }
 
+void AlignedRead::invalidate() {
+    VERIFY(!corrected_path.valid());
+    path = {};
+}
+
 void VertexRecord::addPath(const Sequence &seq) {
     lock();
     cov += 1;
@@ -282,6 +287,7 @@ void RecordStorage::addRead(AlignedRead &&read) {
 }
 
 void RecordStorage::invalidateRead(AlignedRead &read) { // NOLINT(readability-convert-member-functions-to-static)
+    removeSubpath(read.path);
     read.invalidate();
 }
 
@@ -293,7 +299,7 @@ void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, doubl
 }
 
 void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(const Edge &)> &is_bad) {
-    size_t cnt = 0;
+    std::vector<AlignedRead *> to_delete;
     for (AlignedRead &alignedRead : reads) {
         bool good = true;
         for (Segment<Edge> & edge_it : alignedRead.path.getAlignment()) {
@@ -303,12 +309,14 @@ void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, const
             }
         }
         if (!good) {
-            invalidateRead(alignedRead);
-            cnt++;
+            to_delete.emplace_back(&alignedRead);
         }
     }
-    logger.info() << "Could not correct " << cnt << " reads. They will be removed." << std::endl;
-    applyCorrections(logger, threads);
+    logger.info() << "Could not correct " << to_delete.size() << " reads. They will be removed." << std::endl;
+#pragma omp parallel for default(none) shared(to_delete)
+    for(size_t i = 0; i < to_delete.size(); i++) {
+        invalidateRead(*to_delete[i]);
+    }
     logger.info() << "Uncorrected reads were removed." << std::endl;
 }
 
