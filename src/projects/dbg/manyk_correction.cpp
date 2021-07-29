@@ -175,19 +175,23 @@ GraphAlignment ManyKCorrector::uniqueExtension(const GraphAlignment &base, size_
 
 GraphAlignment ManyKCorrector::correctBulge(const ManyKCorrector::Bulge &bulge, string &message) const {
     GraphAlignment corrected;
+    std::cout << "Bulge " << bulge.bulge.str(true) << std::endl;
     if(bulge.bulge.len() + 100 < K) {
         corrected = correctBulgeByBridging(bulge);
         if(corrected != bulge.bulge) {
             message = "bb";
+            std::cout << "Result " << message << " " <<corrected.str(true) << std::endl;
             return corrected;
         }
     }
     corrected = correctBulgeAsDoubleTip(bulge);
     if(corrected != bulge.bulge) {
         message = "bd";
+        std::cout << "Result " << message << " " << corrected.str(true) << std::endl;
         return corrected;
     }
     message = "";
+    std::cout << "Result " << message << " " << corrected.str(true) << std::endl;
     return bulge.bulge;
 }
 
@@ -204,10 +208,12 @@ GraphAlignment ManyKCorrector::correctBulgeByBridging(const ManyKCorrector::Bulg
     size_t left_best = 0;
     size_t right_best = 0;
     GraphAlignment rc_left = bulge.left.RC();
-    rc_left.cutBack(K - bulge.bulge.len());
+    if(rc_left.len() > K - bulge.bulge.len())
+        rc_left.cutBack(K - bulge.bulge.len());
     CompactPath crc_left(rc_left);
     GraphAlignment right = bulge.right;
-    right.cutBack(K - bulge.bulge.len());
+    if(right.size() > K - bulge.bulge.len())
+        right.cutBack(K - bulge.bulge.len());
     CompactPath cright(right);
     for(size_t i = 0; i < alternatives.size(); i++) {
         GraphAlignment &al = alternatives[i];
@@ -288,7 +294,7 @@ size_t ManyKCorrect(logging::Logger &logger, SparseDBG &dbg, RecordStorage &read
     ParallelCounter cnt(threads);
     threads = 1;
     omp_set_num_threads(threads);
-#pragma omp parallel for default(none) shared(std::cout, corrector, reads_storage, results, threshold, logger, reliable_threshold)
+#pragma omp parallel for default(none) shared(std::cout, corrector, reads_storage, results, threshold, logger, reliable_threshold, cnt)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;
         std::vector<std::string> messages;
@@ -300,6 +306,7 @@ size_t ManyKCorrect(logging::Logger &logger, SparseDBG &dbg, RecordStorage &read
         GraphAlignment corrected = corrector.correctRead(initial_cpath.getAlignment(), message);
         if(!message.empty()) {
             reads_storage.reroute(alignedRead, corrected, message);
+            cnt += 1;
         }
     }
     reads_storage.applyCorrections(logger, threads);

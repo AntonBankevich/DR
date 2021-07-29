@@ -65,12 +65,13 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
     logger.info() << "Splitting dataset and printing subdatasets to disk" << std::endl;
     std::vector<Subdataset> subdatasets = SplitDataset([](const Edge &){return false;});
     logger.info() << "Running repeat resolution" << std::endl;
+    std::string COMMAND = "python3 resolution/sequence_graph/path_graph_multik.py -i {} -o {}";
 #pragma omp parallel for default(none) shared(subdatasets, COMMAND)
     for(size_t snum = 0; snum < subdatasets.size(); snum++) {
         Subdataset &subdataset = subdatasets[snum];
         std::experimental::filesystem::path outdir = subdataset.dir / "mltik";
         std::string command = COMMAND;
-        command.replace(COMMAND.find("{}"), 2, subdataset.dir.string());
+        command.replace(command.find("{}"), 2, subdataset.dir.string());
         command.replace(command.find("{}"), 2, outdir.string());
         system(command.c_str());
     }

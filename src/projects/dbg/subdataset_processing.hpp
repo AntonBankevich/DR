@@ -8,8 +8,6 @@
 #include "common/hash_utils.hpp"
 #include <utility>
 
-const static std::string COMMAND = "python3 resolution/sequence_graph/path_graph_multik.py -i {} -o {}";
-
 class RepeatResolver {
 private:
     SparseDBG &dbg;
