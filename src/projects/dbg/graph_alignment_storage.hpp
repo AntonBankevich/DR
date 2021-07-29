@@ -99,6 +99,14 @@ public:
     void flush();
     void logRead(AlignedRead &alignedRead);
     void logRerouting(AlignedRead &alignedRead, const GraphAlignment &initial, const GraphAlignment &corrected, const std::string &message);
+    void logInvalidate(AlignedRead &alignedRead, const std::string &message) {
+        CountingSS &ss = logs[omp_get_thread_num()];
+        ss << alignedRead.id << " invalidated " << message << ")\n";
+        ss << alignedRead.id << "    final    " << alignedRead.path.getAlignment().str(true) << "\n";
+        if(ss.size() > 100000) {
+            dump(ss);
+        }
+    }
 };
 
 
@@ -141,13 +149,13 @@ public:
     void addSubpath(const CompactPath &cpath);
     void removeSubpath(const CompactPath &cpath);
     void addRead(AlignedRead &&read);
-    void invalidateRead(AlignedRead &read);
+    void invalidateRead(AlignedRead &read, const std::string &message);
     void reroute(AlignedRead &alignedRead, const GraphAlignment &initial, const GraphAlignment &corrected, const std::string &message);
     void reroute(AlignedRead &alignedRead, const GraphAlignment &corrected, const std::string &message);
     void apply(AlignedRead &alignedRead);
 
-    void invalidateBad(logging::Logger &logger, size_t threads, double threshold);
-    void invalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(const Edge &)> &is_bad);
+    void invalidateBad(logging::Logger &logger, size_t threads, double threshold, const std::string &message);
+    void invalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(const Edge &)> &is_bad, const std::string &message);
 
     template<class I>
     void fill(I begin, I end, SparseDBG &dbg, size_t min_read_size, logging::Logger &logger, size_t threads);

@@ -202,7 +202,7 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
     std::function<bool(const Edge&)> is_bad = [&bad_edges](const Edge &edge) {
         return edge.getCoverage() < 2 || bad_edges.find(&edge) != bad_edges.end();
     };
-    reads_storage.invalidateBad(logger, threads, is_bad);
+    reads_storage.invalidateBad(logger, threads, is_bad, "after_mult");
 //    for(auto & alignedRead : reads_storage) {
 //        if(alignedRead.valid()) {
 //            ors << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";

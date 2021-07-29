@@ -309,20 +309,22 @@ void RecordStorage::addRead(AlignedRead &&read) {
     addSubpath(read.path.RC());
 }
 
-void RecordStorage::invalidateRead(AlignedRead &read) { // NOLINT(readability-convert-member-functions-to-static)
+void RecordStorage::invalidateRead(AlignedRead &read, const std::string &message) { // NOLINT(readability-convert-member-functions-to-static)
+    readLogger.logInvalidate(read, message);
     removeSubpath(read.path);
     removeSubpath(read.path.RC());
     read.invalidate();
 }
 
-void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, double threshold) {
+void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, double threshold, const std::string &message) {
     const std::function<bool(const Edge &)> &is_bad = [threshold](const Edge &edge) {
         return edge.getCoverage() < threshold;
     };
-    invalidateBad(logger, threads, is_bad);
+    invalidateBad(logger, threads, is_bad, message);
 }
 
-void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(const Edge &)> &is_bad) {
+void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(const Edge &)> &is_bad,
+                                  const std::string &message) {
     std::vector<AlignedRead *> to_delete;
     for (AlignedRead &alignedRead : reads) {
         bool good = true;
@@ -337,9 +339,9 @@ void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, const
         }
     }
     logger.info() << "Could not correct " << to_delete.size() << " reads. They will be removed." << std::endl;
-#pragma omp parallel for default(none) shared(to_delete)
+#pragma omp parallel for default(none) shared(to_delete, message)
     for(size_t i = 0; i < to_delete.size(); i++) {
-        invalidateRead(*to_delete[i]);
+        invalidateRead(*to_delete[i], message);
     }
     logger.info() << "Uncorrected reads were removed." << std::endl;
 }
