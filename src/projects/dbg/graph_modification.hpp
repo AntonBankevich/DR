@@ -138,7 +138,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
     logger.info() << "Realigning sequences to the new graph" << std::endl;
     for(RecordStorage *sit : storages){
         RecordStorage &storage = *sit;
-        RecordStorage new_storage(subgraph, storage.min_len, storage.max_len, threads, "/dev/null", storage.track_cov);
+        RecordStorage new_storage(subgraph, storage.getMinLen(), storage.getMaxLen(), threads, "/dev/null", storage.getTrackCov());
         for(AlignedRead &al : storage) {
             new_storage.addRead(AlignedRead(al.id));
         }
@@ -194,7 +194,7 @@ public:
     }
 };
 
-void AddConnections(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
+inline void AddConnections(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
                     const std::vector<RecordStorage*> &storages, const std::vector<Connection> &connections) {
     logger.info() << "Adding new connections to the graph" << std::endl;
     size_t k = dbg.hasher().getK();
@@ -219,7 +219,7 @@ void AddConnections(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
     logger.info() << "Realigning reads to the new graph" << std::endl;
     for(RecordStorage* sit : storages) {
         RecordStorage &storage = *sit;
-        RecordStorage new_storage(subgraph, storage.min_len, storage.max_len, threads, "/dev/null", storage.track_cov);
+        RecordStorage new_storage(subgraph, storage.getMinLen(), storage.getMaxLen(), threads, "/dev/null", storage.getTrackCov());
         for(AlignedRead &al : storage) {
             new_storage.addRead(AlignedRead(al.id));
         }

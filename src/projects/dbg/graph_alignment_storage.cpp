@@ -118,6 +118,29 @@ std::vector<GraphAlignment> VertexRecord::getBulgeAlternatives(const Vertex &end
     return std::move(res);
 }
 
+unsigned char VertexRecord::getUniqueExtension(const Sequence &start, size_t min_good, size_t max_bad) const {
+    std::vector<size_t> counts(4);
+    for(const auto & extension : paths) {
+        if(extension.first.size() > start.size() && extension.first.startsWith(start)) {
+            counts[extension.first[start.size()]] += extension.second;
+        }
+    }
+    size_t bad = 0;
+    size_t good = 0;
+    size_t res = 0;
+    for(size_t c = 0; c < 4; c++) {
+        if(counts[c] <= max_bad)
+            bad++;
+        if(counts[c] >= min_good) {
+            good++;
+            res = c;
+        }
+    }
+    if(bad != 3 || good != 1)
+        return (unsigned char)(-1);
+    return (unsigned char)(res);
+}
+
 std::vector<GraphAlignment> VertexRecord::getTipAlternatives(size_t len, double threshold) const {
     len += std::max<size_t>(30, len / 20);
 //        lock();
@@ -126,7 +149,7 @@ std::vector<GraphAlignment> VertexRecord::getTipAlternatives(size_t len, double 
         GraphAlignment unpacked = CompactPath(v, extension.first).getAlignment();
         if(unpacked.len() >= len) {
             unpacked.cutBack(unpacked.len() - len);
-            candidates.emplace_back(CompactPath(unpacked).seq(), extension.second);
+            candidates.emplace_back(CompactPath(unpacked).cpath(), extension.second);
         }
     }
 //        unlock();

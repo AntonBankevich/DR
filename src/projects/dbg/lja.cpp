@@ -16,6 +16,7 @@
 #include "common/cl_parser.hpp"
 #include "common/logging.hpp"
 #include "graph_printing.hpp"
+#include "manyk_correction.hpp"
 #include <iostream>
 #include <queue>
 #include <unordered_set>
@@ -81,6 +82,53 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
             RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
             PrintPaths(logger, dir/ "paths", "bad", dbg, readStorage, paths_lib, false);
         }
+        readStorage.printFasta(logger, dir / "corrected.fasta");
+        DrawSplit(Component(dbg), dir / "split");
+        dbg.printFastaOld(dir / "graph.fasta");
+        readStorage.printFullAlignments(logger, dir / "fullals.txt");
+    };
+    if(!skip)
+        runInFork(ic_task);
+    std::experimental::filesystem::path res;
+    res = dir / "corrected.fasta";
+    logger.info() << "Initial correction results with k = " << k << " printed to " << res << std::endl;
+    return {res, dir / "graph.fasta"};
+}
+
+std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> AlternativeCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
+                                                                                                      const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
+                                                                                                      const io::Library &paths_lib, size_t threads, size_t k, size_t w,
+                                                                                                      double threshold, double reliable_coverage,
+                                                                                                      bool close_gaps, bool remove_bad, bool skip, bool dump, bool load) {
+    logger.info() << "Performing initial correction with k = " << k << std::endl;
+    if (k % 2 == 0) {
+        logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
+        k += 1;
+    }
+    ensure_dir_existance(dir);
+    hashing::RollingHash hasher(k, 239);
+    std::function<void()> ic_task = [&dir, &logger, &hasher, close_gaps, load, remove_bad, k, w, &reads_lib,
+            &pseudo_reads_lib, &paths_lib, threads, threshold, reliable_coverage, dump] {
+        io::Library construction_lib = reads_lib + pseudo_reads_lib;
+        SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
+                        DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
+        dbg.fillAnchors(w, logger, threads);
+        size_t extension_size = std::max<size_t>(k * 5 / 2, 3000);
+        RecordStorage readStorage(dbg, 0, extension_size, threads, dir/"read_log.txt", true);
+        RecordStorage refStorage(dbg, 0, extension_size, threads, "/dev/null", false);
+        io::SeqReader reader(reads_lib);
+        readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
+        PrintPaths(logger, dir/ "paths", "initial", dbg, readStorage, paths_lib, true);
+        correctAT(logger, readStorage, k, threads);
+        ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 600, 4, threads);
+        PrintPaths(logger, dir/ "paths", "mk250", dbg, readStorage, paths_lib, true);
+        ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 1500, 4, threads);
+        PrintPaths(logger, dir/ "paths", "mk1000", dbg, readStorage, paths_lib, true);
+        RemoveUncovered(logger, threads, dbg, {&readStorage});
+        correctAT(logger, readStorage, k, threads);
+        ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3000, 4, threads);
+        PrintPaths(logger, dir/ "paths", "mk3000", dbg, readStorage, paths_lib, true);
+        RemoveUncovered(logger, threads, dbg, {&readStorage});
         readStorage.printFasta(logger, dir / "corrected.fasta");
         DrawSplit(Component(dbg), dir / "split");
         dbg.printFastaOld(dir / "graph.fasta");
@@ -239,7 +287,8 @@ void ConstructSubdataset(logging::Logger &logger, const std::experimental::files
 int main(int argc, char **argv) {
     CLParser parser({"output-dir=", "threads=16", "k-mer-size=511", "window=2000", "K-mer-size=5001", "Window=500",
                      "cov-threshold=2", "rel-threshold=7", "Cov-threshold=2", "Rel-threshold=7", "crude-threshold=3",
-                     "unique-threshold=50000", "dump", "dimer-compress=1000000000,1000000000,1", "restart-from=none", "load"},
+                     "unique-threshold=50000", "dump", "dimer-compress=1000000000,1000000000,1", "restart-from=none", "load",
+                     "alternative"},
                     {"reads", "paths"},
                     {"o=output-dir", "t=threads", "k=k-mer-size","w=window", "K=K-mer-size","W=Window"},
                     "Error message not implemented");
@@ -277,14 +326,22 @@ int main(int argc, char **argv) {
     size_t w = std::stoi(parser.getValue("window"));
     double threshold = std::stod(parser.getValue("cov-threshold"));
     double reliable_coverage = std::stod(parser.getValue("rel-threshold"));
-    if(first_stage == "initial1")
-        skip = false;
-    std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected1 =
-            InitialCorrection(logger, dir / "initial1", lib, {}, paths, threads, k, w,
-                              threshold, reliable_coverage, false, false, skip, dump, load);
-    if(first_stage == "initial1" || first_stage == "none")
-        load = false;
-
+    std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected1;
+    if(parser.getCheck("alternative")) {
+        if (first_stage == "alternative")
+            skip = false;
+        corrected1 = AlternativeCorrection(logger, dir / "alternative", lib, {}, paths, threads, k, w,
+                                      threshold, reliable_coverage, false, false, skip, dump, load);
+        if (first_stage == "alternative" || first_stage == "none")
+            load = false;
+    } else {
+        if(first_stage == "initial1")
+            skip = false;
+        corrected1 = InitialCorrection(logger, dir / "initial1", lib, {}, paths, threads, k, w,
+                                  threshold, reliable_coverage, false, false, skip, dump, load);
+        if(first_stage == "initial1" || first_stage == "none")
+            load = false;
+    }
     size_t K = std::stoi(parser.getValue("K-mer-size"));
     size_t W = std::stoi(parser.getValue("Window"));
 

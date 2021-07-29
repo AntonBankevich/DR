@@ -38,12 +38,17 @@ public:
         _edges = Sequence(edges);
     }
 
-    bool valid() const {
-        return _start != nullptr;
+    explicit CompactPath(const GraphAlignment &path, size_t left, size_t right) :
+            _start(&path.getVertex(left)), _first_skip(path[left].left), _last_skip(path[right - 1].RC().left) {
+        std::vector<char> edges;
+        for(size_t i = left; i < right; i++) {
+            edges.push_back(path[i].contig().seq[0]);
+        }
+        _edges = Sequence(edges);
     }
 
-    const Sequence &seq() const {
-        return _edges;
+    bool valid() const {
+        return _start != nullptr;
     }
 
     GraphAlignment getAlignment() const {

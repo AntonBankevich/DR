@@ -2,7 +2,7 @@
 
 #include "sequences/sequence.hpp"
 
-size_t edit_distance(Sequence s1, Sequence s2) {
+inline size_t edit_distance(Sequence s1, Sequence s2) {
     size_t left_skip = 0;
     while(left_skip < s1.size() && left_skip < s2.size() && s1[left_skip] == s2[left_skip]) {
         left_skip++;
@@ -26,7 +26,7 @@ size_t edit_distance(Sequence s1, Sequence s2) {
     return d[s1.size()][s2.size()];
 }
 
-size_t bestPrefix(const Sequence &s1, const Sequence &s2) {
+inline size_t bestPrefix(const Sequence &s1, const Sequence &s2) {
     std::vector<size_t> prev(s2.size() + 1);
     std::vector<size_t> cur(s2.size() + 1);
     for(unsigned int j = 0; j <= s2.size(); ++j) cur[j] = j;

@@ -2,7 +2,7 @@
 
 #include "edit_distance.hpp"
 
-void MakeUnreliable(Edge &e) {
+inline void MakeUnreliable(Edge &e) {
     e.is_reliable = false;
     for(Edge &edge : *e.end()) {
         if(edge.is_reliable) {
@@ -12,7 +12,7 @@ void MakeUnreliable(Edge &e) {
     }
 }
 
-void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, double reliable_threshold) {
+inline void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, double reliable_threshold) {
     logger << "Remarking reliable edges" << std::endl;
     for(auto &vit : sdbg) {
         for(Vertex * vp : {&vit.second, &vit.second.rc()}) {
@@ -65,7 +65,7 @@ void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, double reli
     }
 }
 
-Path ReliablePath(Vertex &v, size_t max_size = 1000000000) {
+inline Path ReliablePath(Vertex &v, size_t max_size = 1000000000) {
     Path path(v);
     size_t len = 0;
     while(len < max_size) {
@@ -89,7 +89,7 @@ Path ReliablePath(Vertex &v, size_t max_size = 1000000000) {
 
 
 
-GraphAlignment CorrectSuffix(const GraphAlignment &al) {
+inline GraphAlignment CorrectSuffix(const GraphAlignment &al) {
     size_t first_unreliable = al.size();
     size_t bad_end_size = 0;
     while(first_unreliable > 0 && !al[first_unreliable - 1].contig().is_reliable) {
@@ -113,7 +113,7 @@ GraphAlignment CorrectSuffix(const GraphAlignment &al) {
     return res;
 }
 
-void CorrectTips(logging::Logger &logger, SparseDBG &dbg, RecordStorage &reads, size_t threads) {
+inline void CorrectTips(logging::Logger &logger, SparseDBG &dbg, RecordStorage &reads, size_t threads) {
     logger.info() << "Correcting tips using reliable edge marks" << std::endl;
     omp_set_num_threads(threads);
     ParallelCounter cnt(threads);
@@ -134,7 +134,7 @@ void CorrectTips(logging::Logger &logger, SparseDBG &dbg, RecordStorage &reads, 
     logger.info() << "Corrected tips for " << cnt.get() << " reads" << std::endl;
 }
 
-void TipCorrectionPipeline(logging::Logger &logger, SparseDBG &dbg, RecordStorage &reads,
+inline void TipCorrectionPipeline(logging::Logger &logger, SparseDBG &dbg, RecordStorage &reads,
                            size_t threads,double reliable_threshold) {
     FillReliableTips(logger, dbg, reliable_threshold);
     CorrectTips(logger, dbg, reads, threads);

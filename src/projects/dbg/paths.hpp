@@ -45,7 +45,7 @@ namespace dbg {
         std::vector<Segment<Edge>> als;
     public:
 //    TODO change interface
-        GraphAlignment(std::vector<Segment<Edge>> &&_path) : start_(_path.front().contig().start()), als(std::move(_path)) {}
+        explicit GraphAlignment(std::vector<Segment<Edge>> &&_path) : start_(_path.front().contig().start()), als(std::move(_path)) {}
         GraphAlignment(Vertex *_start, std::vector<Segment<Edge>> &&_path) : start_(_start), als(std::move(_path)) {}
         explicit GraphAlignment(Vertex &_start) : start_(&_start) {}
         GraphAlignment() : start_(nullptr) {}
@@ -73,14 +73,17 @@ namespace dbg {
         bool valid() const;
         void invalidate();
         GraphAlignment subalignment(size_t from, size_t to) const;
+        GraphAlignment subalignment(size_t from) const {return subalignment(from, size());}
         GraphAlignment reroute(size_t left, size_t right, const GraphAlignment &rerouting) const;
         GraphAlignment reroute(size_t left, size_t right, const Path &rerouting) const;
         void operator+=(const Path &other);
         void operator+=(const GraphAlignment &other);
         void operator+=(const Segment<Edge> &other);
+        void operator+=(Edge &other);
         GraphAlignment operator+(const GraphAlignment &other) const;
         GraphAlignment operator+(const Path &other) const;
         GraphAlignment operator+(const Segment<Edge> &other) const;
+        GraphAlignment operator+(Edge &other) const;
         //TODO deprecate
         Sequence map(std::unordered_map<const Edge *, Sequence> &edge_map);
 

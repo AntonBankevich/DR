@@ -5,7 +5,7 @@
 #include "edit_distance.hpp"
 #include "tip_correction.hpp"
 
-size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates, bool dump = false) {
+inline size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates, bool dump = false) {
     size_t winner = 0;
     std::vector<size_t> dists;
     for(size_t i = 0; i < candidates.size(); i++) {
@@ -28,7 +28,7 @@ size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates
     return winner;
 }
 
-std::vector<Path> FindBulgeAlternatives(const Path &path, size_t max_diff) {
+inline std::vector<Path> FindBulgeAlternatives(const Path &path, size_t max_diff) {
     size_t k = path.start().seq.size();
     std::vector<GraphAlignment> als = GraphAlignment(path.start()).allExtensions(max_diff);
     max_diff = std::min(max_diff, path.len());
@@ -56,7 +56,7 @@ std::vector<Path> FindBulgeAlternatives(const Path &path, size_t max_diff) {
     return res;
 }
 
-std::unordered_map<Vertex *, size_t> findReachable(Vertex &start, double min_cov, size_t max_dist) {
+inline std::unordered_map<Vertex *, size_t> findReachable(Vertex &start, double min_cov, size_t max_dist) {
     typedef std::pair<size_t, Vertex*> StoredValue;
     std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<>> queue;
     std::unordered_map<Vertex *, size_t> res;
@@ -77,7 +77,7 @@ std::unordered_map<Vertex *, size_t> findReachable(Vertex &start, double min_cov
     return std::move(res);
 }
 
-std::vector<GraphAlignment> FindPlausibleBulgeAlternatives(logging::Logger &logger, const GraphAlignment &path,
+inline std::vector<GraphAlignment> FindPlausibleBulgeAlternatives(logging::Logger &logger, const GraphAlignment &path,
                                                            size_t max_diff, double min_cov) {
 //    logger << "Looking for plausible alternative bulge paths" << std::endl;
     size_t k = path.start().seq.size();
@@ -144,7 +144,7 @@ std::vector<GraphAlignment> FindPlausibleBulgeAlternatives(logging::Logger &logg
     return std::move(res);
 }
 
-std::vector<GraphAlignment> FindPlausibleTipAlternatives(logging::Logger &logger, const GraphAlignment &path,
+inline std::vector<GraphAlignment> FindPlausibleTipAlternatives(logging::Logger &logger, const GraphAlignment &path,
                                                            size_t max_diff, double min_cov, bool dump) {
 //    logger << "Looking for plausible alternative tip paths" << std::endl;
     size_t k = path.start().seq.size();
@@ -205,7 +205,7 @@ std::vector<GraphAlignment> FindPlausibleTipAlternatives(logging::Logger &logger
     return std::move(res);
 }
 
-std::vector<GraphAlignment> FilterAlternatives(logging::Logger &logger1, const GraphAlignment &initial, const std::vector<GraphAlignment> &als,
+inline std::vector<GraphAlignment> FilterAlternatives(logging::Logger &logger1, const GraphAlignment &initial, const std::vector<GraphAlignment> &als,
                                             size_t max_diff, double threshold) {
     size_t len = initial.len();
     std::vector<GraphAlignment> res;
@@ -231,7 +231,7 @@ std::vector<GraphAlignment> FilterAlternatives(logging::Logger &logger1, const G
     return res;
 }
 
-GraphAlignment chooseBulgeCandidate(logging::Logger &logger, std::ostream &out, const GraphAlignment &bulge,
+inline GraphAlignment chooseBulgeCandidate(logging::Logger &logger, std::ostream &out, const GraphAlignment &bulge,
                                     const RecordStorage &reads_storage, const RecordStorage &ref_storage, double threshold,
                                     std::vector<GraphAlignment> &read_alternatives, std::string &message, bool dump) {
     size_t size = bulge.len();
@@ -261,13 +261,13 @@ GraphAlignment chooseBulgeCandidate(logging::Logger &logger, std::ostream &out, 
     const VertexRecord &rec = ref_storage.getRecord(bulge.start());
     size_t genome_support = 0;
     for(const GraphAlignment & al : read_alternatives) {
-        if(rec.countStartsWith(CompactPath(al).seq()) > 0) {
+        if(rec.countStartsWith(CompactPath(al).cpath()) > 0) {
             genome_support += 1;
         }
     }
     size_t filtered_genome_support = 0;
     for(const GraphAlignment & al : read_alternatives_filtered) {
-        if(rec.countStartsWith(CompactPath(al).seq()) > 0) {
+        if(rec.countStartsWith(CompactPath(al).cpath()) > 0) {
             filtered_genome_support += 1;
         }
     }
@@ -302,7 +302,7 @@ GraphAlignment chooseBulgeCandidate(logging::Logger &logger, std::ostream &out, 
     }
     filtered_genome_support = 0;
     for(const GraphAlignment & al : read_alternatives_filtered) {
-        if(rec.countStartsWith(CompactPath(al).seq()) > 0) {
+        if(rec.countStartsWith(CompactPath(al).cpath()) > 0) {
             filtered_genome_support += 1;
         }
     }
@@ -321,86 +321,13 @@ GraphAlignment chooseBulgeCandidate(logging::Logger &logger, std::ostream &out, 
     }
 }
 
-class AbstractAlternativeGenerator {
-public:
-    virtual std::vector<GraphAlignment> generate(const GraphAlignment &path) = 0;
-};
-
-class BulgeAlternativeGenerator : public AbstractAlternativeGenerator {
-private:
-    double threshold;
-    const RecordStorage &storage;
-public:
-    BulgeAlternativeGenerator(const RecordStorage &_storage, double cov_threshold) :
-            storage(_storage), threshold(cov_threshold) {
-
-    }
-
-    std::vector<GraphAlignment> generate(const GraphAlignment &path) {
-        return storage.getRecord(path.start()).getBulgeAlternatives(path.finish(), threshold);
-    }
-};
-
-class TipAlternativeGenerator : public AbstractAlternativeGenerator {
-private:
-    double threshold;
-    const RecordStorage &storage;
-public:
-    TipAlternativeGenerator(const RecordStorage &_storage, double cov_threshold) :
-            storage(_storage), threshold(cov_threshold) {
-    }
-
-    std::vector<GraphAlignment> generate(const GraphAlignment &path) override {
-        return storage.getRecord(path.start()).getTipAlternatives(path.len(), threshold);
-    }
-};
-
-class AbstractAlternativeFilter {
-public:
-    virtual void filter(const GraphAlignment &path, std::vector<GraphAlignment> &alternatives) = 0;
-};
-
-class DiffAlternativeFilter : AbstractAlternativeFilter {
-private:
-    double threshold;
-    size_t max_diff;
-public:
-    DiffAlternativeFilter(double cov_threshold, size_t _max_diff) :  threshold(cov_threshold), max_diff(_max_diff) {
-    }
-
-    void filter(const GraphAlignment &path, std::vector<GraphAlignment> &alternatives) {
-        size_t len = path.len();
-        std::vector<GraphAlignment> res;
-        size_t k = path.getVertex(0).seq.size();
-        for(GraphAlignment &al : alternatives) {
-            CompactPath cpath(al);
-            bool ok = true;
-            for(size_t i = 0; i < al.size(); i++) {
-                if(al[i].contig().getCoverage() < threshold) {
-                    ok = false;
-                    break;
-                }
-            }
-            if(!ok) {
-                continue;
-            }
-            size_t al_len = al.len();
-            if(len > al_len + max_diff || al_len > len + max_diff) {
-                continue;
-            }
-            res.emplace_back(std::move(al));
-        }
-        return std::swap(alternatives, res);
-    }
-};
-
 void InitialCorrectionPipeline(logging::Logger &logger, SparseDBG &sdbg, RecordStorage &reads_storage,
                                RecordStorage &ref_storage, size_t threads,
                                const std::experimental::filesystem::path &out_file,
                                double reliable_coverage,
                                double threshold, double bulge_threshold, bool dump);
 
-GraphAlignment BestAlignmentPrefix(const GraphAlignment &al, const Sequence & seq) {
+inline GraphAlignment BestAlignmentPrefix(const GraphAlignment &al, const Sequence & seq) {
     Sequence candSeq = al.truncSeq();
     size_t len = bestPrefix(seq, candSeq);
     Sequence prefix = candSeq.Subseq(0, len);
@@ -409,7 +336,7 @@ GraphAlignment BestAlignmentPrefix(const GraphAlignment &al, const Sequence & se
     return res;
 }
 
-GraphAlignment processTip(logging::Logger &logger, std::ostream &out, const GraphAlignment &tip,
+inline GraphAlignment processTip(logging::Logger &logger, std::ostream &out, const GraphAlignment &tip,
                          const std::vector<GraphAlignment> & alternatives,
                          const RecordStorage &ref_storage,
                          double threshold, std::string &message, bool dump = false) {
@@ -427,13 +354,13 @@ GraphAlignment processTip(logging::Logger &logger, std::ostream &out, const Grap
     size_t genome_support = 0;
     for(const GraphAlignment & al : alternatives) {
         CompactPath compactPath(al);
-        if(rec.countStartsWith(compactPath.seq()) > 0) {
+        if(rec.countStartsWith(compactPath.cpath()) > 0) {
             genome_support += 1;
         }
     }
     size_t filtered_genome_support = 0;
     for(const GraphAlignment & al : read_alternatives_filtered) {
-        if(rec.countStartsWith(CompactPath(al).seq()) > 0) {
+        if(rec.countStartsWith(CompactPath(al).cpath()) > 0) {
             filtered_genome_support += 1;
         }
     }
@@ -474,7 +401,7 @@ GraphAlignment processTip(logging::Logger &logger, std::ostream &out, const Grap
         logger << "Result " << trunc_alignments.size() << std::endl;
     filtered_genome_support = 0;
     for(const GraphAlignment & al : trunc_alignments) {
-        if(rec.countStartsWith(CompactPath(al).seq()) > 0) {
+        if(rec.countStartsWith(CompactPath(al).cpath()) > 0) {
             filtered_genome_support += 1;
         }
     }
@@ -489,7 +416,7 @@ GraphAlignment processTip(logging::Logger &logger, std::ostream &out, const Grap
     }
 }
 
-Edge * checkBorder(Vertex &v) {
+inline Edge * checkBorder(Vertex &v) {
     Edge * res = nullptr;
     size_t out_rel = 0;
     for(Edge &edge : v.rc()) {
@@ -510,7 +437,7 @@ Edge * checkBorder(Vertex &v) {
         return nullptr;
 }
 
-bool checkInner(Vertex &v) {
+inline bool checkInner(Vertex &v) {
     size_t inc_rel = 0;
     size_t out_rel = 0;
     for(Edge &edge : v.rc()) {
@@ -586,7 +513,7 @@ inline void FillReliableWithConnections(logging::Logger &logger, SparseDBG &sdbg
     }
 }
 
-size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,RecordStorage &reads_storage,
+inline size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,RecordStorage &reads_storage,
                                 RecordStorage &ref_storage,
                                 const std::experimental::filesystem::path &out_file,
                                 double threshold, double reliable_threshold, size_t k, size_t threads, bool dump) {
@@ -598,7 +525,7 @@ size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,RecordS
     ParallelCounter bulge_cnt(threads);
     logger.info() << "Correcting low covered regions in reads" << std::endl;
     omp_set_num_threads(threads);
-    size_t max_size = std::min(reads_storage.max_len * 9 / 10, std::max<size_t>(k * 2, 1000));
+    size_t max_size = std::min(reads_storage.getMaxLen() * 9 / 10, std::max<size_t>(k * 2, 1000));
 #pragma omp parallel for default(none) shared(std::cout, reads_storage, ref_storage, results, threshold, k, max_size, logger, simple_bulge_cnt, bulge_cnt, dump, reliable_threshold)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;
@@ -692,7 +619,8 @@ size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,RecordS
                 GraphAlignment substitution = processTip(logger, ss, tip, alternatives, ref_storage,
                                                          threshold, new_message, dump);
                 messages.emplace_back("it" + new_message);
-                messages.emplace_back(logging::itos(tip.size()));
+                messages.emplace_back(logging::itos(tip.len(), 0));
+                messages.emplace_back(logging::itos(substitution.len(), 0));
                 VERIFY_OMP(substitution.start() == tip.start(), "samestart");
                 GraphAlignment rcSubstitution = substitution.RC();
                 corrected_path = std::move(rcSubstitution);
@@ -716,7 +644,8 @@ size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,RecordS
                 GraphAlignment substitution = processTip(logger, ss, tip, alternatives, ref_storage,
                                                          threshold, new_message, dump);
                 messages.emplace_back("ot" + new_message);
-                messages.emplace_back(logging::itos(tip.size()));
+                messages.emplace_back(logging::itos(tip.len()), 0);
+                messages.emplace_back(logging::itos(substitution.len()), 0);
                 for (const Segment<Edge> &seg : substitution) {
                     corrected_path.push_back(seg);
                 }
@@ -734,7 +663,8 @@ size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,RecordS
                                                                    read_alternatives, new_message, dump);
                 if(!new_message.empty()) {
                     messages.emplace_back(new_message);
-                    messages.emplace_back(logging::itos(badPath.len()));
+                    messages.emplace_back(logging::itos(badPath.len(), 0));
+                    messages.emplace_back(logging::itos(corrected_path.len(), 0));
                 }
                 for (const Segment<Edge> &seg : substitution) {
                     corrected_path.push_back(seg);
@@ -767,7 +697,7 @@ size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,RecordS
     return res;
 }
 
-GraphAlignment findAlternative(logging::Logger &logger, std::ostream &out, const GraphAlignment &bulge,
+inline GraphAlignment findAlternative(logging::Logger &logger, std::ostream &out, const GraphAlignment &bulge,
                                    const RecordStorage &reads_storage) {
     std::vector<GraphAlignment> read_alternatives = reads_storage.getRecord(bulge.start()).getBulgeAlternatives(bulge.finish(), 1);
     std::vector<GraphAlignment> read_alternatives_filtered = FilterAlternatives(logger, bulge, read_alternatives,
@@ -783,7 +713,7 @@ GraphAlignment findAlternative(logging::Logger &logger, std::ostream &out, const
 }
 
 
-size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage,
+inline size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage,
                                 RecordStorage &ref_storage,
                                 const std::experimental::filesystem::path &out_file,
                                 double threshold, size_t k, size_t threads) {
@@ -864,7 +794,7 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage,
     return bulges;
 }
 
-size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k, size_t threads) {
+inline size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k, size_t threads) {
     ParallelRecordCollector<std::string> results(threads);
     logger.info() << "Correcting dinucleotide errors in reads" << std::endl;
     ParallelCounter cnt(threads);
@@ -924,7 +854,7 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
                 if (!candidate.valid())
                     continue;
                 CompactPath ccandidate(candidate);
-                size_t support = rec.countStartsWith(ccandidate.seq());
+                size_t support = rec.countStartsWith(ccandidate.cpath());
                 if(skip == 2 * max_variation) {
                     initial_support = support;
 //                    VERIFY_OMP(support > 0, "support");
@@ -976,7 +906,7 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
     return cnt.get();
 }
 
-void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
+inline void initialCorrect(SparseDBG &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &out_file,
                     RecordStorage &reads_storage,
                     RecordStorage &ref_storage,

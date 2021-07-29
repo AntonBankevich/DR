@@ -73,7 +73,7 @@ GraphAlignment correctRead(std::unordered_map<const Edge *, CompactPath> &unique
         if(unique_extensions.find(&al[i].contig()) == unique_extensions.end())
             continue;
         CompactPath &compactPath = unique_extensions.find(&al[i].contig())->second;
-        if(compactPath.seq().nonContradicts(CompactPath(al.subalignment(i + 1, al.size())).cpath()))
+        if(compactPath.cpath().nonContradicts(CompactPath(al.subalignment(i + 1, al.size())).cpath()))
             continue;
         corrected = true;
         GraphAlignment new_al = al.subalignment(0, i + 1);

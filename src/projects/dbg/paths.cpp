@@ -301,6 +301,8 @@ dbg::GraphAlignment dbg::GraphAlignment::reroute(size_t left, size_t right, cons
 }
 
 void dbg::GraphAlignment::operator+=(const dbg::Path &other) {
+    if(other.size() == 0)
+        return;
     if(!valid()) {
         start_ = &other.start();
     }
@@ -311,6 +313,8 @@ void dbg::GraphAlignment::operator+=(const dbg::Path &other) {
 }
 
 void dbg::GraphAlignment::operator+=(const dbg::GraphAlignment &other) {
+    if(other.size() == 0)
+        return;
     if(!valid()) {
         start_ = &other.start();
     }
@@ -333,6 +337,10 @@ void dbg::GraphAlignment::operator+=(const Segment<Edge> &other) {
     }
 }
 
+void dbg::GraphAlignment::operator+=(Edge &other) {
+    dbg::GraphAlignment::operator+=(Segment<Edge>(other, 0, other.size()));
+}
+
 dbg::GraphAlignment dbg::GraphAlignment::operator+(const dbg::GraphAlignment &other) const {
     GraphAlignment res = *this;
     res += other;
@@ -346,6 +354,12 @@ dbg::GraphAlignment dbg::GraphAlignment::operator+(const dbg::Path &other) const
 }
 
 dbg::GraphAlignment dbg::GraphAlignment::operator+(const Segment<Edge> &other) const {
+    GraphAlignment res = *this;
+    res += other;
+    return std::move(res);
+}
+
+dbg::GraphAlignment dbg::GraphAlignment::operator+(Edge &other) const {
     GraphAlignment res = *this;
     res += other;
     return std::move(res);

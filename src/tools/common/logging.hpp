@@ -21,7 +21,7 @@ namespace logging {
 
 const std::string endl = "\n";
 
-inline std::string itos(size_t val, size_t min_size = 2) {
+inline std::string itos(size_t val, size_t min_size = 0) {
     std::stringstream ss;
     ss << val;
     std::string res = ss.str();
@@ -54,7 +54,8 @@ public:
             mem = (size_t(mem) / 100) * 0.1;
             t = "Gb";
         }
-        ss << itos(worktime / 60 / 60) << ":" << itos(worktime / 60 % 60) << ":" << itos(worktime % 60) << " " << mem << t << " ";
+        ss << itos(worktime / 60 / 60, 2) << ":" << itos(worktime / 60 % 60, 2) << ":"
+                << itos(worktime % 60, 2) << " " << mem << t << " ";
         return ss.str();
     }
 };
@@ -84,7 +85,7 @@ public:
             } catch (const std::invalid_argument& ia) {
             }
         }
-        std::experimental::filesystem::path backup = backupDir / (itos(max + 1) + ".log");
+        std::experimental::filesystem::path backup = backupDir / (itos(max + 1, 2) + ".log");
         std::experimental::filesystem::copy_file(logFile, backup);
         std::experimental::filesystem::remove(logFile);
         return std::move(backup);

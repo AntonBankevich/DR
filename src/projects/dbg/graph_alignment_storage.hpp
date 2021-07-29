@@ -60,6 +60,7 @@ public:
     bool isDisconnected(const Edge &edge) const;
     std::vector<GraphAlignment> getBulgeAlternatives(const Vertex &end, double threshold) const;
     std::vector<GraphAlignment> getTipAlternatives(size_t len, double threshold) const;
+    unsigned char getUniqueExtension(const Sequence &start, size_t min_good_cov, size_t max_bad_cov) const;
 };
 
 inline std::ostream& operator<<(std::ostream  &os, const VertexRecord &rec) {return os << rec.str();}
@@ -129,6 +130,10 @@ public:
     const_iterator end() const {return reads.end();}
     AlignedRead &operator[](size_t ind) {return reads[ind];}
     const AlignedRead &operator[](size_t ind) const {return reads[ind];}
+    size_t getMinLen() const {return min_len;}
+    size_t getMaxLen() const {return max_len;}
+    bool getTrackCov() const {return track_cov;}
+
     size_t size() const {return reads.size();}
 
     std::function<std::string(Edge &)> labeler();
