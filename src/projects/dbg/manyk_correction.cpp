@@ -175,23 +175,19 @@ GraphAlignment ManyKCorrector::uniqueExtension(const GraphAlignment &base, size_
 
 GraphAlignment ManyKCorrector::correctBulge(const ManyKCorrector::Bulge &bulge, string &message) const {
     GraphAlignment corrected;
-    std::cout << "Bulge " << bulge.bulge.str(true) << std::endl;
     if(bulge.bulge.len() + 100 < K) {
         corrected = correctBulgeByBridging(bulge);
         if(corrected != bulge.bulge) {
             message = "bb";
-            std::cout << "Result " << message << " " <<corrected.str(true) << std::endl;
             return corrected;
         }
     }
     corrected = correctBulgeAsDoubleTip(bulge);
     if(corrected != bulge.bulge) {
         message = "bd";
-        std::cout << "Result " << message << " " << corrected.str(true) << std::endl;
         return corrected;
     }
     message = "";
-    std::cout << "Result " << message << " " << corrected.str(true) << std::endl;
     return bulge.bulge;
 }
 
@@ -292,7 +288,6 @@ size_t ManyKCorrect(logging::Logger &logger, SparseDBG &dbg, RecordStorage &read
     ManyKCorrector corrector(dbg, reads_storage, K, expectedCoverage, reliable_threshold, threshold);
     ParallelRecordCollector<std::string> results(threads);
     ParallelCounter cnt(threads);
-    threads = 1;
     omp_set_num_threads(threads);
 #pragma omp parallel for default(none) shared(std::cout, corrector, reads_storage, results, threshold, logger, reliable_threshold, cnt)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
