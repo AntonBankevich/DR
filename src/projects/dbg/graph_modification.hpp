@@ -43,7 +43,7 @@ inline GraphAlignment realignRead(const GraphAlignment &al,
 }
 
 inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
-                            const std::vector<RecordStorage*> &storages) {
+                            const std::vector<RecordStorage*> &storages, size_t new_extension_size = 0) {
     omp_set_num_threads(threads);
     logger.info() << "Collecting covered edge segments" << std::endl;
     size_t k = dbg.hasher().getK();
@@ -138,7 +138,9 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
     logger.info() << "Realigning sequences to the new graph" << std::endl;
     for(RecordStorage *sit : storages){
         RecordStorage &storage = *sit;
-        RecordStorage new_storage(subgraph, storage.getMinLen(), storage.getMaxLen(), threads, "/dev/null", storage.getTrackCov());
+        if(new_extension_size == 0)
+            new_extension_size = storage.getMaxLen();
+        RecordStorage new_storage(subgraph, storage.getMinLen(), new_extension_size, threads, "/dev/null", storage.getTrackCov());
         for(AlignedRead &al : storage) {
             new_storage.addRead(AlignedRead(al.id));
         }

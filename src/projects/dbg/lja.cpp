@@ -27,6 +27,7 @@ void PrintPaths(logging::Logger &logger, const std::experimental::filesystem::pa
                 SparseDBG &dbg, RecordStorage &readStorage, const io::Library &paths_lib, bool small) {
     stage_num += 1;
     std::string stage_name = logging::itos(stage_num) + "_" + stage;
+    logger << "Dumping current state. Stage id " << stage_name << std::endl;
     ensure_dir_existance(dir);
     printDot(dir / (stage_name + ".dot"), Component(dbg));
     dbg.printFastaOld(dir / (stage_name + ".fasta"));
@@ -113,7 +114,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
                         DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
-        size_t extension_size = std::max<size_t>(k * 5 / 2, 3000);
+        size_t extension_size = std::max<size_t>(k * 2, 1000);
         RecordStorage readStorage(dbg, 0, extension_size, threads, dir/"read_log.txt", true);
         RecordStorage refStorage(dbg, 0, extension_size, threads, "/dev/null", false);
         io::SeqReader reader(reads_lib);
@@ -122,10 +123,10 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         correctAT(logger, readStorage, k, threads);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 800, 4, threads);
         PrintPaths(logger, dir/ "paths", "mk250", dbg, readStorage, paths_lib, true);
+        RemoveUncovered(logger, threads, dbg, {&readStorage}, std::max<size_t>(k * 5 / 2, 3000));
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 2000, 4, threads);
         PrintPaths(logger, dir/ "paths", "mk1000", dbg, readStorage, paths_lib, true);
-        RemoveUncovered(logger, threads, dbg, {&readStorage});
-        readStorage.updateExtensionSize(logger, threads, std::max<size_t>(k * 7 / 2, 5000));
+        RemoveUncovered(logger, threads, dbg, {&readStorage}, std::max<size_t>(k * 7 / 2, 5000));
         correctAT(logger, readStorage, k, threads);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3000, 4, threads);
         RemoveUncovered(logger, threads, dbg, {&readStorage});

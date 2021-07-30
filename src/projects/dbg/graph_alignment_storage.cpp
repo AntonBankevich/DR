@@ -457,9 +457,12 @@ void RecordStorage::updateExtensionSize(logging::Logger &logger, size_t threads,
         it.second.clear();
     }
     this->max_len = new_max_extension;
+    bool tmp_track_cov = track_cov;
+    track_cov = false;
 #pragma omp parallel for default(none)
     for(size_t i = 0; i < size(); i++) {
         addSubpath(reads[i].path);
         addSubpath(reads[i].path.RC());
     }
+    track_cov = tmp_track_cov;
 }
