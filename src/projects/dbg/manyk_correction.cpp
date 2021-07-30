@@ -1,5 +1,5 @@
 #include "manyk_correction.hpp"
-#include "initial_correction.hpp"
+#include "correction_utils.hpp"
 
 void ManyKCorrector::calculateReliable(const GraphAlignment &read_path, std::vector<size_t> &last_reliable,
                                        std::vector<size_t> &next_reliable) const {
@@ -97,9 +97,10 @@ GraphAlignment ManyKCorrector::correctRead(GraphAlignment &&read_path, string &m
     GraphAlignment corrected;
     if(rr.hasIncomingTip()) {
         Tip tip = rr.getIncomingTip();
-        GraphAlignment tc = correctTip(tip);
-        if(tip.tip != tc) {
-            messages.emplace_back("it" + logging::itos(K));
+        std::string tip_message;
+        GraphAlignment tc = correctTip(tip, tip_message);
+        if(!message.empty()) {
+            messages.emplace_back("i" + message + logging::itos(K));
             messages.emplace_back(logging::itos(tip.tip.len()));
             messages.emplace_back(logging::itos(tc.len()));
         }
@@ -122,9 +123,10 @@ GraphAlignment ManyKCorrector::correctRead(GraphAlignment &&read_path, string &m
     }
     if(rr.hasOutgoingTip()) {
         Tip tip = rr.getOutgoingTip();
-        GraphAlignment tc = correctTip(tip);
-        if(tip.tip != tc) {
-            messages.emplace_back("ot" + logging::itos(K));
+        std::string tip_message;
+        GraphAlignment tc = correctTip(tip, tip_message);
+        if(!message.empty()) {
+            messages.emplace_back("o" + message + logging::itos(K));
             messages.emplace_back(logging::itos(tip.tip.len()));
             messages.emplace_back(logging::itos(tc.len()));
         }
@@ -135,7 +137,7 @@ GraphAlignment ManyKCorrector::correctRead(GraphAlignment &&read_path, string &m
     return std::move(corrected);
 }
 
-GraphAlignment ManyKCorrector::correctTip(const ManyKCorrector::Tip &tip) const {
+GraphAlignment ManyKCorrector::correctTipWithExtension(const ManyKCorrector::Tip &tip) const {
     const GraphAlignment &left = tip.left;
     size_t tlen = tip.tip.len();
     GraphAlignment al = uniqueExtension(tip.left, tlen);
@@ -147,6 +149,14 @@ GraphAlignment ManyKCorrector::correctTip(const ManyKCorrector::Tip &tip) const 
         return al.subalignment(tip.left.size(), al.size());
     } else {
         return tip.tip;
+    }
+}
+
+GraphAlignment ManyKCorrector::correctTip(const ManyKCorrector::Tip &tip, std::string &message) const {
+    GraphAlignment correction = correctTipWithExtension(tip);
+    if(correction != tip.tip) {
+        message = "te";
+        return correction;
     }
 }
 
@@ -185,6 +195,11 @@ GraphAlignment ManyKCorrector::correctBulge(const ManyKCorrector::Bulge &bulge, 
     corrected = correctBulgeAsDoubleTip(bulge);
     if(corrected != bulge.bulge) {
         message = "bd";
+        return corrected;
+    }
+    corrected = correctBulgeWithReliable(bulge);
+    if(corrected != bulge.bulge) {
+        message = "bu";
         return corrected;
     }
     message = "";
@@ -261,6 +276,15 @@ GraphAlignment ManyKCorrector::correctBulgeAsDoubleTip(const ManyKCorrector::Bul
     }
     if(candidate.valid())
         return candidate;
+    else
+        return bulge.bulge;
+}
+
+GraphAlignment ManyKCorrector::correctBulgeWithReliable(const ManyKCorrector::Bulge &bulge) const {
+    size_t blen = bulge.bulge.len();
+    std::vector<dbg::GraphAlignment> alternatives = FindPlausibleBulgeAlternatives(bulge.bulge, std::max<size_t>(blen / 100, 20), 3);
+    if(alternatives.size() == 1)
+        return alternatives[0];
     else
         return bulge.bulge;
 }

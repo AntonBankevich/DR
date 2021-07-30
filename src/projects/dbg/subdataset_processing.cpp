@@ -103,7 +103,7 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
         for(Contig &contig : contigs) {
             storage.fill(contig);
         }
-        printDot(subdataset.dir / "graph.dot", subdataset.component, storage.labeler());
+        printDot(subdataset.dir / "graph_with_contigs.dot", subdataset.component, storage.labeler());
     }
     logger.info() << "Finished repeat resolution" << std::endl;
     return res.collect();
