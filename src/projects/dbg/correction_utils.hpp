@@ -177,6 +177,27 @@ inline std::vector<dbg::GraphAlignment> FindPlausibleBulgeAlternatives(const dbg
     return std::move(res);
 }
 
+inline dbg::GraphAlignment FindReliableExtension(dbg::Vertex &start, size_t len, double min_cov) {
+    dbg::GraphAlignment res(start);
+    size_t clen = 0;
+    while(clen < len) {
+        dbg::Edge *next = nullptr;
+        for(dbg::Edge &edge : res.finish()) {
+            if(edge.is_reliable || edge.getCoverage() >= min_cov) {
+                if(next == nullptr)
+                    next = &edge;
+                else
+                    return {};
+            }
+        }
+        if(next == nullptr)
+            return {};
+        res += *next;
+        clen += next->size();
+    }
+    return std::move(res);
+}
+
 inline std::vector<dbg::GraphAlignment> FindPlausibleTipAlternatives(const dbg::GraphAlignment &path,
                                                                 size_t max_diff, double min_cov) {
     size_t k = path.start().seq.size();

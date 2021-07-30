@@ -157,14 +157,20 @@ GraphAlignment ManyKCorrector::correctTipWithExtension(const ManyKCorrector::Tip
 
 GraphAlignment ManyKCorrector::correctTipWithReliable(const ManyKCorrector::Tip &tip) const {
     size_t tlen = tip.tip.len();
-    std::vector<dbg::GraphAlignment> alternatives = FindPlausibleTipAlternatives(tip.tip, std::max<size_t>(tlen / 100, 20), 3);
-    if(alternatives.size() == 1) {
-        if(alternatives[0].len() > tip.tip.len())
-            alternatives[0].cutBack(alternatives[0].len() - tip.tip.len());
-        return alternatives[0];
-    }
-    else
+//    std::vector<dbg::GraphAlignment> alternatives = FindPlausibleTipAlternatives(tip.tip, std::max<size_t>(tlen / 100, 20), 3);
+//    if(alternatives.size() == 1) {
+//        if(alternatives[0].len() > tip.tip.len())
+//            alternatives[0].cutBack(alternatives[0].len() - tip.tip.len());
+//        return alternatives[0];
+//    } else
+//        return tip.tip;
+    GraphAlignment alternative = FindReliableExtension(tip.tip.start(), tip.tip.len(), 4);
+    if(!alternative.valid())
         return tip.tip;
+    if(alternative.len() > tip.tip.len()) {
+        alternative.cutBack(alternative.len() - tip.tip.len());
+    }
+    return std::move(alternative);
 }
 
 GraphAlignment ManyKCorrector::correctTip(const ManyKCorrector::Tip &tip, std::string &message) const {
