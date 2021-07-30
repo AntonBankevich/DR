@@ -106,11 +106,13 @@ bool dbg::GraphAlignment::valid() const {
 
 void dbg::GraphAlignment::cutBack(size_t l) {
     VERIFY(l <= len());
-    while (size() > 0 && als.back().size() < l) {
+    while (size() > 0 && als.back().size() <= l) {
         l -= als.back().size();
         pop_back();
     }
+    VERIFY(size() > 0);
     if (l > 0) {
+        VERIFY(als.back().right > l);
         als.back().right -= l;
     }
 }

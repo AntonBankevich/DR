@@ -402,6 +402,7 @@ void RecordStorage::applyCorrections(logging::Logger &logger, size_t threads) {
     for(size_t i = 0; i < reads.size(); i++) { // NOLINT(modernize-loop-convert)
         apply(reads[i]);
     }
+    flush();
 }
 
 void RecordStorage::printAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const {

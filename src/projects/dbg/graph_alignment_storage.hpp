@@ -122,7 +122,6 @@ public:
     bool track_cov;
 
 private:
-    void flush() {readLogger.flush();}
     void processPath(const CompactPath &cpath, const std::function<void(Vertex &, const Sequence &)> &task,
                             const std::function<void(Segment<Edge>)> &edge_task = [](Segment<Edge>){}) const;
 public:
@@ -165,6 +164,7 @@ public:
     void printAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const;
     void printFasta(logging::Logger &logger, const std::experimental::filesystem::path &path) const;
     void printFullAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const;
+    void flush() {readLogger.flush();}
 };
 
 template<class I>
