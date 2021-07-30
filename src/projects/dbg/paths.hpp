@@ -138,3 +138,10 @@ namespace dbg {
         std::vector<PerfectAlignment<Edge, Edge>> oldEdgeAlign(Edge &contig) const;
     };
 }
+
+namespace std {
+    template<class U, class V>
+    std::ostream &operator<<(std::ostream &os, const dbg::PerfectAlignment<U, V> &al) {
+        return os << al.seg_from << "->" << al.seg_to << std::endl;
+    }
+}

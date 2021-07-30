@@ -18,6 +18,10 @@ inline GraphAlignment realignRead(const GraphAlignment &al,
             break;
         }
     }
+    if(new_start_edge == nullptr) {
+        std::cout << al.str() << std::endl;
+        std::cout << it->second << std::endl;
+    }
     VERIFY_OMP(new_start_edge != nullptr, "Could not find start edge for alignment");
     size_t cur = 0;
     size_t read_length = al.len();
