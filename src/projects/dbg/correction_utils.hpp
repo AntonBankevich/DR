@@ -244,7 +244,7 @@ inline std::vector<dbg::GraphAlignment> FindPlausibleTipAlternatives(const dbg::
                         forward = true;
                         break;
                     } else if (&edge == &old_edge) {
-                        found - true;
+                        found = true;
                     }
                 }
             }
