@@ -27,8 +27,9 @@ void PrintPaths(logging::Logger &logger, const std::experimental::filesystem::pa
                 SparseDBG &dbg, RecordStorage &readStorage, const io::Library &paths_lib, bool small) {
     stage_num += 1;
     std::string stage_name = logging::itos(stage_num) + "_" + stage;
-    logger << "Dumping current state. Stage id " << stage_name << std::endl;
+    logger.info() << "Dumping current state. Stage id: " << stage_name << std::endl;
     ensure_dir_existance(dir);
+    ensure_dir_existance(dir / "paths");
     printDot(dir / (stage_name + ".dot"), Component(dbg));
     dbg.printFastaOld(dir / (stage_name + ".fasta"));
     if(!small)
@@ -43,7 +44,7 @@ void PrintPaths(logging::Logger &logger, const std::experimental::filesystem::pa
         Component comp = small ? Component::neighbourhood(dbg, contig, dbg.hasher().getK() + 500) :
                 Component::longEdgeNeighbourhood(dbg, contig, 20000);
         std::function<std::string(Edge &)> labeler = readStorage.labeler() + storage.labeler();
-        printDot(dir / contig.getId() / (stage_name + ".dot"), comp,labeler);
+        printDot(dir / "paths" / contig.getId() / (stage_name + ".dot"), comp,labeler);
     }
 }
 
@@ -70,7 +71,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         RecordStorage refStorage(dbg, 0, extension_size, threads, "/dev/null", false);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
-        PrintPaths(logger, dir/ "paths", "initial", dbg, readStorage, paths_lib, true);
+        PrintPaths(logger, dir/ "state_dump", "initial", dbg, readStorage, paths_lib, true);
         initialCorrect(dbg, logger, dir / "correction.txt", readStorage, refStorage,
                        threshold, 2 * threshold, reliable_coverage, threads, dump);
         PrintPaths(logger, dir/ "paths", "low", dbg, readStorage, paths_lib, true);
@@ -119,18 +120,18 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         RecordStorage refStorage(dbg, 0, extension_size, threads, "/dev/null", false);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
-        PrintPaths(logger, dir/ "paths", "initial", dbg, readStorage, paths_lib, true);
+        PrintPaths(logger, dir/ "state_dump", "initial", dbg, readStorage, paths_lib, true);
         correctAT(logger, readStorage, k, threads);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 800, 4, threads);
-        PrintPaths(logger, dir/ "paths", "mk250", dbg, readStorage, paths_lib, true);
+        PrintPaths(logger, dir/ "state_dump", "mk250", dbg, readStorage, paths_lib, true);
         RemoveUncovered(logger, threads, dbg, {&readStorage}, std::max<size_t>(k * 5 / 2, 3000));
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 2000, 4, threads);
-        PrintPaths(logger, dir/ "paths", "mk1000", dbg, readStorage, paths_lib, true);
+        PrintPaths(logger, dir/ "state_dump", "mk1000", dbg, readStorage, paths_lib, true);
         RemoveUncovered(logger, threads, dbg, {&readStorage}, std::max<size_t>(k * 7 / 2, 5000));
         correctAT(logger, readStorage, k, threads);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3000, 4, threads);
         RemoveUncovered(logger, threads, dbg, {&readStorage});
-        PrintPaths(logger, dir/ "paths", "mk3000", dbg, readStorage, paths_lib, false);
+        PrintPaths(logger, dir/ "state_dump", "mk3000", dbg, readStorage, paths_lib, false);
         readStorage.printFasta(logger, dir / "corrected.fasta");
         DrawSplit(Component(dbg), dir / "split");
         dbg.printFastaOld(dir / "graph.fasta");
@@ -167,22 +168,22 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         RecordStorage refStorage(dbg, 0, extension_size, threads, "/dev/null", false);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
-        PrintPaths(logger, dir/ "paths", "initial", dbg, readStorage, paths_lib, false);
+        PrintPaths(logger, dir/ "state_dump", "initial", dbg, readStorage, paths_lib, false);
         initialCorrect(dbg, logger, dir / "correction.txt", readStorage, refStorage,
                        threshold, 2 * threshold, reliable_coverage, threads, dump);
-        PrintPaths(logger, dir/ "paths", "low", dbg, readStorage, paths_lib, false);
+        PrintPaths(logger, dir/ "state_dump", "low", dbg, readStorage, paths_lib, false);
         GapColserPipeline(logger, dbg, readStorage, refStorage, threads);
-        PrintPaths(logger, dir/ "paths", "gap1", dbg, readStorage, paths_lib, false);
+        PrintPaths(logger, dir/ "state_dump", "gap1", dbg, readStorage, paths_lib, false);
         readStorage.invalidateBad(logger, threads, threshold, "after_gap1");
-        PrintPaths(logger, dir/ "paths", "bad", dbg, readStorage, paths_lib, false);
+        PrintPaths(logger, dir/ "state_dump", "bad", dbg, readStorage, paths_lib, false);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
-        PrintPaths(logger, dir/ "paths", "uncovered1", dbg, readStorage, paths_lib, false);
+        PrintPaths(logger, dir/ "state_dump", "uncovered1", dbg, readStorage, paths_lib, false);
         MultCorrect(dbg, logger, dir, readStorage, unique_threshold, threads, dump);
-        PrintPaths(logger, dir/ "paths", "mult", dbg, readStorage, paths_lib, false);
+        PrintPaths(logger, dir/ "state_dump", "mult", dbg, readStorage, paths_lib, false);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
-        PrintPaths(logger, dir/ "paths", "uncovered2", dbg, readStorage, paths_lib, false);
+        PrintPaths(logger, dir/ "state_dump", "uncovered2", dbg, readStorage, paths_lib, false);
         GapColserPipeline(logger, dbg, readStorage, refStorage, threads);
-        PrintPaths(logger, dir/ "paths", "gap2", dbg, readStorage, paths_lib, false);
+        PrintPaths(logger, dir/ "state_dump", "gap2", dbg, readStorage, paths_lib, false);
         DrawSplit(Component(dbg), dir / "figs");
         RepeatResolver rr(dbg, readStorage, dir / "split");
         std::vector<Contig> contigs = rr.ResolveRepeats(logger, threads);

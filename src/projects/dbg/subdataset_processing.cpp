@@ -89,14 +89,21 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
                 found = true;
             }
         }
+        io::Library contig_lib = {out_fasta};
         if (!found)
             continue;
-        for (StringContig stringContig : io::SeqReader({out_fasta})) {
+        std::vector<Contig> contigs;
+        for (StringContig stringContig : io::SeqReader(contig_lib)) {
             Contig contig = stringContig.makeContig();
             if (contig.seq <= !contig.seq) {
-                res.emplace_back(contig.seq, logging::itos(snum, 1) + "." + contig.id);
+                contigs.emplace_back(contig.seq, logging::itos(snum, 1) + "." + contig.id);
             }
         }
+        GraphAlignmentStorage storage(dbg);
+        for(Contig &contig : contigs) {
+            storage.fill(contig);
+        }
+        printDot(subdataset.dir / "graph.dot", subdataset.component, storage.labeler());
     }
     logger.info() << "Finished repeat resolution" << std::endl;
     return res.collect();
