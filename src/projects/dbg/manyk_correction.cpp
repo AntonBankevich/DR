@@ -99,17 +99,18 @@ GraphAlignment ManyKCorrector::correctRead(GraphAlignment &&read_path, string &m
         Tip tip = rr.getIncomingTip();
         std::string tip_message;
         GraphAlignment tc = correctTip(tip, tip_message);
+        VERIFY(tc.start() == tip.tip.start());
+        VERIFY(tc.front().left == 0);
         if(!message.empty()) {
             messages.emplace_back("i" + message + logging::itos(K));
             messages.emplace_back(logging::itos(tip.tip.len()));
             messages.emplace_back(logging::itos(tc.len()));
         }
         corrected += tc.RC();
+        corrected += tip.left.RC();
     }
     for(size_t i = 0; i < rr.bulgeNum(); i++) {
         Bulge bulge = rr.getBulge(i);
-        if(i == 0)
-            corrected += bulge.left;
         std::string bulge_message;
         GraphAlignment bc = correctBulge(bulge, bulge_message);
         if(!bulge_message.empty()) {
@@ -125,6 +126,8 @@ GraphAlignment ManyKCorrector::correctRead(GraphAlignment &&read_path, string &m
         Tip tip = rr.getOutgoingTip();
         std::string tip_message;
         GraphAlignment tc = correctTip(tip, tip_message);
+        VERIFY(tc.start() == tip.tip.start());
+        VERIFY(tc.front().left == 0);
         if(!message.empty()) {
             messages.emplace_back("o" + message + logging::itos(K));
             messages.emplace_back(logging::itos(tip.tip.len()));
@@ -144,7 +147,7 @@ GraphAlignment ManyKCorrector::correctTipWithExtension(const ManyKCorrector::Tip
     size_t elen = al.len() - tip.left.len();
     if(elen > 0 && elen + 10 >= tlen) {
         if(elen > tlen) {
-            al.cutBack(tip.left.len() + tlen);
+            al.cutBack(elen - tlen);
         }
         return al.subalignment(tip.left.size(), al.size());
     } else {
@@ -157,7 +160,7 @@ GraphAlignment ManyKCorrector::correctTipWithReliable(const ManyKCorrector::Tip 
     std::vector<dbg::GraphAlignment> alternatives = FindPlausibleTipAlternatives(tip.tip, std::max<size_t>(tlen / 100, 20), 3);
     if(alternatives.size() == 1) {
         if(alternatives[0].len() > tip.tip.len())
-            alternatives[0].cutBack(tip.tip.len());
+            alternatives[0].cutBack(alternatives[0].len() - tip.tip.len());
         return alternatives[0];
     }
     else
@@ -241,11 +244,11 @@ GraphAlignment ManyKCorrector::correctBulgeByBridging(const ManyKCorrector::Bulg
     size_t right_best = 0;
     GraphAlignment rc_left = bulge.left.RC();
     if(rc_left.len() > K - bulge.bulge.len())
-        rc_left.cutBack(K - bulge.bulge.len());
+        rc_left.cutBack(rc_left.len() - (K - bulge.bulge.len()));
     CompactPath crc_left(rc_left);
     GraphAlignment right = bulge.right;
     if(right.size() > K - bulge.bulge.len())
-        right.cutBack(K - bulge.bulge.len());
+        right.cutBack(right.len() - (K - bulge.bulge.len()));
     CompactPath cright(right);
     for(size_t i = 0; i < alternatives.size(); i++) {
         GraphAlignment &al = alternatives[i];
