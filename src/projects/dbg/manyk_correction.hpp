@@ -66,6 +66,7 @@ public:
     GraphAlignment correctBulgeWithReliable(const Bulge &bulge) const;
     GraphAlignment correctBulge(const Bulge &bulge, std::string &message) const;
 
+    GraphAlignment correctTipWithReliable(const Tip &tip) const;
     GraphAlignment correctTipWithExtension(const Tip &tip) const;
     GraphAlignment correctTip(const Tip &tip, std::string &message) const;
 

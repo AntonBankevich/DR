@@ -23,6 +23,7 @@
 #include <wait.h>
 
 static size_t stage_num = 0;
+std::vector<Contig> ref;
 void PrintPaths(logging::Logger &logger, const std::experimental::filesystem::path &dir, const std::string &stage,
                 SparseDBG &dbg, RecordStorage &readStorage, const io::Library &paths_lib, bool small) {
     stage_num += 1;
@@ -46,6 +47,15 @@ void PrintPaths(logging::Logger &logger, const std::experimental::filesystem::pa
         std::function<std::string(Edge &)> labeler = readStorage.labeler() + storage.labeler();
         printDot(dir / "paths" / contig.getId() / (stage_name + ".dot"), comp,labeler);
     }
+    std::ofstream ref_os;
+    ref_os.open(dir / (stage_name + ".ref"));
+    for(Contig &contig : ref){
+        ref_os << contig.getId() << std::endl;
+        for(const PerfectAlignment<Contig, Edge> &al : GraphAligner(dbg).carefulAlign(contig)) {
+            ref_os << al.seg_from << " " << al.seg_to << std::endl;
+        }
+    }
+    ref_os.close();
 }
 
 std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> InitialCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
@@ -123,14 +133,15 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         PrintPaths(logger, dir/ "state_dump", "initial", dbg, readStorage, paths_lib, true);
         correctAT(logger, readStorage, k, threads);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 800, 4, threads);
-        PrintPaths(logger, dir/ "state_dump", "mk250", dbg, readStorage, paths_lib, true);
-        RemoveUncovered(logger, threads, dbg, {&readStorage}, std::max<size_t>(k * 5 / 2, 3000));
+        PrintPaths(logger, dir/ "state_dump", "mk800", dbg, readStorage, paths_lib, true);
+        RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 5 / 2, 3000));
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 2000, 4, threads);
-        PrintPaths(logger, dir/ "state_dump", "mk1000", dbg, readStorage, paths_lib, true);
-        RemoveUncovered(logger, threads, dbg, {&readStorage}, std::max<size_t>(k * 7 / 2, 5000));
+        PrintPaths(logger, dir/ "state_dump", "mk2000", dbg, readStorage, paths_lib, true);
+        RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 7 / 2, 5000));
         correctAT(logger, readStorage, k, threads);
-        ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3000, 4, threads);
-        RemoveUncovered(logger, threads, dbg, {&readStorage});
+        correctLowCoveredRegions(logger, dbg, readStorage, refStorage, "/dev/null", threshold, reliable_coverage, k, threads, dump);
+        ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3500, 4, threads);
+        RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
         PrintPaths(logger, dir/ "state_dump", "mk3000", dbg, readStorage, paths_lib, false);
         readStorage.printFasta(logger, dir / "corrected.fasta");
         DrawSplit(Component(dbg), dir / "split");
@@ -292,7 +303,7 @@ int main(int argc, char **argv) {
                      "cov-threshold=2", "rel-threshold=7", "Cov-threshold=2", "Rel-threshold=7", "crude-threshold=3",
                      "unique-threshold=50000", "dump", "dimer-compress=1000000000,1000000000,1", "restart-from=none", "load",
                      "alternative"},
-                    {"reads", "paths"},
+                    {"reads", "paths", "ref"},
                     {"o=output-dir", "t=threads", "k=k-mer-size","w=window", "K=K-mer-size","W=Window"},
                     "Error message not implemented");
     parser.parseCL(argc, argv);
@@ -324,6 +335,9 @@ int main(int argc, char **argv) {
 
     io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     io::Library paths = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("paths"));
+    io::Library ref_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("ref"));
+
+    ref = io::SeqReader(ref_lib).readAllContigs();
 
     size_t k = std::stoi(parser.getValue("k-mer-size"));
     size_t w = std::stoi(parser.getValue("window"));

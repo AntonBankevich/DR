@@ -369,7 +369,7 @@ inline size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,
                 if(tip.len() < max_size)
                     alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
                 if (alternatives.empty())
-                    alternatives = FindPlausibleTipAlternatives(tip, std::max<size_t>(size * 3 / 100, 100), 3, dump);
+                    alternatives = FindPlausibleTipAlternatives(tip, std::max<size_t>(size * 3 / 100, 100), 3);
                 std::string new_message = "";
                 GraphAlignment substitution = processTip(logger, ss, tip, alternatives, ref_storage,
                                                          threshold, new_message, dump);
@@ -394,7 +394,7 @@ inline size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,
                 if(tip.len() < max_size)
                     alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
                 if (alternatives.empty())
-                    alternatives = FindPlausibleTipAlternatives(tip, std::max<size_t>(size * 3 / 100, 100), 3, dump);
+                    alternatives = FindPlausibleTipAlternatives(tip, std::max<size_t>(size * 3 / 100, 100), 3);
                 std::string new_message = "";
                 GraphAlignment substitution = processTip(logger, ss, tip, alternatives, ref_storage,
                                                          threshold, new_message, dump);

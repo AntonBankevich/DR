@@ -152,10 +152,24 @@ GraphAlignment ManyKCorrector::correctTipWithExtension(const ManyKCorrector::Tip
     }
 }
 
+GraphAlignment ManyKCorrector::correctTipWithReliable(const ManyKCorrector::Tip &tip) const {
+    size_t tlen = tip.tip.len();
+    std::vector<dbg::GraphAlignment> alternatives = FindPlausibleTipAlternatives(tip.tip, std::max<size_t>(tlen / 100, 20), 3);
+    if(alternatives.size() == 1)
+        return alternatives[0];
+    else
+        return tip.tip;
+}
+
 GraphAlignment ManyKCorrector::correctTip(const ManyKCorrector::Tip &tip, std::string &message) const {
     GraphAlignment correction = correctTipWithExtension(tip);
     if(correction != tip.tip) {
         message = "te";
+        return correction;
+    }
+     correction = correctTipWithReliable(tip);
+    if(correction != tip.tip) {
+        message = "tr";
         return correction;
     }
 }
@@ -199,7 +213,7 @@ GraphAlignment ManyKCorrector::correctBulge(const ManyKCorrector::Bulge &bulge, 
     }
     corrected = correctBulgeWithReliable(bulge);
     if(corrected != bulge.bulge) {
-        message = "bu";
+        message = "br";
         return corrected;
     }
     message = "";

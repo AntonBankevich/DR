@@ -178,7 +178,7 @@ inline std::vector<dbg::GraphAlignment> FindPlausibleBulgeAlternatives(const dbg
 }
 
 inline std::vector<dbg::GraphAlignment> FindPlausibleTipAlternatives(const dbg::GraphAlignment &path,
-                                                                size_t max_diff, double min_cov, bool dump) {
+                                                                size_t max_diff, double min_cov) {
     size_t k = path.start().seq.size();
     size_t max_len = path.len() + max_diff;
     std::vector<dbg::GraphAlignment> res;
@@ -195,8 +195,7 @@ inline std::vector<dbg::GraphAlignment> FindPlausibleTipAlternatives(const dbg::
             forward = false;
             if(len >= tip_len + max_diff) {
                 res.emplace_back(alternative);
-                if(dump)
-                if(dump && res.size() > 10) {
+                if(res.size() > 10) {
                     return {path};
                 }
             } else {
