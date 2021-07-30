@@ -450,3 +450,16 @@ void RecordStorage::printFullAlignments(logging::Logger &logger, const std::expe
     }
     os.close();
 }
+
+void RecordStorage::updateExtensionSize(logging::Logger &logger, size_t threads, size_t new_max_extension) {
+    logger << "Updating stored read subpaths size" << std::endl;
+    for(auto &it : this->data) {
+        it.second.clear();
+    }
+    this->max_len = new_max_extension;
+#pragma omp parallel for default(none)
+    for(size_t i = 0; i < size(); i++) {
+        addSubpath(reads[i].path);
+        addSubpath(reads[i].path.RC());
+    }
+}

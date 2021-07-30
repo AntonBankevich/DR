@@ -29,7 +29,7 @@ ManyKCorrector::ReadRecord ManyKCorrector::splitRead(GraphAlignment &&read_path)
     std::vector<size_t> next_reliable;
     calculateReliable(read_path, last_reliable, next_reliable);
     std::vector<size_t> positions = calculateLowRegions(last_reliable, next_reliable, read_path);
-    mergeLow(read_path, positions, 500);
+    mergeLow(read_path, positions, 200);
     if(positions.size() > 0 && positions[0] == 0) {
         positions = std::vector<size_t>(positions.begin() + 1, positions.end());
     } else {

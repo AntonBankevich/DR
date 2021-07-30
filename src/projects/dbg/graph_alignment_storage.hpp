@@ -42,6 +42,7 @@ private:
 
     void addPath(const Sequence &seq);
     void removePath(const Sequence &seq);
+    void clear() {paths.clear();}
 public:
     explicit VertexRecord(Vertex &_v) : v(_v) {}
     VertexRecord(const VertexRecord &) = delete;
@@ -159,6 +160,7 @@ public:
 
     template<class I>
     void fill(I begin, I end, SparseDBG &dbg, size_t min_read_size, logging::Logger &logger, size_t threads);
+    void updateExtensionSize(logging::Logger &logger, size_t threads, size_t new_max_extension);
     void applyCorrections(logging::Logger &logger, size_t threads);
     void printAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const;
     void printFasta(logging::Logger &logger, const std::experimental::filesystem::path &path) const;
@@ -199,7 +201,6 @@ void RecordStorage::fill(I begin, I end, SparseDBG &dbg, size_t min_read_size, l
     }
     logger.info() << "Alignment collection finished. Total length of alignments is " << cnt.get() << std::endl;
 }
-
 
 //struct GraphError {
 //    AlignedRead *read;
