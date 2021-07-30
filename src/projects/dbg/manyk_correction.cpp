@@ -167,11 +167,13 @@ GraphAlignment ManyKCorrector::correctTip(const ManyKCorrector::Tip &tip, std::s
         message = "te";
         return correction;
     }
-     correction = correctTipWithReliable(tip);
+    correction = correctTipWithReliable(tip);
     if(correction != tip.tip) {
         message = "tr";
         return correction;
     }
+    message = "";
+    return tip.tip;
 }
 
 GraphAlignment ManyKCorrector::uniqueExtension(const GraphAlignment &base, size_t max_len) const {
