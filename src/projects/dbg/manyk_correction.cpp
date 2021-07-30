@@ -101,8 +101,8 @@ GraphAlignment ManyKCorrector::correctRead(GraphAlignment &&read_path, string &m
         GraphAlignment tc = correctTip(tip, tip_message);
         VERIFY(tc.start() == tip.tip.start());
         VERIFY(tc.front().left == 0);
-        if(!message.empty()) {
-            messages.emplace_back("i" + message + logging::itos(K));
+        if(!tip_message.empty()) {
+            messages.emplace_back("i" + tip_message + logging::itos(K));
             messages.emplace_back(logging::itos(tip.tip.len()));
             messages.emplace_back(logging::itos(tc.len()));
         }
@@ -128,8 +128,8 @@ GraphAlignment ManyKCorrector::correctRead(GraphAlignment &&read_path, string &m
         GraphAlignment tc = correctTip(tip, tip_message);
         VERIFY(tc.start() == tip.tip.start());
         VERIFY(tc.front().left == 0);
-        if(!message.empty()) {
-            messages.emplace_back("o" + message + logging::itos(K));
+        if(!tip_message.empty()) {
+            messages.emplace_back("o" + tip_message + logging::itos(K));
             messages.emplace_back(logging::itos(tip.tip.len()));
             messages.emplace_back(logging::itos(tc.len()));
         }

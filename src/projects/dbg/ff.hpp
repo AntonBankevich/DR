@@ -148,11 +148,6 @@ public:
             std::vector<int> path = bfs(source, sink);
             if(path.empty())
                 return false;
-            std::cout << "New path" << std::endl;
-            for(int x : path) {
-                std::cout << x << " ";
-            }
-            std::cout << std::endl;
             pushFlow(path, 1);
         }
         return true;
