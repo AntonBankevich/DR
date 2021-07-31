@@ -168,7 +168,7 @@ inline std::vector<dbg::GraphAlignment> FindPlausibleBulgeAlternatives(const dbg
                         forward = true;
                         break;
                     } else if (&edge == &old_edge) {
-                        found - true;
+                        found = true;
                     }
                 }
             }
