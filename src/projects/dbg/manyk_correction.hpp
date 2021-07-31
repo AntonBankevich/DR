@@ -22,14 +22,13 @@ private:
         std::vector<size_t> switch_positions;
         ReadRecord(GraphAlignment &&read, std::vector<size_t> &&switchPositions) :
                         read(read), switch_positions(switchPositions) {}
-        bool isCorrectable() const {
-            return !switch_positions.empty();
-        }
+        bool isPerfect() const {return blockNum() == 1 && !hasIncomingTip() && !hasOutgoingTip();}
+        bool isBad() const {return switch_positions.size() == 0;}
+        size_t blockNum() const {return switch_positions.size() / 2;}
+        GraphAlignment getBlock(size_t num) const;
         size_t bulgeNum() const{return (switch_positions.size() - 2) / 2;}
         Bulge getBulge(size_t num);
-        bool hasIncomingTip() const {
-            return !switch_positions.empty() && switch_positions[0] > 0;
-        }
+        bool hasIncomingTip() const {return !switch_positions.empty() && switch_positions[0] > 0;}
         bool hasOutgoingTip() const {
             return !switch_positions.empty() && switch_positions.back() < read.size();
         }

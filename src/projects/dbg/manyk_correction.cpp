@@ -90,7 +90,7 @@ ManyKCorrector::calculateLowRegions(const std::vector<size_t> &last_reliable, co
 GraphAlignment ManyKCorrector::correctRead(GraphAlignment &&read_path, string &message) const {
     ReadRecord rr = splitRead(std::move(read_path));
     message = "";
-    if(!rr.isCorrectable()) {
+    if(rr.isPerfect() || rr.isBad()) {
         return std::move(rr.read);
     }
     std::vector<std::string> messages;
@@ -107,8 +107,8 @@ GraphAlignment ManyKCorrector::correctRead(GraphAlignment &&read_path, string &m
             messages.emplace_back(logging::itos(tc.len()));
         }
         corrected += tc.RC();
-        corrected += tip.left.RC();
     }
+    corrected += rr.getBlock(0);
     for(size_t i = 0; i < rr.bulgeNum(); i++) {
         Bulge bulge = rr.getBulge(i);
         std::string bulge_message;
@@ -137,6 +137,10 @@ GraphAlignment ManyKCorrector::correctRead(GraphAlignment &&read_path, string &m
         corrected += tc;
     }
     message = join("_", messages);
+    if(corrected.len() < 100) {
+#pragma omp critical
+            std::cout << corrected.len() << " " << message << "\noppa " << rr.read.str(true) << "\noppa " << corrected.str(true) << std::endl;
+    }
     return std::move(corrected);
 }
 
@@ -333,6 +337,10 @@ ManyKCorrector::Tip ManyKCorrector::ReadRecord::getOutgoingTip() {
 ManyKCorrector::Tip ManyKCorrector::ReadRecord::getIncomingTip() {
     return {read.subalignment(switch_positions[0], switch_positions[1]).RC(),
             read.subalignment(0, switch_positions[0]).RC()};
+}
+
+GraphAlignment ManyKCorrector::ReadRecord::getBlock(size_t num) const {
+    return read.subalignment(switch_positions[num * 2], switch_positions[num * 2 + 1]);
 }
 
 size_t ManyKCorrect(logging::Logger &logger, SparseDBG &dbg, RecordStorage &reads_storage, double threshold,
