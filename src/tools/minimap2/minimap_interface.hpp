@@ -7,16 +7,9 @@
 #include <vector>
 #include <string>
 #include "minimap.h"
+#include "sequences/contigs.hpp"
 
 void destroyIndex(std::vector<mm_idx_t *> & ref);
-
-class RawSequence {
-public:
-    size_t id;
-    const std::string seq;
-    RawSequence(size_t _id, std::string _seq): id(_id), seq(std::move(_seq)) {
-    }
-};
 
 class RawSegment {
 public:

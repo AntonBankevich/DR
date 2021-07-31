@@ -142,7 +142,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         correctLowCoveredRegions(logger, dbg, readStorage, refStorage, "/dev/null", threshold, reliable_coverage, k, threads, dump);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3500, 4, threads);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
-        PrintPaths(logger, dir/ "state_dump", "mk3000", dbg, readStorage, paths_lib, false);
+        PrintPaths(logger, dir/ "state_dump", "mk3500", dbg, readStorage, paths_lib, false);
         readStorage.printFasta(logger, dir / "corrected.fasta");
         DrawSplit(Component(dbg), dir / "split");
         dbg.printFastaOld(dir / "graph.fasta");

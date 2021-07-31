@@ -76,7 +76,7 @@ void PrintContigs(ParallelRecordCollector<Contig> &collector, const std::experim
 }
 
 int main(int argc, char **argv) {
-    CLParser parser({"reference=", "downsample=none", "threads=8"}, {"reads"},
+    CLParser parser({"reference=", "downsample=none", "threads=8", "dimer-compress=1000000000,1000000000,1"}, {"reads"},
                     {"t=threads"});
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
@@ -89,6 +89,7 @@ int main(int argc, char **argv) {
     logging::Logger logger;
     logger.info() << "Reading genome" << std::endl;
     StringContig::homopolymer_compressing = true;
+    StringContig::SetDimerParameters(parser.getValue("dimer-compress"));
     std::vector<Contig> ref = io::SeqReader(parser.getValue("reference")).readAllContigs();
     SequenceBuilder sb;
     sb.appendAll(ref.begin(), ref.end());
