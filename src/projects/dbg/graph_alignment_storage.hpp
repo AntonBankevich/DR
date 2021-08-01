@@ -131,6 +131,15 @@ public:
     typedef typename std::vector<AlignedRead>::iterator iterator;
     typedef typename std::vector<AlignedRead>::const_iterator const_iterator;
 
+    RecordStorage &operator=(RecordStorage &&other) noexcept {
+        reads = std::move(other.reads);
+        data = std::move(other.data);
+        std::swap(min_len, other.min_len);
+        std::swap(max_len, other.max_len);
+        std::swap(track_cov, other.track_cov);
+        return *this;
+    }
+
     const VertexRecord &getRecord(const Vertex &v) const {return data.find(&v)->second;}
     iterator begin() {return reads.begin();}
     iterator end() {return reads.end();}

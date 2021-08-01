@@ -29,7 +29,7 @@ namespace dbg {
             }
         }
         for (const auto &hash : component.v) {
-            const Vertex &vertex = component.graph.getVertex(hash);
+            const Vertex &vertex = component.graph().getVertex(hash);
             for (const Edge &out_edge : vertex) {
                 std::string outid = out_edge.oldId();
                 bool outsign = vertex.isCanonical(out_edge);
@@ -37,7 +37,7 @@ namespace dbg {
                     std::string incid = inc_edge.oldId();
                     bool incsign = !vertex.rc().isCanonical(inc_edge);
                     out << "L\t" << incid << "\t" << (incsign ? "+" : "-") << "\t" << outid << "\t"
-                        << (outsign ? "+" : "-") << "\t" << component.graph.hasher().getK() << "M" << std::endl;
+                        << (outsign ? "+" : "-") << "\t" << component.graph().hasher().getK() << "M" << std::endl;
                 }
             }
         }

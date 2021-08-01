@@ -4,7 +4,7 @@
 
 std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::function<bool(const Edge &)> &is_unique) {
     size_t k = dbg.hasher().getK();
-    std::vector<Component> comps = ConditionSplitter(is_unique).split(dbg);
+    std::vector<Component> comps = ConditionSplitter(is_unique).splitGraph(dbg);
     std::vector<std::ofstream *> os;
     std::vector<std::ofstream *> alignments;
     std::vector<Subdataset> result;
@@ -29,7 +29,7 @@ std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::
         dot.close();
     }
     for(AlignedRead &read : readStorage) {
-        if(!read.valid())
+        if(!read.valid() || read.path.size() == 1)
             continue;
         GraphAlignment al = read.path.getAlignment();
         Sequence seq = al.Seq();
@@ -41,7 +41,7 @@ std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::
             << " " << rc.cpath().str() << "\n";
         std::string alignment_record = ss.str();
         for(size_t j = 0; j < result.size(); j++) {
-            for(size_t i = 0; i <= al.size(); i++) {
+            for(size_t i = 1; i < al.size(); i++) {
                 if(result[j].component.contains(al.getVertex(i))) {
                     *os[j] << ">" << read.id << "\n" << seq << "\n";
                     *alignments[j] << alignment_record;
@@ -61,11 +61,13 @@ std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::
     return std::move(result);
 }
 
-std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size_t threads) {
+std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size_t threads,
+                              const std::function<bool(const Edge &)> &is_unique) {
     logger.info() << "Splitting dataset and printing subdatasets to disk" << std::endl;
-    std::vector<Subdataset> subdatasets = SplitDataset([](const Edge &){return false;});
+    std::vector<Subdataset> subdatasets = SplitDataset(is_unique);
     logger.info() << "Running repeat resolution" << std::endl;
     std::string COMMAND = "python3 resolution/sequence_graph/path_graph_multik.py -i {} -o {}";
+    std::sort(subdatasets.begin(), subdatasets.end());
 #pragma omp parallel for default(none) shared(subdatasets, COMMAND)
     for(size_t snum = 0; snum < subdatasets.size(); snum++) {
         Subdataset &subdataset = subdatasets[snum];
@@ -102,11 +104,115 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
         GraphAlignmentStorage storage(dbg);
         for(Contig &contig : contigs) {
             storage.fill(contig);
+            res.emplace_back(contig);
         }
         printDot(subdataset.dir / "graph_with_contigs.dot", subdataset.component, storage.labeler());
     }
     logger.info() << "Finished repeat resolution" << std::endl;
     return res.collect();
+}
+
+std::vector<Contig> RepeatResolver::CollectResults(logging::Logger &logger, size_t threads, const std::vector<Contig> &contigs,
+                                   const std::function<bool(const Edge &)> &is_unique) {
+    logger.info() << "Merging results from repeat resolution of subcomponents"<< std::endl;
+    logger.info() << "Collecting partial results"<< std::endl;
+    ParallelRecordCollector<GraphAlignment> paths(threads);
+    omp_set_num_threads(threads);
+//#pragma omp parallel default(none) shared(contigs, is_unique, paths)
+    for(size_t i = 0; i < contigs.size(); i++) {
+        GraphAlignment al = GraphAligner(dbg).align(contigs[i].seq);
+        if(al.size() == 1 && is_unique(al[0].contig()))
+            continue;
+        paths.emplace_back(al);
+        paths.emplace_back(al.RC());
+    }
+    std::vector<GraphAlignment> path_list = paths.collect();
+    logger.info() << "Linking contigs"<< std::endl;
+    std::unordered_map<dbg::Edge *, size_t> unique_map;
+    for(size_t i = 0; i < path_list.size(); i++) {
+        Edge & edge = path_list[i].front().contig();
+        if(path_list[i].size() == 1 || !is_unique(edge) || path_list[i][0].size() < path_list[i][0].contig().size())
+            continue;
+        if(unique_map.find(&edge) != unique_map.end()) {
+            unique_map[&edge] = size_t(-1);
+            unique_map[&edge.rc()] = size_t(-1);
+        } else
+            unique_map[&edge] = i;
+    }
+    logger.info() << "Merging contigs"<< std::endl;
+    std::vector<Sequence> res;
+    std::unordered_set<Edge *> visited_unique;
+    for(size_t i = 0; i < path_list.size(); i++) {
+        if(!path_list[i].valid()) {
+            continue;
+        }
+        size_t cur = i;
+        while(true) {
+            Edge &last = path_list[cur].back().contig();
+            if(unique_map.find(&last) == unique_map.end() || unique_map[&last] == size_t(-1))
+                break;
+            cur = unique_map[&last];
+            if(cur == i)
+                break;
+        }
+        cur = cur ^ 1ull;
+        size_t start = cur;
+        GraphAlignment merged_path;
+        while(true) {
+            merged_path += path_list[cur].subalignment(1);
+            Edge &last = path_list[cur].back().contig();
+            path_list[cur] = {};
+            if(unique_map.find(&last) == unique_map.end() || unique_map[&last] == size_t(-1))
+                break;
+            cur = unique_map[&last];
+            if(cur == start)
+                break;
+        }
+        for(Segment<Edge> &seg : merged_path) {
+            if(is_unique(seg.contig())) {
+                visited_unique.emplace(&seg.contig());
+                visited_unique.emplace(&seg.contig().rc());
+            }
+        }
+        Sequence seq = merged_path.Seq();
+        if(!seq < seq)
+            seq = !seq;
+        res.emplace_back(seq);
+        cur = cur ^ 1ull;
+        if(!path_list[cur].valid())
+            continue;
+        start = cur;
+        while(true) {
+            Edge &last = path_list[cur].back().contig();
+            path_list[cur] = {};
+            if(unique_map.find(&last) == unique_map.end() || unique_map[&last] == size_t(-1))
+                break;
+            cur = unique_map[&last];
+            if(cur == start)
+                break;
+        }
+    }
+    for(Edge &edge : dbg.edgesUnique()) {
+        if(is_unique(edge) && visited_unique.find(&edge) == visited_unique.end()) {
+            Sequence seq = edge.start()->seq + edge.seq;
+            if(!seq < seq)
+                seq = !seq;
+            res.emplace_back(seq);
+        }
+    }
+    logger.info() << "Sorting final contigs"<< std::endl;
+    std::function<bool(const Sequence &, const Sequence &)> cmp = [](const Sequence &s1, const Sequence &s2){
+        if (s1.size() != s2.size())
+            return s1.size() > s2.size();
+        return s1 < s2;
+    };
+    std::sort(res.begin(), res.end(), cmp);
+    std::vector<Contig> final;
+    for(size_t i = 0; i < res.size(); i++) {
+        final.emplace_back(res[i], logging::itos(i));
+    }
+    logger.info() << "Finished clooecting repeat resolution results"<< std::endl;
+    return std::move(final);
 }
 
 struct RawSeg {
@@ -127,6 +233,17 @@ struct RawSeg {
         return id == other.id && left == other.left && right == other.right;
     }
 };
+
+void PrintFasta(const std::vector<Contig> &contigs, const std::experimental::filesystem::path &path) {
+    std::ofstream resos;
+    resos.open(path);
+    std::vector<Contig> all_contigs;
+    for (const Contig &contig : contigs) {
+        resos << ">" << contig.id << "\n" << contig.seq << std::endl;
+    }
+    resos.close();
+}
+
 void PrintAlignments(logging::Logger &logger, size_t threads, std::vector<Contig> &contigs,
                      const RecordStorage &readStorage, size_t k, size_t w,
                      const std::experimental::filesystem::path &dir) {

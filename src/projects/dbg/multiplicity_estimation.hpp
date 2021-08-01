@@ -243,7 +243,7 @@ public:
     void update(logging::Logger &logger, double rel_coverage, const std::experimental::filesystem::path &dir) {
         ensure_dir_existance(dir);
         size_t cnt = 0;
-        for(const Component &component : UniqueSplitter(bounds).split(dbg)) {
+        for(const Component &component : UniqueSplitter(bounds).splitGraph(dbg)) {
             if(component.size() <= 2)
                 continue;
             cnt += 1;

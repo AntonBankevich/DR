@@ -121,21 +121,21 @@ inline void printDot(std::ostream &os, const Component &component, const std::fu
     os << "digraph {\nnodesep = 0.5;\n";
     std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> extended;
     for(hashing::htype vid : component.v)
-        for(Vertex * vit : component.graph.getVertices(vid)) {
+        for(Vertex * vit : component.graph().getVertices(vid)) {
             Vertex &start = *vit;
             for (Edge &edge : start) {
                 extended.emplace(edge.end()->hash());
             }
         }
     for(hashing::htype vid : extended) {
-        for(Vertex * vit : component.graph.getVertices(vid)) {
+        for(Vertex * vit : component.graph().getVertices(vid)) {
             Vertex &vert = *vit;
             std::string color = component.covers(vert) ? "white" : "yellow";
             os << vert.getShortId() << " [style=filled fillcolor=\"" + color + "\"]\n";
         }
     }
     for(hashing::htype vid : component.v) {
-        for(Vertex * vit : component.graph.getVertices(vid)) {
+        for(Vertex * vit : component.graph().getVertices(vid)) {
             Vertex &start = *vit;
             for (Edge &edge : start) {
                 Vertex &end = *edge.end();

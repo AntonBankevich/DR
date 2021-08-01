@@ -7,8 +7,12 @@
 
 namespace dbg {
     class Component {
+    private:
+        SparseDBG *_graph;
     public:
-        SparseDBG &graph;
+        SparseDBG &graph() const {
+            return *_graph;
+        }
         std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> v;
         typedef std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>>::const_iterator iterator;
         struct EdgeRec {
@@ -35,7 +39,7 @@ namespace dbg {
         size_t borderEdges() const {
             size_t res = 0;
             for (hashing::htype hash : v) {
-                const Vertex &vert = graph.getVertex(hash);
+                const Vertex &vert = graph().getVertex(hash);
                 for(Edge &edge : vert) {
                     if(!contains(*edge.end()))
                         res++;
@@ -51,7 +55,7 @@ namespace dbg {
         size_t isAcyclic() const {
             std::unordered_set<Vertex *> visited;
             for(hashing::htype hash : v) {
-                Vertex & compStart = graph.getVertex(hash);
+                Vertex & compStart = graph().getVertex(hash);
                 for(Vertex *vit : {&compStart, &compStart.rc()}) {
                     if(visited.find(vit) != visited.end())
                         continue;
@@ -85,7 +89,7 @@ namespace dbg {
             std::unordered_set<Vertex *> visited;
             size_t cnt = 0;
             for(hashing::htype hash : v) {
-                Vertex & compStart = graph.getVertex(hash);
+                Vertex & compStart = graph().getVertex(hash);
                 for(Vertex *vit : {&compStart, &compStart.rc()}) {
                     if(visited.find(vit) != visited.end())
                         continue;
@@ -124,11 +128,11 @@ namespace dbg {
         IterableStorage<ApplyingIterator<iterator, Vertex, 2>> vertices(bool unique = false) const {
             std::function<std::array<Vertex*, 2>(const hashing::htype &)> apply = [this, unique](const hashing::htype &hash) -> std::array<Vertex*, 2> {
                 size_t cur = 0;
-                Vertex &vertex = graph.getVertex(hash);
+                Vertex &vertex = graph().getVertex(hash);
                 if(unique)
-                    return {&graph.getVertex(hash)};
+                    return {&graph().getVertex(hash)};
                 else
-                    return graph.getVertices(hash);
+                    return graph().getVertices(hash);
             };
             ApplyingIterator<iterator, Vertex, 2> begin(v.begin(), v.end(), apply);
             ApplyingIterator<iterator, Vertex, 2> end(v.end(), v.end(), apply);
@@ -143,7 +147,7 @@ namespace dbg {
             std::function<std::array<Edge*, 16>(const hashing::htype &)> apply = [this, inner, unique](const hashing::htype &hash) {
                 std::array<Edge*, 16> res = {};
                 size_t cur = 0;
-                for(Vertex * vertex : graph.getVertices(hash)) {
+                for(Vertex * vertex : graph().getVertices(hash)) {
                     for (Edge &edge : *vertex) {
                         bool isInner = contains(*edge.end());
                         if(inner && !isInner)
@@ -205,11 +209,11 @@ namespace dbg {
         }
 
         template<class I>
-        Component(SparseDBG &_graph, I begin, I end) : graph(_graph), v(begin, end) {
+        Component(SparseDBG &_graph, I begin, I end) : _graph(&_graph), v(begin, end) {
         }
 
-        Component(SparseDBG &_graph) : graph(_graph) {
-            for (auto &vert : graph)
+        explicit Component(SparseDBG &_graph) : _graph(&_graph) {
+            for (auto &vert : graph())
                 v.emplace(vert.second.hash());
         }
 
@@ -341,8 +345,8 @@ namespace dbg {
 
     class AbstractSplitter {
     public:
-        virtual std::vector<Component> split(Component component) const = 0;
-        std::vector<Component> split(SparseDBG &dbg) const {
+        virtual std::vector<Component> split(const Component &component) const = 0;
+        std::vector<Component> splitGraph(SparseDBG &dbg) const {
             return split(Component(dbg));
         }
     };
@@ -355,8 +359,8 @@ namespace dbg {
         explicit ConditionSplitter(std::function<bool(const Edge &)> splitEdge) : splitEdge(std::move(splitEdge)) {
         }
 
-        std::vector<Component> split(Component comp) const override {
-            SparseDBG &dbg = comp.graph;
+        std::vector<Component> split(const Component &comp) const override {
+            SparseDBG &dbg = comp.graph();
             std::vector<Component> res;
             std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> visited;
             for (const hashing::htype &vid : comp.v) {

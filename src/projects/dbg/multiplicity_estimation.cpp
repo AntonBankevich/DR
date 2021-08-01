@@ -4,7 +4,7 @@ size_t BoundRecord::inf = 1000000000000ul;
 
 MappedNetwork::MappedNetwork(const Component &component, const std::function<bool(const dbg::Edge &)> &unique,
                              double rel_coverage, double unique_coverage) {
-    dbg::SparseDBG &graph = component.graph;
+    dbg::SparseDBG &graph = component.graph();
     for(hashing::htype hash : component.v) {
         for(dbg::Vertex *v_it : {&graph.getVertex(hash), &graph.getVertex(hash).rc()}) {
             dbg::Vertex &v = *v_it;

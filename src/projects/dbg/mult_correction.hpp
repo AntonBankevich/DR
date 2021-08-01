@@ -143,7 +143,7 @@ void NewMultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
     const std::experimental::filesystem::path fig_after = dir / "after.dot";
     const std::experimental::filesystem::path out_reads = dir / "corrected.fasta";
     const std::experimental::filesystem::path out_alignments = dir / "alignments.txt";
-    const std::experimental::filesystem::path multiplicity_figures = dir / "figs";
+    const std::experimental::filesystem::path multiplicity_figures = dir / "mult_figs";
 
     recreate_dir(multiplicity_figures);
     SetUniquenessStorage initial_unique = BulgePathAnalyser(sdbg, unique_threshold).uniqueEdges();
@@ -161,7 +161,7 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
 //    const std::experimental::filesystem::path out_reads = dir / "corrected.fasta";
 //    const std::experimental::filesystem::path out_alignments = dir / "alignments.txt";
     const std::experimental::filesystem::path full_alignments = dir / "full_alignments.txt";
-    const std::experimental::filesystem::path multiplicity_figures = dir / "figs";
+    const std::experimental::filesystem::path multiplicity_figures = dir / "mult_figs";
     size_t k = sdbg.hasher().getK();
     ensure_dir_existance(multiplicity_figures);
     {
