@@ -62,6 +62,7 @@ public:
     std::vector<GraphAlignment> getBulgeAlternatives(const Vertex &end, double threshold) const;
     std::vector<GraphAlignment> getTipAlternatives(size_t len, double threshold) const;
     unsigned char getUniqueExtension(const Sequence &start, size_t min_good_cov, size_t max_bad_cov) const;
+    CompactPath getFullUniqueExtension(const Sequence &start, size_t min_good_cov, size_t max_bad_cov) const;
 };
 
 inline std::ostream& operator<<(std::ostream  &os, const VertexRecord &rec) {return os << rec.str();}

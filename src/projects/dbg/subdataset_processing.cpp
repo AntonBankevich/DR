@@ -149,7 +149,8 @@ std::vector<Contig> RepeatResolver::CollectResults(logging::Logger &logger, size
         size_t cur = i;
         while(true) {
             Edge &last = path_list[cur].back().contig();
-            if(unique_map.find(&last) == unique_map.end() || unique_map[&last] == size_t(-1))
+            Segment<Edge> last_seg = path_list[cur].back();
+            if(last_seg.size() < last.size() || unique_map.find(&last) == unique_map.end() || unique_map[&last] == size_t(-1))
                 break;
             cur = unique_map[&last];
             if(cur == i)
@@ -161,15 +162,16 @@ std::vector<Contig> RepeatResolver::CollectResults(logging::Logger &logger, size
         while(true) {
             merged_path += path_list[cur].subalignment(1);
             Edge &last = path_list[cur].back().contig();
+            Segment<Edge> last_seg = path_list[cur].back();
             path_list[cur] = {};
-            if(unique_map.find(&last) == unique_map.end() || unique_map[&last] == size_t(-1))
+            if(last_seg.size() < last.size() || unique_map.find(&last) == unique_map.end() || unique_map[&last] == size_t(-1))
                 break;
             cur = unique_map[&last];
             if(cur == start)
                 break;
         }
         for(Segment<Edge> &seg : merged_path) {
-            if(is_unique(seg.contig())) {
+            if(is_unique(seg.contig()) && seg.size() == seg.contig().size()) {
                 visited_unique.emplace(&seg.contig());
                 visited_unique.emplace(&seg.contig().rc());
             }
@@ -184,8 +186,9 @@ std::vector<Contig> RepeatResolver::CollectResults(logging::Logger &logger, size
         start = cur;
         while(true) {
             Edge &last = path_list[cur].back().contig();
+            Segment<Edge> last_seg = path_list[cur].back();
             path_list[cur] = {};
-            if(unique_map.find(&last) == unique_map.end() || unique_map[&last] == size_t(-1))
+            if(last_seg.size() < last.size() || unique_map.find(&last) == unique_map.end() || unique_map[&last] == size_t(-1))
                 break;
             cur = unique_map[&last];
             if(cur == start)

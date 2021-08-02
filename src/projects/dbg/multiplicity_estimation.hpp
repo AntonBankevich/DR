@@ -267,6 +267,36 @@ private:
     SparseDBG &dbg;
 public:
     const RecordStorage &reads_storage;
+
+    void markPseudoHets() const {
+        for(Edge &edge : dbg.edges()) {
+            if(!isUnique(edge) || edge.end()->outDeg() != 2 || edge.end()->inDeg() != 1)
+                continue;
+            Vertex &start = *edge.end();
+            Edge &correct = start[0].getCoverage() > start[1].getCoverage() ? start[0] : start[1];
+            Edge &incorrect = start[0].getCoverage() <= start[1].getCoverage() ? start[0] : start[1];
+            incorrect.is_reliable = false;
+            incorrect.rc().is_reliable = false;
+            GraphAlignment cor_ext = reads_storage.getRecord(start).
+                    getFullUniqueExtension(correct.seq.Subseq(0, 1), 1, 0).getAlignment();
+            GraphAlignment incor_ext = reads_storage.getRecord(start).
+                    getFullUniqueExtension(correct.seq.Subseq(0, 1), 1, 0).getAlignment();
+            for(Segment<Edge> &seg : incor_ext) {
+                bool found= false;
+                for(Segment<Edge> &seg1 : cor_ext) {
+                    if(seg.contig() == seg1.contig()) {
+                        found = true;
+                        break;
+                    }
+                }
+                if(found)
+                    break;
+                seg.contig().is_reliable = false;
+                seg.contig().rc().is_reliable = false;
+            }
+        }
+    }
+
     void classify(logging::Logger &logger, size_t unique_len, const std::experimental::filesystem::path &dir) {
         logger.info() << "Looking for unique edges" << std::endl;
         size_t cnt = 0;
@@ -276,26 +306,9 @@ public:
         for(Edge &edge : dbg.edges()) {
             if(edge.size() > unique_len || (edge.start()->inDeg() == 0 && edge.size() > unique_len / 3)) {
                 addUnique(edge);
-                if(edge.end()->outDeg() > 1 && edge.end()->inDeg() == 1) {
-                    Edge *best = nullptr;
-                    for(Edge &out : *edge.end()) {
-                        if(best == nullptr) {
-                            best = &out;
-                            continue;
-                        } else {
-                            if (out.getCoverage() > best->getCoverage()) {
-                                best->is_reliable = false;
-                                best->rc().is_reliable = false;
-                                best = &out;
-                            } else {
-                                out.is_reliable = false;
-                                out.rc().is_reliable = false;
-                            }
-                        }
-                    }
-                }
             }
         }
+        markPseudoHets();
         std::vector<Component> split = UniqueSplitter(*this).split(Component(dbg));
         for(Component &component : split) {
             cnt += 1;

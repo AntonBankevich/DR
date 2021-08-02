@@ -419,7 +419,7 @@ inline size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,
                 if(!new_message.empty()) {
                     messages.emplace_back(new_message);
                     messages.emplace_back(logging::itos(badPath.len(), 0));
-                    messages.emplace_back(logging::itos(corrected_path.len(), 0));
+                    messages.emplace_back(logging::itos(substitution.len(), 0));
                 }
                 for (const Segment<Edge> &seg : substitution) {
                     corrected_path.push_back(seg);

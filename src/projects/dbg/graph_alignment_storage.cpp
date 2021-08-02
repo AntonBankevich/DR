@@ -118,6 +118,18 @@ std::vector<GraphAlignment> VertexRecord::getBulgeAlternatives(const Vertex &end
     return std::move(res);
 }
 
+CompactPath VertexRecord::getFullUniqueExtension(const Sequence &start, size_t min_good_cov, size_t max_bad_cov) const {
+    Sequence res = start;
+    while(true) {
+        char next = getUniqueExtension(res, min_good_cov, max_bad_cov);
+        if(next == (char)-1)
+            break;
+        std::vector<char> ext = {next};
+        res = res + Sequence(ext);
+    }
+    return {v, res};
+}
+
 unsigned char VertexRecord::getUniqueExtension(const Sequence &start, size_t min_good, size_t max_bad) const {
     std::vector<size_t> counts(4);
     for(const auto & extension : paths) {

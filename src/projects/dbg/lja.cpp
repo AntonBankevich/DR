@@ -179,6 +179,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         RecordStorage refStorage(dbg, 0, extension_size, threads, "/dev/null", false);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
+        DrawSplit(Component(dbg), dir / "before_figs", readStorage.labeler(), 25000);
         PrintPaths(logger, dir/ "state_dump", "initial", dbg, readStorage, paths_lib, false);
         initialCorrect(dbg, logger, dir / "correction.txt", readStorage, refStorage,
                        threshold, 2 * threshold, reliable_coverage, threads, dump);
@@ -195,17 +196,17 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         PrintPaths(logger, dir/ "state_dump", "uncovered2", dbg, readStorage, paths_lib, false);
         GapColserPipeline(logger, dbg, readStorage, refStorage, threads);
         PrintPaths(logger, dir/ "state_dump", "gap2", dbg, readStorage, paths_lib, false);
-        DrawSplit(Component(dbg), dir / "split_figs");
+        DrawSplit(Component(dbg), dir / "split_figs", readStorage.labeler());
         RepeatResolver rr(dbg, readStorage, dir / "split");
         std::function<bool(const dbg::Edge &)> is_unique = [unique_threshold](const Edge &edge) {
             return edge.size() > unique_threshold;
         };
         std::vector<Contig> partial_contigs = rr.ResolveRepeats(logger, threads, is_unique);
         PrintFasta(partial_contigs, dir / "partial.fasta");
-        std::vector<Contig> contigs = rr.CollectResults(logger, threads, partial_contigs, is_unique);
-        PrintAlignments(logger, threads, contigs, readStorage, k, w, dir / "uncompressing");
         readStorage.printFasta(logger, dir / "corrected.fasta");
         dbg.printFastaOld(dir / "graph.fasta");
+        std::vector<Contig> contigs = rr.CollectResults(logger, threads, partial_contigs, is_unique);
+        PrintAlignments(logger, threads, contigs, readStorage, k, w, dir / "uncompressing");
     };
     if(!skip)
         runInFork(ic_task);

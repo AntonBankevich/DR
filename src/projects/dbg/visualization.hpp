@@ -200,6 +200,11 @@ inline void DrawSplit(const Component &component, const std::experimental::files
     }
 }
 
+inline void DrawSplit(const Component &component, const std::experimental::filesystem::path &dir,
+                      const std::function<std::string(Edge &)> &labeler, size_t len = 100000) {
+    std::function<std::string(Edge &)> colorer = [](Edge &){return "black";};
+    DrawSplit(component, dir, labeler, colorer, len);
+}
 inline void DrawSplit(const Component &component, const std::experimental::filesystem::path &dir, size_t len = 100000) {
     std::function<std::string(Edge &)> labeler = [](Edge &){return "";};
     std::function<std::string(Edge &)> colorer = [](Edge &){return "black";};
