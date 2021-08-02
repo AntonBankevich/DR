@@ -146,7 +146,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         readStorage.printFasta(logger, dir / "corrected.fasta");
         DrawSplit(Component(dbg), dir / "split");
         dbg.printFastaOld(dir / "graph.fasta");
-        readStorage.printFullAlignments(logger, dir / "fullals.txt");
+//        readStorage.printFullAlignments(logger, dir / "fullals.txt");
     };
     if(!skip)
         runInFork(ic_task);

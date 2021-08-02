@@ -280,7 +280,7 @@ public:
             GraphAlignment cor_ext = reads_storage.getRecord(start).
                     getFullUniqueExtension(correct.seq.Subseq(0, 1), 1, 0).getAlignment();
             GraphAlignment incor_ext = reads_storage.getRecord(start).
-                    getFullUniqueExtension(correct.seq.Subseq(0, 1), 1, 0).getAlignment();
+                    getFullUniqueExtension(incorrect.seq.Subseq(0, 1), 1, 0).getAlignment();
             for(Segment<Edge> &seg : incor_ext) {
                 bool found= false;
                 for(Segment<Edge> &seg1 : cor_ext) {
