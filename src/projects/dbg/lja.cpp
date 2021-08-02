@@ -41,7 +41,7 @@ void PrintPaths(logging::Logger &logger, const std::experimental::filesystem::pa
         storage.fill(contig);
     }
     for(Contig &contig : paths) {
-        ensure_dir_existance(dir / contig.getId());
+        ensure_dir_existance(dir / "paths" / contig.getId());
         Component comp = small ? Component::neighbourhood(dbg, contig, dbg.hasher().getK() + 500) :
                 Component::longEdgeNeighbourhood(dbg, contig, 20000);
         std::function<std::string(Edge &)> labeler = readStorage.labeler() + storage.labeler();
