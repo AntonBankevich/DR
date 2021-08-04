@@ -453,23 +453,11 @@ struct AssemblyInfo {
         return res;
     }
 
+    std::vector<cigar_pair> getFastAln(AlignmentInfo& aln, const char * contig, const char *read) {
 
-    void processReadPair (string& read, AlignmentInfo& aln) {
-//        logger.info() << read.id << endl;
-        Sequence read_seq (read);
-        size_t rlen = read.size();
-        if (aln.rc) {
-            read_seq = !read_seq;
-            RC(aln);
-//            read = read.RC();
-        }
-        ContigInfo& current_contig = contigs[aln.contig_id];
-        string compressed_read = read_seq.str();
-        compressed_read.erase(std::unique(compressed_read.begin(), compressed_read.end()), compressed_read.end());
-        string contig_seq = current_contig.sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
         size_t cur_bandwidth = SW_BANDWIDTH;
 //strings, match, mismatch, gap_open, gap_extend, width
-        auto cigars = align_ksw( contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, cur_bandwidth);
+        auto cigars = align_ksw(contig, read, 1, -5, 5, 2, cur_bandwidth);
         auto str_cigars = str(cigars);
         size_t matched_l = matchedLength(cigars);
         bool valid_cigar = true;
@@ -483,9 +471,9 @@ struct AssemblyInfo {
                     break;
                 }
                 logger.trace() << aln.read_id << endl << str(cigars) << endl << "aln length " << aln.length()
-                               << " read length " << compressed_read.length()
+                               << " read length " << strlen(read)
                                << " matched length " << matched_l << endl;
-                cigars = align_ksw(contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, cur_bandwidth);
+                cigars = align_ksw(contig, read, 1, -5, 5, 2, cur_bandwidth);
                 size_t new_matched_len = matchedLength(cigars);
                 logger.trace() << aln.read_id << " alignment replaced using bandwindth " << cur_bandwidth << endl
                                << str(cigars) << endl;
@@ -497,51 +485,32 @@ struct AssemblyInfo {
                 matched_l = new_matched_len;
             }
         }
-/*
-        if (matched_l + 300 < aln.length() || !verifyCigar(cigars)) {
+        return cigars;
+    }
 
-//Likely long prefix clipped
-//#pragma omp critical
-            {
-                logger.trace() << aln.read_id << endl << str(cigars) << endl << "aln length " << aln.length() << " read length " << compressed_read.length()
-                              << " matched length " << matched_l << endl;
+    struct SplittedSequence {
+        vector<string> normal_fragments;
+        vector<string> complex_fragments;
+        vector<size_t> normal_shifts;
+        vector<size_t> complex_shifts;
+
+        SplittedSequence(vector<pair<size_t,size_t>> &regions, string& seq) {
+            size_t cur_start = 0;
+            for (auto i = 0; i < regions.size(); i++) {
+                normal_fragments.emplace_back(seq.substr(cur_start, regions[i].first - cur_start));
+                normal_shifts.push_back(cur_start);
+                complex_shifts.push_back(regions[i].first);
+                cur_start = regions[i].first + regions[i].second;
+                complex_fragments.emplace_back(seq.substr(regions[i].first, regions[i].second));
             }
-            //TODO: we can map to reverse complement, but do not want
-            if (matched_l < 100) {
-//#pragma omp critical
-                logger.trace() << aln.read_id << " ultrashort alignmnent, doing nothing" << endl;
-            } else {
-
-                cigars = align_ksw( contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, SW_SECOND_BANDWIDTH);
-
-//Possibly multiply by two here
-//#pragma omp critical
-                logger.trace() << aln.read_id << " alignment replaced using bandwindth "<< SW_SECOND_BANDWIDTH << endl
-                << str(cigars) << endl;
-
-            }
+            normal_fragments.emplace_back(seq.substr(cur_start));
+            normal_shifts.push_back(cur_start);
         }
-*/
-//        logger.info() << "Aligned " << minimapaln.size()<<"\n";
-//        if (minimapaln.size() == 0) {
-//            return;
-//        }
-//        logger.info() << "Shift_to " << minimapaln[0].seg_to.left << " shift from " << minimapaln[0].seg_from.left << " rc" << aln.rc << " " << minimapaln[0].cigarString()<< endl;
+    };
 
-        int cur_ind = 0;
-        std:vector<size_t> quantities;
-        quantities.resize(compressed_read.length());
+    void processFragmentAlignment(AlignmentInfo& aln, const char * contig, const char *read, size_t cont_coords, size_t read_coords, vector<size_t> &quantities, ContigInfo& current_contig) {
 
-        for (size_t i = 0; i < compressed_read.size(); i++){
-            size_t count = 0;
-            while (cur_ind < read_seq.size() && nucl(read_seq[cur_ind]) == compressed_read[i]) {
-                count ++;
-                cur_ind ++;
-            }
-            quantities[i] = count;
-        }
-        size_t cont_coords = 0; //minimapaln[0].seg_to.left;
-        size_t read_coords = 0; //minimapaln[0].seg_from.left;
+        auto cigars = getFastAln(aln, contig, read);
         size_t matches = 0;
         size_t mismatches = 0;
         size_t indels = 0;
@@ -562,19 +531,19 @@ struct AssemblyInfo {
                 if (complex_regions_iter !=  current_contig.complex_regions.end()) {
                     cur_complex_coord = complex_regions_iter->first;
                 }
+//MATCH_EPS to avoid side effects near indels
                 for (size_t i = MATCH_EPS; i + MATCH_EPS< (*it).length; i++) {
                     size_t coord = cont_coords + aln.alignment_start + i;
 
 
 //                    logger.info() << current_contig.sequence[coord]<< compressed_read[read_coords + i] << endl;
-                    if (current_contig.sequence[coord] == nucl(compressed_read[read_coords + i]) && current_contig.quantity[coord] != 255 && current_contig.sum[coord] < 60000) {
+                    if (current_contig.sequence[coord] == nucl(read[read_coords + i]) && current_contig.quantity[coord] != 255 && current_contig.sum[coord] < 60000) {
                         {
                             current_contig.quantity[coord]++;
                             current_contig.sum[coord] += quantities[read_coords + i];
                             if (current_contig.amounts[coord][0] < ContigInfo::VOTES_STORED)
 #pragma omp critical
-                                current_contig.amounts[coord][++current_contig.amounts[coord][0]] = quantities[
-                                        read_coords + i];
+                                current_contig.amounts[coord][++current_contig.amounts[coord][0]] = quantities[read_coords + i];
                         }
                         matches ++;
                     } else {
@@ -594,8 +563,6 @@ struct AssemblyInfo {
                             cur_complex_coord = complex_regions_iter->first;
                     }
                     if (coord == contig_finish) {
-#pragma omp critical
-                        current_contig.complex_strings[complex_id].push_back(uncompress(complex_start, read_coords + i, read_seq.str()));
                         contig_finish = -1;
                     }
                 }
@@ -604,12 +571,75 @@ struct AssemblyInfo {
             }
         }
 
+    }
+
+    void processReadPair (string& read, AlignmentInfo& aln) {
+//        logger.info() << read.id << endl;
+        Sequence read_seq (read);
+        size_t rlen = read.size();
+        if (aln.rc) {
+            read_seq = !read_seq;
+            RC(aln);
+//            read = read.RC();
+        }
+        ContigInfo& current_contig = contigs[aln.contig_id];
+        string compressed_read = read_seq.str();
+        compressed_read.erase(std::unique(compressed_read.begin(), compressed_read.end()), compressed_read.end());
+        string contig_seq = current_contig.sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
+
+        std:vector<size_t> quantities;
+        quantities.resize(compressed_read.length());
+
+        int cur_ind = 0;
+        for (size_t i = 0; i < compressed_read.size(); i++){
+            size_t count = 0;
+            while (cur_ind < read_seq.size() && nucl(read_seq[cur_ind]) == compressed_read[i]) {
+                count ++;
+                cur_ind ++;
+            }
+            quantities[i] = count;
+        }
+
+        auto read_complex_regions = GetComplexRegions(compressed_read);
+        vector<pair<size_t, size_t>> contig_complex_regions = GetComplexRegions(contig_seq);
+//Do not want to take them from global contigs' complex regions because of side effects
+/*
+        auto complex_regions_iter = lower_bound(current_contig.complex_regions.begin(), current_contig.complex_regions.end(),make_pair(aln.alignment_start, size_t(0)));
+        while(complex_regions_iter !=  current_contig.complex_regions.end()) {
+            //complex region completely inside alignment, NEED TO check start also
+            if (complex_regions_iter->first + complex_regions_iter->second < aln.alignment_end) {
+                contig_complex_regions.push_back(*complex_regions_iter);
+                complex_regions_iter ++;
+            } else {
+                break;
+            }
+        }
+        */
+        size_t contig_complex_size = contig_complex_regions.size();
+        size_t read_complex_size = read_complex_regions.size();
+
+        if (contig_complex_regions.size() != read_complex_regions.size()) {
+            logger.info() << aln.read_id << " different complex regions amounts " << contig_complex_size << " vs " << read_complex_size << endl;
+        }
+
+
+        SplittedSequence read_splt(read_complex_regions, compressed_read);
+        SplittedSequence contig_splt(contig_complex_regions, contig_seq);
+        for (size_t i = 0; i < read_splt.normal_fragments.size(); i ++) {
+
+//TODO  HERE SHOULD BE SIZE CHECK
+            processFragmentAlignment(aln, contig_splt.normal_fragments[i].c_str(), read_splt.normal_fragments[i].c_str(), contig_splt.normal_shifts[i], read_splt.normal_shifts[i], quantities, current_contig);
+        }
+        for (auto i = 0; i < read_splt.complex_fragments.size(); i++) {
+//TODO: check on sizes;
+            size_t pos = contig_splt.complex_shifts[i] + aln.alignment_start;
+
+            }
+        }
+
+
 //        logger.info() << "Matches "<< matches << " mismatches " << mismatches <<" indels " << indels << endl;
         return;
-//ssw align check;
-//       aligner.Align(compressed_read.c_str(), contig_seq.c_str(), contig_seq.length(), filter, &alignment, maskLen);
-//        logger.info() << "Cigar " << alignment.cigar_string << endl;
-
     }
     void removeWhitespace(string & s){
         auto white = s.find(' ');
