@@ -15,8 +15,9 @@ private:
     std::experimental::filesystem::path dir;
 
     struct Subdataset {
-        Subdataset(Component component, std::experimental::filesystem::path dir) : component(std::move(component)),
-                                                                                                 dir(std::move(dir)) {}
+        Subdataset(size_t id, Component component, std::experimental::filesystem::path dir) :
+                            id(id), component(std::move(component)), dir(std::move(dir)) {}
+        size_t id;
         Component component;
         std::experimental::filesystem::path dir;
         bool operator<(const Subdataset &other) const {

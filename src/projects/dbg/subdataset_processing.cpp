@@ -12,7 +12,7 @@ std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::
     for(size_t i = 0; i < comps.size(); i++) {
         os.emplace_back(new std::ofstream());
         alignments.emplace_back(new std::ofstream());
-        result.emplace_back(comps[i], dir / std::to_string(i));
+        result.emplace_back(i, comps[i], dir / std::to_string(i));
         ensure_dir_existance(result.back().dir);
         os.back()->open(result.back().dir / "corrected.fasta");
         alignments.back()->open(result.back().dir / "alignments.txt");
@@ -99,7 +99,7 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
         for (StringContig stringContig : io::SeqReader(contig_lib)) {
             Contig contig = stringContig.makeContig();
             if (contig.seq <= !contig.seq) {
-                contigs.emplace_back(contig.seq, logging::itos(snum, 1) + "." + contig.id);
+                contigs.emplace_back(contig.seq, logging::itos(subdataset.id, 1) + "." + contig.id);
             }
         }
         GraphAlignmentStorage storage(dbg);
