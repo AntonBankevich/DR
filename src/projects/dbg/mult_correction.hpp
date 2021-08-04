@@ -18,9 +18,86 @@ void printAl(logging::Logger &logger, std::unordered_map<const Edge *, CompactPa
     logger << std::endl;
 }
 
+struct UEdge {
+    UEdge(Edge *from, Edge *to, const CompactPath &cpath, size_t support) : from(from), to(to), cpath(cpath),
+                                                                            support(support) {}
+
+    Edge *from;
+    Edge *to;
+    CompactPath cpath;
+    size_t support;
+
+    UEdge RC() const {
+        return {&to->rc(), &from->rc(), cpath.RC(), support};
+    }
+};
+//std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger, SparseDBG &dbg,
+//                                                                         const RecordStorage &reads_storage, const UniqueClassificator &classificator) {
+//    std::unordered_map<Edge *, std::vector<UEdge>> bg;
+//    for(Edge &edge : dbg.edges()) {
+//        if(!classificator.isUnique(edge))
+//            continue;
+//        Vertex &start = *edge.start();
+//        std::vector<Sequence> extensions;
+//        for(auto & c : reads_storage.getRecord(start)) {
+//            GraphAlignment al = CompactPath(start, c.first).getAlignment();
+//            if(al.front().contig() != edge)
+//                continue;
+//            for(size_t i = 0; i < al.size(); i++) {
+//                Segment<Edge> &seg = al[i];
+//                if(classificator.isUnique(seg.contig())) {
+//                    al = al.subalignment(0, i + 1);
+//                    break;
+//                }
+//            }
+//            if(!classificator.isUnique(al.back().contig()))
+//                continue;
+//            extensions.emplace_back(CompactPath(al).cpath());
+//        }
+//        std::sort(extensions.begin(), extensions.end());
+//        extensions.erase(std::unique(extensions.begin(), extensions.end()), extensions.end());
+//        for(Sequence &extension : extensions) {
+//            CompactPath new_path(start, extension);
+//            bg[&edge].emplace_back(&edge, &new_path.getAlignment().back().contig(), new_path,
+//                                   reads_storage.getRecord(start).countStartsWith(extension));
+//        }
+//    }
+//    std::unordered_map<Edge *, UEdge> choice;
+//}
+
 std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger, SparseDBG &dbg,
-                                                                  const RecordStorage &reads_storage, const UniqueClassificator &classificator) {
+                                        const RecordStorage &reads_storage, const UniqueClassificator &classificator) {
     std::unordered_map<const Edge *, CompactPath> unique_extensions;
+    for(Edge &edge : dbg.edges()) {
+        if (!classificator.isUnique(edge) || unique_extensions.find(&edge) != unique_extensions.end())
+            continue;
+        Vertex & start = *edge.start();
+        const VertexRecord &rec = reads_storage.getRecord(start);
+        Sequence seq = edge.seq.Subseq(0, 1);
+        CompactPath path = rec.getFullUniqueExtension(seq, 1, 0);
+        GraphAlignment al = path.getAlignment();
+        for(size_t i = 1; i < al.size(); i++) {
+            Segment<Edge> &seg = al[i];
+            if(classificator.isUnique(seg.contig())) {
+                al = al.subalignment(0, i + 1);
+                break;
+            }
+        }
+        if(!classificator.isUnique(al.back().contig()) || al.size() == 1)
+            continue;
+        bool ok = true;
+        for(const auto &it : rec) {
+            if(it.second != 0 && !path.cpath().nonContradicts(it.first)) {
+                ok = false;
+                break;
+            }
+        }
+        if(!ok)
+            continue;
+        unique_extensions.emplace(&edge, CompactPath(*edge.end(), CompactPath(al).cpath().Subseq(1), 0, 0));
+        CompactPath res1(al.RC().subalignment(1, al.size()));
+        unique_extensions.emplace(&al.back().contig().rc(), res1);
+    }
     for(Edge &edge : dbg.edges()) {
         if(!classificator.isUnique(edge) || unique_extensions.find(&edge) != unique_extensions.end())
             continue;

@@ -202,10 +202,12 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
             return edge.size() > unique_threshold;
         };
         std::vector<Contig> partial_contigs = rr.ResolveRepeats(logger, threads, is_unique);
+        logger.info()<< "Printing partial repeat resolution results to " << (dir / "partial.fasta") << std::endl;
         PrintFasta(partial_contigs, dir / "partial.fasta");
         readStorage.printFasta(logger, dir / "corrected.fasta");
         dbg.printFastaOld(dir / "graph.fasta");
-        std::vector<Contig> contigs = rr.CollectResults(logger, threads, partial_contigs, is_unique);
+        printDot(dir / "graph.dot", Component(dbg), readStorage.labeler());
+        std::vector<Contig> contigs = rr.CollectResults(logger, threads, partial_contigs, dir / "merging.txt", is_unique);
         PrintAlignments(logger, threads, contigs, readStorage, k, w, dir / "uncompressing");
     };
     if(!skip)

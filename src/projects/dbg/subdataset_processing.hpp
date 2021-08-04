@@ -34,6 +34,7 @@ public:
     std::vector<Contig> ResolveRepeats(logging::Logger &logger, size_t threads,
                                        const std::function<bool(const Edge &)> &is_unique = [](const Edge &){return false;});
     std::vector<Contig> CollectResults(logging::Logger &logger, size_t threads, const std::vector<Contig> &contigs,
+                                       const std::experimental::filesystem::path &merging,
                                        const std::function<bool(const Edge &)> &is_unique = [](const Edge &){return false;});
 };
 

@@ -110,7 +110,8 @@ public:
     std::vector<T> collect() {
         std::vector<T> res;
         for(std::vector<T> &row : recs) {
-            res.insert(res.end(), row.begin(), row.end());
+            for(T &val : row)
+                res.emplace_back(std::move(val));
             row.clear();
         }
         return std::move(res);

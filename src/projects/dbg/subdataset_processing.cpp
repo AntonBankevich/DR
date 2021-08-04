@@ -8,6 +8,7 @@ std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::
     std::vector<std::ofstream *> os;
     std::vector<std::ofstream *> alignments;
     std::vector<Subdataset> result;
+    recreate_dir(dir);
     for(size_t i = 0; i < comps.size(); i++) {
         os.emplace_back(new std::ofstream());
         alignments.emplace_back(new std::ofstream());
@@ -113,34 +114,37 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
 }
 
 std::vector<Contig> RepeatResolver::CollectResults(logging::Logger &logger, size_t threads, const std::vector<Contig> &contigs,
+                                   const std::experimental::filesystem::path &merging,
                                    const std::function<bool(const Edge &)> &is_unique) {
     logger.info() << "Merging results from repeat resolution of subcomponents"<< std::endl;
     logger.info() << "Collecting partial results"<< std::endl;
-    ParallelRecordCollector<GraphAlignment> paths(threads);
+    ParallelRecordCollector<AlignedRead> paths(threads);
     omp_set_num_threads(threads);
-//#pragma omp parallel default(none) shared(contigs, is_unique, paths)
+#pragma omp parallel for default(none) shared(contigs, is_unique, paths)
     for(size_t i = 0; i < contigs.size(); i++) {
         GraphAlignment al = GraphAligner(dbg).align(contigs[i].seq);
         if(al.size() == 1 && is_unique(al[0].contig()))
             continue;
-        paths.emplace_back(al);
-        paths.emplace_back(al.RC());
+        paths.emplace_back(contigs[i].id, al);
+        paths.emplace_back(basic::Reverse(contigs[i].id), al.RC());
     }
-    std::vector<GraphAlignment> path_list = paths.collect();
+    std::vector<AlignedRead> path_list = paths.collect();
     logger.info() << "Linking contigs"<< std::endl;
     std::unordered_map<dbg::Edge *, size_t> unique_map;
     for(size_t i = 0; i < path_list.size(); i++) {
-        Edge & edge = path_list[i].front().contig();
-        if(path_list[i].size() == 1 || !is_unique(edge) || path_list[i][0].size() < path_list[i][0].contig().size())
+        GraphAlignment al = path_list[i].path.getAlignment();
+        Edge & edge = al.front().contig();
+        if(path_list[i].path.size() == 1 || !is_unique(edge) || al[0].size() < al[0].contig().size())
             continue;
         if(unique_map.find(&edge) != unique_map.end()) {
             unique_map[&edge] = size_t(-1);
             unique_map[&edge.rc()] = size_t(-1);
-        } else
+        } else {
             unique_map[&edge] = i;
+        }
     }
     logger.info() << "Merging contigs"<< std::endl;
-    std::vector<Sequence> res;
+    std::vector<Contig> res;
     std::unordered_set<Edge *> visited_unique;
     for(size_t i = 0; i < path_list.size(); i++) {
         if(!path_list[i].valid()) {
@@ -148,8 +152,8 @@ std::vector<Contig> RepeatResolver::CollectResults(logging::Logger &logger, size
         }
         size_t cur = i;
         while(true) {
-            Edge &last = path_list[cur].back().contig();
-            Segment<Edge> last_seg = path_list[cur].back();
+            Segment<Edge> last_seg = path_list[cur].path.getAlignment().back();
+            Edge &last = last_seg.contig();
             if(last_seg.size() < last.size() || unique_map.find(&last) == unique_map.end() || unique_map[&last] == size_t(-1))
                 break;
             cur = unique_map[&last];
@@ -159,10 +163,12 @@ std::vector<Contig> RepeatResolver::CollectResults(logging::Logger &logger, size
         cur = cur ^ 1ull;
         size_t start = cur;
         GraphAlignment merged_path;
+        std::vector<std::string> ids;
         while(true) {
-            merged_path += path_list[cur].subalignment(1);
-            Edge &last = path_list[cur].back().contig();
-            Segment<Edge> last_seg = path_list[cur].back();
+            merged_path += path_list[cur].path.getAlignment().subalignment(1);
+            ids.emplace_back(path_list[cur].id);
+            Segment<Edge> last_seg = path_list[cur].path.getAlignment().back();
+            Edge &last = last_seg.contig();
             path_list[cur] = {};
             if(last_seg.size() < last.size() || unique_map.find(&last) == unique_map.end() || unique_map[&last] == size_t(-1))
                 break;
@@ -177,16 +183,22 @@ std::vector<Contig> RepeatResolver::CollectResults(logging::Logger &logger, size
             }
         }
         Sequence seq = merged_path.Seq();
-        if(!seq < seq)
+        if(!seq < seq) {
             seq = !seq;
-        res.emplace_back(seq);
+            std::vector<std::string> ids1;
+            for(size_t j = 0; j < ids.size(); j++) {
+                ids1.emplace_back(basic::Reverse(ids[ids.size() - j - 1]));
+            }
+            ids = std::move(ids1);
+        }
+        res.emplace_back(seq, join(" ", ids));
         cur = cur ^ 1ull;
         if(!path_list[cur].valid())
             continue;
         start = cur;
         while(true) {
-            Edge &last = path_list[cur].back().contig();
-            Segment<Edge> last_seg = path_list[cur].back();
+            Segment<Edge> last_seg = path_list[cur].path.getAlignment().back();
+            Edge &last = last_seg.contig();
             path_list[cur] = {};
             if(last_seg.size() < last.size() || unique_map.find(&last) == unique_map.end() || unique_map[&last] == size_t(-1))
                 break;
@@ -200,21 +212,25 @@ std::vector<Contig> RepeatResolver::CollectResults(logging::Logger &logger, size
             Sequence seq = edge.start()->seq + edge.seq;
             if(!seq < seq)
                 seq = !seq;
-            res.emplace_back(seq);
+            res.emplace_back(seq, edge.getId());
         }
     }
     logger.info() << "Sorting final contigs"<< std::endl;
-    std::function<bool(const Sequence &, const Sequence &)> cmp = [](const Sequence &s1, const Sequence &s2){
+    std::function<bool(const Contig &, const Contig &)> cmp = [](const Contig &s1, const Contig &s2){
         if (s1.size() != s2.size())
             return s1.size() > s2.size();
-        return s1 < s2;
+        return s1.seq < s2.seq;
     };
     std::sort(res.begin(), res.end(), cmp);
+    std::ofstream merge;
+    merge.open(merging);
     std::vector<Contig> final;
     for(size_t i = 0; i < res.size(); i++) {
-        final.emplace_back(res[i], logging::itos(i));
+        final.emplace_back(res[i].seq, logging::itos(i));
+        merge << i << "\n" << res[i].id << "\n";
     }
-    logger.info() << "Finished clooecting repeat resolution results"<< std::endl;
+    merge.close();
+    logger.info() << "Finished collecting repeat resolution results"<< std::endl;
     return std::move(final);
 }
 

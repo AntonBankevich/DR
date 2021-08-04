@@ -111,18 +111,22 @@ public:
     Segment<T> unite(const Segment<T> &other) const {
         return {*contig_ptr, std::min(left, other.left), std::max(right, other.right)};
     }
+
+    std::string coordinaresStr() const {
+        std::stringstream ss;
+        ss << "[" << left << ":";
+        if (right > contig().size() * 3 / 4)
+            ss << contig().size() << "-" << (contig().size() - right);
+        else
+            ss << right;
+        ss << "]";
+        return ss.str();
+    }
 };
 
 template <class T>
-inline std::ostream& operator<<(std::ostream& os, const Segment<T>& seg)
-{
-    os << seg.contig().getId() << "[" << seg.left << ":";
-    if (seg.right > seg.contig().size() * 3 / 4)
-        os << seg.contig().size() << "-" << (seg.contig().size() - seg.right);
-    else
-        os << seg.right;
-    os << "]";
-    return os;
+inline std::ostream& operator<<(std::ostream& os, const Segment<T>& seg) {
+    return os << seg.contig().getId() << seg.coordinaresStr();
 }
 
 template<class T>
