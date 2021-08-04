@@ -58,7 +58,7 @@ for id in snps.keys():
                 cov = int(debug_arr[2])
                 res_mult = int(debug_arr[3])
                 updated_res = ""
-                if (total_mult == 0):
+                if (total_mult == 0 and res_mult == 0):
                     if (cov < 5):
                         updated_res="low_covered MSA"
                     else:
