@@ -13,8 +13,10 @@
 
 
 using namespace std;
+
 using logging::Logger;
 
+static const size_t COMPLEX_EPS = 5;
 
 struct AlignmentInfo {
     string read_id;
@@ -76,6 +78,43 @@ vector<dinucleotide> GetDinucleotideRepeats(const Contig& compressed_contig) {
     return res;
 }
 
+size_t get_finish(dinucleotide d) {
+    return d.start + COMPLEX_EPS + d.multiplicity * 2;
+}
+
+size_t get_start(dinucleotide d) {
+    if (d.start < COMPLEX_EPS) return 0;
+    else return d.start - COMPLEX_EPS;
+}
+
+
+//extend a bit and merge intersecting regions
+template <class Contig>
+vector<pair<size_t, size_t>> GetComplexRegions(const Contig& compressed_contig) {
+    size_t current_id = 0;
+    size_t len = compressed_contig.length();
+    vector<pair<size_t, size_t>> complex_regions;
+    auto dinucleotide_coords = GetDinucleotideRepeats(compressed_contig);
+    size_t total_d = dinucleotide_coords.size();
+    while (current_id < total_d) {
+        size_t cur_start = get_start(dinucleotide_coords[current_id]);
+        size_t cur_finish = get_finish(dinucleotide_coords[current_id]);
+        size_t next_id = current_id + 1;
+        while ((next_id) < total_d && get_start(dinucleotide_coords[next_id]) <= cur_finish) {
+            cur_finish = std::max(cur_finish, get_finish(dinucleotide_coords[next_id]));
+            next_id ++;
+
+        }
+        if (cur_finish > len)
+            cur_finish = len;
+        complex_regions.emplace_back(make_pair(cur_start, cur_finish - cur_start));
+        current_id = next_id;
+    }
+    return complex_regions;
+}
+
+
+
 struct ContigInfo {
     string sequence;
     string name;
@@ -89,7 +128,6 @@ struct ContigInfo {
     size_t zero_covered = 0;
     string debug_f;
 //neighbourhoud for complex regions;
-    static const size_t COMPLEX_EPS = 5;
     static const size_t MAX_CONSENSUS_COVERAGE = 25;
 
     //Complex_regions: map from start to length;
@@ -102,26 +140,11 @@ struct ContigInfo {
     vector <int> num_dinucleotide;
     vector<vector<size_t>> dinucleotide_read_voting;
 */
+
     void FillComplex() {
-        size_t current_id = 0;
-        auto dinucleotide_coords = GetDinucleotideRepeats(sequence);
-        size_t total_d = dinucleotide_coords.size();
-        while (current_id < total_d) {
-            size_t cur_start = get_start(dinucleotide_coords[current_id]);
-            size_t cur_finish = get_finish(dinucleotide_coords[current_id]);
-            size_t next_id = current_id + 1;
-            while ((next_id) < total_d && get_start(dinucleotide_coords[next_id]) <= cur_finish) {
-                cur_finish = std::max(cur_finish, get_finish(dinucleotide_coords[next_id]));
-                next_id ++;
-
-            }
-            if (cur_finish > len)
-                cur_finish = len;
-            complex_regions.emplace_back(make_pair(cur_start, cur_finish - cur_start));
-            complex_strings[cur_start] = vector<string>();
-            current_id = next_id;
-        }
-
+        complex_regions = GetComplexRegions(sequence);
+        for (auto i = 0; i < complex_regions.size(); i++)
+            complex_strings[complex_regions[i].first] = vector<string>();
     }
 
     ContigInfo(string sequence, string name, string debug_f):sequence(sequence), name(name), debug_f(debug_f) {
@@ -138,14 +161,6 @@ struct ContigInfo {
         FillComplex();
     }
     ContigInfo() = default;
-
-    size_t get_finish(dinucleotide d) {
-        return d.start + COMPLEX_EPS + d.multiplicity * 2;
-    }
-    size_t get_start(dinucleotide d) {
-        if (d.start < COMPLEX_EPS) return 0;
-        else return d.start - COMPLEX_EPS;
-    }
 
 
     void AddRead() {
@@ -437,6 +452,8 @@ struct AssemblyInfo {
         }
         return res;
     }
+
+
     void processReadPair (string& read, AlignmentInfo& aln) {
 //        logger.info() << read.id << endl;
         Sequence read_seq (read);
