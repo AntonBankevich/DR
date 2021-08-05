@@ -31,7 +31,7 @@ void PrintPaths(logging::Logger &logger, const std::experimental::filesystem::pa
     logger.info() << "Dumping current state. Stage id: " << stage_name << std::endl;
     ensure_dir_existance(dir);
     ensure_dir_existance(dir / "paths");
-    printDot(dir / (stage_name + ".dot"), Component(dbg));
+    printDot(dir / (stage_name + ".dot"), Component(dbg), readStorage.labeler());
     dbg.printFastaOld(dir / (stage_name + ".fasta"));
     if(!small)
         readStorage.printFullAlignments(logger, dir / (stage_name + ".als"));
@@ -201,14 +201,14 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         std::function<bool(const dbg::Edge &)> is_unique = [unique_threshold](const Edge &edge) {
             return edge.size() > unique_threshold;
         };
+        dbg.printFastaOld(dir / "graph.fasta");
+        printDot(dir / "graph.dot", Component(dbg), readStorage.labeler());
         std::vector<Contig> partial_contigs = rr.ResolveRepeats(logger, threads, is_unique);
         logger.info()<< "Printing partial repeat resolution results to " << (dir / "partial.fasta") << std::endl;
         PrintFasta(partial_contigs, dir / "partial.fasta");
-        readStorage.printFasta(logger, dir / "corrected.fasta");
-        dbg.printFastaOld(dir / "graph.fasta");
-        printDot(dir / "graph.dot", Component(dbg), readStorage.labeler());
         std::vector<Contig> contigs = rr.CollectResults(logger, threads, partial_contigs, dir / "merging.txt", is_unique);
         PrintAlignments(logger, threads, contigs, readStorage, k, w, dir / "uncompressing");
+        readStorage.printFasta(logger, dir / "corrected.fasta");
     };
     if(!skip)
         runInFork(ic_task);
