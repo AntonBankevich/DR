@@ -100,7 +100,8 @@ vector<pair<size_t, size_t>> GetComplexRegions(const Contig& compressed_contig) 
         size_t cur_start = get_start(dinucleotide_coords[current_id]);
         size_t cur_finish = get_finish(dinucleotide_coords[current_id]);
         size_t next_id = current_id + 1;
-        while ((next_id) < total_d && get_start(dinucleotide_coords[next_id]) <= cur_finish + MIN_DISTANCE_COMPLEX_REGIONS) {
+//TODO: what value should be here?
+        while ((next_id) < total_d && get_start(dinucleotide_coords[next_id]) <= cur_finish /*+ MIN_DISTANCE_COMPLEX_REGIONS*/) {
             cur_finish = std::max(cur_finish, get_finish(dinucleotide_coords[next_id]));
             next_id ++;
 
@@ -258,6 +259,7 @@ struct ContigInfo {
                 if (check != ""){
                     {
                         logger.info() << "Problematic consensus starting on decompressed position " << total_count <<" " << check <<" of " <<complex_strings[i].size() - 1 << " sequences "<< endl;
+                        logger.info() << "Position " << complex_regions[cur_complex_ind].first << " len " << complex_regions[cur_complex_ind].second << endl;
                         stringstream debug_l;
                         debug_l << "lengths: ";
                         for (size_t j = 0; j < complex_strings[i].size() - 1; j++) {
@@ -518,7 +520,7 @@ struct AssemblyInfo {
         }
     };
 
-    void processFragmentAlignment(AlignmentInfo& aln, const char * contig, const char *read, size_t cont_coords, size_t read_coords, vector<size_t> &quantities, ContigInfo& current_contig) {
+    size_t processFragmentAlignment(AlignmentInfo& aln, const char * contig, const char *read, size_t cont_coords, size_t read_coords, vector<size_t> &quantities, ContigInfo& current_contig) {
 
         auto cigars = getFastAln(aln, contig, read);
         size_t matches = 0;
@@ -554,7 +556,8 @@ struct AssemblyInfo {
                 if (current_match == 1) start_shift = 0;
                 size_t end_shift = MATCH_EPS;
                 if (current_match == 1) end_shift = 0;
-
+//TODO should we move critical here?
+#pragma omp critical
                 for (size_t i = start_shift; i + end_shift< (*it).length; i++) {
                     size_t coord = cont_coords + aln.alignment_start + i;
 
@@ -565,7 +568,7 @@ struct AssemblyInfo {
                             current_contig.quantity[coord]++;
                             current_contig.sum[coord] += quantities[read_coords + local_read_coords+ i];
                             if (current_contig.amounts[coord][0] < ContigInfo::VOTES_STORED)
-#pragma omp critical
+//alternative place for critical check
                                 current_contig.amounts[coord][++current_contig.amounts[coord][0]] = quantities[read_coords + local_read_coords + i];
                         }
                         matches ++;
@@ -596,6 +599,7 @@ struct AssemblyInfo {
         }
         if (matches < mismatches * 3)
             logger.info()<<"For read too much mismatches " << aln.read_id << " matches/MM: " << matches << "/" << mismatches << endl;
+        return matches;
     }
 
     void processReadPair (string& read, AlignmentInfo& aln) {
@@ -643,27 +647,40 @@ struct AssemblyInfo {
         size_t contig_complex_size = contig_complex_regions.size();
         size_t read_complex_size = read_complex_regions.size();
 
-        if (contig_complex_regions.size() != read_complex_regions.size()) {
+/*
+ *      if (contig_complex_regions.size() != read_complex_regions.size()) {
             logger.info() << aln.read_id << " different complex regions amounts " << contig_complex_size << " vs " << read_complex_size << endl;
             return;
         }
-
+*/
 
         SplittedSequence read_splt(read_complex_regions, compressed_read);
         SplittedSequence contig_splt(contig_complex_regions, contig_seq);
+        size_t bad_fragment = -1;
         for (size_t i = 0; i < read_splt.normal_fragments.size(); i ++) {
+            if (i >= contig_splt.normal_fragments.size())
+                break;
             logger.trace() << aln.read_id << "frag  " << i << " start " << contig_splt.normal_shifts[i] + aln.alignment_start << endl;
-//TODO  HERE SHOULD BE SIZE CHECK
+
             {
 //                logger.trace() << contig_splt.normal_fragments[i] << endl << read_splt.normal_fragments[i] << endl;
-                processFragmentAlignment(aln, contig_splt.normal_fragments[i].c_str(),
+                size_t matches = processFragmentAlignment(aln, contig_splt.normal_fragments[i].c_str(),
                                          read_splt.normal_fragments[i].c_str(), contig_splt.normal_shifts[i],
                                          read_splt.normal_shifts[i], quantities, current_contig);
+                if (read_splt.normal_fragments[i].length() > MIN_DISTANCE_COMPLEX_REGIONS && matches * 3 < read_splt.normal_fragments[i].length() * 2) {
+                    logger.info() << aln.read_id << " bad fragment 0-based number " << i  <<" of " << read_splt.normal_fragments.size()<< " matches " << matches << " length " << read_splt.normal_fragments[i].length() << endl;
+                    bad_fragment = i;
+                    break;
+                }
             }
         }
 //        logger.info() << "normal fragments processed";
         for (auto i = 0; i < read_splt.complex_fragments.size(); i++) {
-//TODO: check on sizes;
+
+            if (i >= contig_splt.complex_fragments.size())
+                break;
+            if (i == bad_fragment)
+                break;
             if (contig_splt.complex_shifts[i] < MIN_DISTANCE_COMPLEX_REGIONS ||  contig_splt.complex_shifts[i] +  contig_splt.complex_fragments[i].length() + MIN_DISTANCE_COMPLEX_REGIONS > contig_seq.length()) {
                 logger.info() << "For read " <<aln.read_id <<" skipping region " << i <<" (of "<<contig_splt.complex_fragments.size() << " end of contig's fragment" << endl;
                 continue;
@@ -673,9 +690,13 @@ struct AssemblyInfo {
                 continue;
             }
             size_t pos = contig_splt.complex_shifts[i] + aln.alignment_start;
-            if (current_contig.complex_strings.find(pos) != current_contig.complex_strings.end())
-                current_contig.complex_strings[pos].push_back(uncompress(read_splt.complex_shifts[i], read_splt.complex_shifts[i] + read_splt.complex_fragments[i].length(), read_seq.str()));
-            else {
+            if (current_contig.complex_strings.find(pos) != current_contig.complex_strings.end()) {
+#pragma omp critical
+                    current_contig.complex_strings[pos].push_back(uncompress(read_splt.complex_shifts[i],
+                                                                         read_splt.complex_shifts[i] +
+                                                                         read_splt.complex_fragments[i].length(),
+                                                                         read_seq.str()));
+            } else {
                 logger.info() << "No complex region at position " << pos << endl;
             }
         }
