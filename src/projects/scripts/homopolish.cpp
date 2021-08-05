@@ -172,7 +172,8 @@ struct ContigInfo {
 //Magic consts from spoa default settings
         auto alignment_engine = spoa::AlignmentEngine::Create(
 // -8 in default for third parameter(gap) opening, -6 for forth(gap extension)
-                spoa::AlignmentType::kNW, 10, -8, -8, -1);  // linear gaps
+                spoa::AlignmentType::kSW, 10, -8, -8, -1);  // linear gaps                                                                                                                                                          +
+
 //TODO: process length signinficantly different with median
         spoa::Graph graph{};
         size_t cov = 0;
@@ -189,7 +190,7 @@ struct ContigInfo {
         string consensus = graph.GenerateConsensus(&coverages);
         size_t pref_remove = 0;
         int suf_remove = coverages.size() - 1;
-        cout << endl;
+//        cout << endl;
         while (pref_remove < coverages.size() && coverages[pref_remove] < cov / 2 )
             pref_remove ++;
         while (suf_remove >= 0 && coverages[suf_remove] < cov / 2 )
@@ -257,11 +258,16 @@ struct ContigInfo {
                 if (check != ""){
                     {
                         logger.info() << "Problematic consensus starting on decompressed position " << total_count <<" " << check <<" of " <<complex_strings[i].size() - 1 << " sequences "<< endl;
+                        logger.info() << "lengths: ";
                         for (size_t j = 0; j < complex_strings[i].size() - 1; j++) {
-                            logger.trace() << complex_strings[i][j] << endl;
+                            logger.info() << complex_strings[i][j].length() << " ";
                         }
-                        logger.trace() << endl;
-                        logger.trace() << consensus << endl;
+                        logger.info() <<" : " << consensus.length() << endl;
+                        for (size_t j = 0; j < complex_strings[i].size() - 1; j++) {
+                            logger.info() << complex_strings[i][j] << endl;
+                        }
+                        logger.info() << endl;
+                        logger.info() << consensus << endl;
                     }
                 }
 
@@ -294,7 +300,7 @@ struct ContigInfo {
 
                     cov = int(round(sum[i] * 1.0 / quantity[i]));
                     if (real_cov != cov) {
-                        logger.info() << "Median disagree with average at position " << i<<" med/avg: "<< real_cov << "/" << cov << endl;
+//                        logger.info() << "Median disagree with average at position " << i<<" med/avg: "<< real_cov << "/" << cov << endl;
                         stringstream as;
                         for (auto j = 0; j < amounts[i][0]; j++)
                             as << int(amounts[i][j + 1]) << " ";
