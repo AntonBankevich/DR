@@ -17,7 +17,7 @@ using namespace std;
 using logging::Logger;
 
 static const size_t COMPLEX_EPS = 5;
-static const size_t MIN_DISTANCE_COMPLEX_REGIONS = 100;
+static const size_t MIN_DISTANCE_COMPLEX_REGIONS = 10;
 struct AlignmentInfo {
     string read_id;
     string contig_id;
@@ -258,12 +258,14 @@ struct ContigInfo {
                 if (check != ""){
                     {
                         logger.info() << "Problematic consensus starting on decompressed position " << total_count <<" " << check <<" of " <<complex_strings[i].size() - 1 << " sequences "<< endl;
-                        logger.info() << "lengths: ";
+                        stringstream debug_l;
+                        debug_l << "lengths: ";
                         for (size_t j = 0; j < complex_strings[i].size() - 1; j++) {
-                            logger.info() << complex_strings[i][j].length() << " ";
+                            debug_l << complex_strings[i][j].length() << " ";
                         }
-                        logger.info() <<" : " << consensus.length() << endl;
-                        for (size_t j = 0; j < complex_strings[i].size() - 1; j++) {
+                        debug_l <<" : " << consensus.length() << endl;
+                        logger.info() << debug_l.str();
+                         for (size_t j = 0; j < complex_strings[i].size() - 1; j++) {
                             logger.info() << complex_strings[i][j] << endl;
                         }
                         logger.info() << endl;
@@ -304,7 +306,7 @@ struct ContigInfo {
                         stringstream as;
                         for (auto j = 0; j < amounts[i][0]; j++)
                             as << int(amounts[i][j + 1]) << " ";
-                        logger.info() << as.str() << endl;
+//                        logger.info() << as.str() << endl;
                         cov = real_cov;
                     }
                 }
@@ -348,7 +350,7 @@ struct AssemblyInfo {
 
 //We do not believe matches on the ends of match region
 //TODO DO WE
-    static const size_t MATCH_EPS = 0;
+    static const size_t MATCH_EPS = 1;
 
     static const size_t BATCH_SIZE = 10000;
 
@@ -526,6 +528,12 @@ struct AssemblyInfo {
         size_t contig_finish = -1;
         size_t complex_id = -1;
         size_t local_read_coords = 0;
+        size_t match_regions = 0;
+        size_t current_match = 0;
+        for (auto it = cigars.begin(); it != cigars.end(); ++it) {
+            if ((*it).type == 'M')
+                match_regions ++;
+        }
         for (auto it = cigars.begin(); it != cigars.end(); ++it) {
             if ((*it).type == 'I') {
                 local_read_coords += (*it).length;
@@ -535,13 +543,19 @@ struct AssemblyInfo {
 //TODO do not forget add complex regions here
                 indels += (*it).length;
             } else {
+                current_match ++;
                 size_t cur_complex_coord = -1;
                 auto complex_regions_iter = lower_bound(current_contig.complex_regions.begin(), current_contig.complex_regions.end(),make_pair(cont_coords + aln.alignment_start, size_t(0)));
                 if (complex_regions_iter !=  current_contig.complex_regions.end()) {
                     cur_complex_coord = complex_regions_iter->first;
                 }
-//MATCH_EPS to avoid side effects near indels
-                for (size_t i = MATCH_EPS; i + MATCH_EPS< (*it).length; i++) {
+//MATCH_EPS to avoid side effects near indels, zero on the ends to avoid systematic uncovered near ends of the complex regions
+                size_t start_shift = MATCH_EPS;
+                if (current_match == 1) start_shift = 0;
+                size_t end_shift = MATCH_EPS;
+                if (current_match == 1) end_shift = 0;
+
+                for (size_t i = start_shift; i + end_shift< (*it).length; i++) {
                     size_t coord = cont_coords + aln.alignment_start + i;
 
 
@@ -650,6 +664,14 @@ struct AssemblyInfo {
 //        logger.info() << "normal fragments processed";
         for (auto i = 0; i < read_splt.complex_fragments.size(); i++) {
 //TODO: check on sizes;
+            if (contig_splt.complex_shifts[i] < MIN_DISTANCE_COMPLEX_REGIONS ||  contig_splt.complex_shifts[i] +  contig_splt.complex_fragments[i].length() + MIN_DISTANCE_COMPLEX_REGIONS > contig_seq.length()) {
+                logger.info() << "For read " <<aln.read_id <<" skipping region " << i <<" (of "<<contig_splt.complex_fragments.size() << " end of contig's fragment" << endl;
+                continue;
+            }
+            if (read_splt.complex_shifts[i] < MIN_DISTANCE_COMPLEX_REGIONS ||  read_splt.complex_shifts[i] +  read_splt.complex_fragments[i].length() + MIN_DISTANCE_COMPLEX_REGIONS > compressed_read.length()) {
+                logger.info() << "For read " <<aln.read_id <<" skipping region " << i <<" (of "<<read_splt.complex_fragments.size() << " end of read" << endl;
+                continue;
+            }
             size_t pos = contig_splt.complex_shifts[i] + aln.alignment_start;
             if (current_contig.complex_strings.find(pos) != current_contig.complex_strings.end())
                 current_contig.complex_strings[pos].push_back(uncompress(read_splt.complex_shifts[i], read_splt.complex_shifts[i] + read_splt.complex_fragments[i].length(), read_seq.str()));
