@@ -45,7 +45,7 @@ void PrintPaths(logging::Logger &logger, const std::experimental::filesystem::pa
         Component comp = small ? Component::neighbourhood(dbg, contig, dbg.hasher().getK() + 500) :
                 Component::longEdgeNeighbourhood(dbg, contig, 20000);
         std::function<std::string(Edge &)> labeler = readStorage.labeler() + storage.labeler();
-        printDot(dir / "paths" / contig.getId() / (stage_name + ".dot"), comp,labeler);
+        printDot(dir / "paths" / contig.getId() / (stage_name + ".dot"), comp, labeler);
     }
     std::ofstream ref_os;
     ref_os.open(dir / (stage_name + ".ref"));
