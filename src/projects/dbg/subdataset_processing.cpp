@@ -162,7 +162,7 @@ std::vector<Contig> RepeatResolver::CollectResults(logging::Logger &logger, size
         }
         cur = cur ^ 1ull;
         size_t start = cur;
-        GraphAlignment merged_path;
+        GraphAlignment merged_path = path_list[cur].path.getAlignment().subalignment(0, 1);
         std::vector<std::string> ids;
         while(true) {
             merged_path += path_list[cur].path.getAlignment().subalignment(1);

@@ -61,7 +61,7 @@ public:
     void print(std::ostream &os) {
         for(auto &it : alignments) {
             const Edge &edge = *it.first;
-            os << edge.getId() << std::endl;
+            os << edge.getId() << "\n";
             if (alignments.find(&edge) == alignments.end())
                 return;
             const std::vector<PerfectAlignment<Contig, Edge>> &als = alignments.find(&edge)->second;

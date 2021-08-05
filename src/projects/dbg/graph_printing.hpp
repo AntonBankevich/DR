@@ -23,9 +23,9 @@ namespace dbg {
             if (edge.start()->isCanonical(edge)) {
                 if (calculate_coverage)
                     out << "S\t" << edge.oldId() << "\t" << edge.start()->seq << edge.seq
-                        << "\tKC:i:" << edge.intCov() << std::endl;
+                        << "\tKC:i:" << edge.intCov() << "\n";
                 else
-                    out << "S\t" << edge.oldId() << "\t" << edge.start()->seq << edge.seq << std::endl;
+                    out << "S\t" << edge.oldId() << "\t" << edge.start()->seq << edge.seq << "\n";
             }
         }
         for (const auto &hash : component.v) {
@@ -37,7 +37,7 @@ namespace dbg {
                     std::string incid = inc_edge.oldId();
                     bool incsign = !vertex.rc().isCanonical(inc_edge);
                     out << "L\t" << incid << "\t" << (incsign ? "+" : "-") << "\t" << outid << "\t"
-                        << (outsign ? "+" : "-") << "\t" << component.graph().hasher().getK() << "M" << std::endl;
+                        << (outsign ? "+" : "-") << "\t" << component.graph().hasher().getK() << "M" << "\n";
                 }
             }
         }

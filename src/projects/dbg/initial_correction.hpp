@@ -90,11 +90,11 @@ inline GraphAlignment chooseBulgeCandidate(logging::Logger &logger, std::ostream
     out << size << " bulge " << bulge.size() << " " << bulge.minCoverage();
     if(dump) {
         logger  << "New bulge from "  << bulge.start().hash() << bulge.start().isCanonical() << " "
-                << bulge.start().outDeg() << " " << bulge.start().inDeg() << std::endl
+                << bulge.start().outDeg() << " " << bulge.start().inDeg() << "\n"
                 << "To " << bulge.finish().hash() << bulge.finish().isCanonical() << " "
-                << bulge.finish().outDeg() << " " << bulge.finish().inDeg() << std::endl;
-        logger << "Record " << bulge.start().hash() << bulge.start().isCanonical() << std::endl;
-        logger << reads_storage.getRecord(bulge.start()).str() << std::endl;
+                << bulge.finish().outDeg() << " " << bulge.finish().inDeg() << "\n";
+        logger << "Record " << bulge.start().hash() << bulge.start().isCanonical() << "\n";
+        logger << reads_storage.getRecord(bulge.start()).str() << "\n";
     }
     if(dump) {
         logger << "Alternatives" << std::endl;
@@ -160,7 +160,7 @@ inline GraphAlignment chooseBulgeCandidate(logging::Logger &logger, std::ostream
     }
     out << " " << read_alternatives_filtered.size() << " " << filtered_genome_support;
     out << " " << (read_alternatives_filtered.size() == 1 ? "+" : "-");
-    out << std::endl;
+    out << "\n";
     if(read_alternatives_filtered.size() == 1) {
         if(read_alternatives_filtered.size() > 1)
             message += "m";
@@ -196,9 +196,9 @@ inline GraphAlignment processTip(logging::Logger &logger, std::ostream &out, con
     out << size << " tip " << tip.size() << " " << tip.minCoverage();
     if(dump) {
         logger << "New tip from " << tip.start().hash() << tip.start().isCanonical() << " "
-               << tip.start().outDeg() << " " << tip.start().inDeg() << std::endl
+               << tip.start().outDeg() << " " << tip.start().inDeg() << "\n"
                << "To " << tip.finish().hash() << tip.finish().isCanonical() << " "
-               << tip.finish().outDeg() << " " << tip.finish().inDeg() << std::endl;
+               << tip.finish().outDeg() << " " << tip.finish().inDeg() << "\n";
     }
     std::vector<GraphAlignment> read_alternatives_filtered =
             FilterAlternatives(logger, tip, alternatives, size_t(-1) / 2, threshold);
@@ -259,7 +259,7 @@ inline GraphAlignment processTip(logging::Logger &logger, std::ostream &out, con
     }
     out << " " << trunc_alignments.size() << " " << filtered_genome_support;
     out << " " << (trunc_alignments.size() == 1 ? "+" : "-");
-    out << std::endl;
+    out << "\n";
     if(trunc_alignments.size() == 1) {
         return std::move(trunc_alignments[0]);
     } else {
