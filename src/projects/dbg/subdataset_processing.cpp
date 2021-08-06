@@ -16,18 +16,12 @@ std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::
         ensure_dir_existance(result.back().dir);
         os.back()->open(result.back().dir / "corrected.fasta");
         alignments.back()->open(result.back().dir / "alignments.txt");
-        std::ofstream gos;
-        gos.open(result.back().dir / "graph.fasta");
-        printFasta(gos, result.back().component);
-        gos.close();
+        printFasta(result.back().dir / "graph.fasta", result.back().component);
         std::ofstream log;
         log.open(result.back().dir / "dbg.log");
         log << "-k " << k << std::endl;
         log.close();
-        std::ofstream dot;
-        dot.open(result.back().dir / "graph.dot");
-        printDot(dot, result.back().component, readStorage.labeler());
-        dot.close();
+        printDot(result.back().dir / "graph.dot", result.back().component, readStorage.labeler());
     }
     for(AlignedRead &read : readStorage) {
         if(!read.valid() || read.path.size() == 1)
@@ -164,14 +158,19 @@ std::vector<Contig> RepeatResolver::CollectResults(logging::Logger &logger, size
         size_t start = cur;
         GraphAlignment merged_path = path_list[cur].path.getAlignment().subalignment(0, 1);
         std::vector<std::string> ids;
+        size_t clen = merged_path.len();
+        ids.emplace_back("(0 -");
         while(true) {
             merged_path += path_list[cur].path.getAlignment().subalignment(1);
+            clen += path_list[cur].path.getAlignment().subalignment(1).len();
             ids.emplace_back(path_list[cur].id);
+            ids.emplace_back("- " + logging::itos(clen) + ")");
             Segment<Edge> last_seg = path_list[cur].path.getAlignment().back();
             Edge &last = last_seg.contig();
             path_list[cur] = {};
             if(last_seg.size() < last.size() || unique_map.find(&last) == unique_map.end() || unique_map[&last] == size_t(-1))
                 break;
+            ids.emplace_back("( " + logging::itos(clen - last.size()) + " -");
             cur = unique_map[&last];
             if(cur == start)
                 break;

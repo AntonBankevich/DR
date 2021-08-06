@@ -360,10 +360,7 @@ std::experimental::filesystem::path CrudeCorrect(logging::Logger &logger, Sparse
     std::unordered_set<const Edge *> to_skip = filterEdges(dbg, threshold, avg_cov);
     SparseDBG simp_dbg(simplifyGraph(logger, dbg, to_skip, threads));
     logger.info() << "Printing initial simplified graph to fasta" << std::endl;
-    std::ofstream simp_os;
-    simp_os.open(dir / "simp_graph.fasta");
-    printFasta(simp_os, Component(simp_dbg));
-    simp_os.close();
+    printFasta(dir / "simp_graph.fasta", Component(simp_dbg));
     logger.info() << "Printing initial simplified graph to dot" << std::endl;
     printDot(dir / "simp_graph.dot", Component(simp_dbg));
 

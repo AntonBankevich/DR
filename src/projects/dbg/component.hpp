@@ -363,6 +363,7 @@ namespace dbg {
             SparseDBG &dbg = comp.graph();
             std::vector<Component> res;
             std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> visited;
+            size_t size = 0;
             for (const hashing::htype &vid : comp.v) {
                 std::vector<hashing::htype> queue;
                 if (visited.find(vid) != visited.end())
@@ -380,13 +381,14 @@ namespace dbg {
                         for (Edge &edge : *vert) {
                             if (!splitEdge(edge) && comp.contains(*edge.end())) {
                                 queue.emplace_back(edge.end()->hash());
-                                component.emplace_back(edge.end()->hash());
                             }
                         }
                     }
                 }
                 res.emplace_back(dbg, component.begin(), component.end());
+                size += res.back().size();
             }
+            VERIFY(size == comp.size());
             return std::move(res);
         }
     };

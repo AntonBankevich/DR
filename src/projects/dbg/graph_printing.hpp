@@ -16,6 +16,13 @@ namespace dbg {
         }
     }
 
+    inline void printFasta(const std::experimental::filesystem::path &outf, const Component &component) {
+        std::ofstream out;
+        out.open(outf);
+        printFasta(out, component);
+        out.close();
+    }
+
     inline void printGFA(std::ostream &out, const Component &component, bool calculate_coverage) {
         out << "H\tVN:Z:1.0" << std::endl;
         size_t cnt = 0;
@@ -41,5 +48,12 @@ namespace dbg {
                 }
             }
         }
+    }
+
+    inline void printGFA(const std::experimental::filesystem::path &outf, const Component &component, bool calculate_coverage) {
+        std::ofstream out;
+        out.open(outf);
+        printGFA(out, component, calculate_coverage);
+        out.close();
     }
 }
