@@ -1,3 +1,5 @@
 add_subdirectory(dbg)
 add_subdirectory(mosaic)
 add_subdirectory(scripts)
+add_subdirectory(lja)
+add_subdirectory(error_correction)

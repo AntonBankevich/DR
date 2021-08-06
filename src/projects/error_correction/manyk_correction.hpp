@@ -1,6 +1,6 @@
 #pragma once
-#include "graph_alignment_storage.hpp"
-#include "sparse_dbg.hpp"
+#include "dbg/graph_alignment_storage.hpp"
+#include "dbg/sparse_dbg.hpp"
 
 class ManyKCorrector {
 private:

@@ -28,10 +28,11 @@ std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::
         printDot(result.back().dir / "graph.dot", result.back().component, readStorage.labeler());
     }
     std::ofstream dos;
-    dos.open(dir / "compoments.txt");
+    dos.open(dir / "components.txt");
     for(Vertex &vert : dbg.vertices()) {
         VERIFY(cmap.find(&vert) != cmap.end());
         dos << vert.getId() << " " << cmap[&vert] << "\n";
+        std::cout << vert.getId() << " " << cmap[&vert] << "\n";
     }
     dos.close();
     for(AlignedRead &read : readStorage) {

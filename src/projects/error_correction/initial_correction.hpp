@@ -1,6 +1,6 @@
 #pragma once
-#include "graph_modification.hpp"
-#include "compact_path.hpp"
+#include "dbg/graph_modification.hpp"
+#include "dbg/compact_path.hpp"
 #include "multiplicity_estimation.hpp"
 #include "edit_distance.hpp"
 #include "tip_correction.hpp"

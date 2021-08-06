@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "sparse_dbg.hpp"
+#include "dbg/sparse_dbg.hpp"
 #include "common/hash_utils.hpp"
 #include "common/output_utils.hpp"
 #include "common/simple_computation.hpp"
@@ -298,7 +298,7 @@ namespace error_correction {
         std::ofstream os;
         os.open(output_file);
 
-        std::function<void(ContigType &)> task = [&sdbg, &times, &scores, min_read_size, &result,  &bad_reads](ContigType & contig) {
+        std::function<void(size_t, ContigType &)> task = [&sdbg, &times, &scores, min_read_size, &result,  &bad_reads](size_t num, ContigType & contig) {
             Sequence seq = contig.makeSequence();
             if(seq.size() >= min_read_size) {
                 Path path = GraphAligner(sdbg).align(seq).path();

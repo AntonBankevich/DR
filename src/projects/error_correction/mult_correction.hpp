@@ -1,10 +1,10 @@
 #pragma once
 
-#include "diploidy_analysis.hpp"
+#include "lja/diploidy_analysis.hpp"
 #include "multiplicity_estimation.hpp"
-#include "sparse_dbg.hpp"
-#include "compact_path.hpp"
-#include "graph_alignment_storage.hpp"
+#include "dbg/sparse_dbg.hpp"
+#include "dbg/compact_path.hpp"
+#include "dbg/graph_alignment_storage.hpp"
 #include <experimental/filesystem>
 
 void printAl(logging::Logger &logger, std::unordered_map<const Edge *, CompactPath> &unique_extensions,

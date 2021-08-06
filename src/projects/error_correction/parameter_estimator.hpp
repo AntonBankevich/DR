@@ -1,5 +1,5 @@
 #pragma once
-#include "sparse_dbg.hpp"
+#include "dbg/sparse_dbg.hpp"
 
 class DatasetParameters {
 public:

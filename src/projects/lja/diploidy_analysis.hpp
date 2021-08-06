@@ -1,7 +1,7 @@
 #pragma once
 
-#include "sparse_dbg.hpp"
-#include "multiplicity_estimation.hpp"
+#include "dbg/sparse_dbg.hpp"
+#include "error_correction/multiplicity_estimation.hpp"
 
 class BulgePath {
 private:

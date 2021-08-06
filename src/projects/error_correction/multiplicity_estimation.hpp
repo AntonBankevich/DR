@@ -3,11 +3,11 @@
 #include <utility>
 
 
-#include "graph_alignment_storage.hpp"
+#include "dbg/graph_alignment_storage.hpp"
 #include "ff.hpp"
-#include "sparse_dbg.hpp"
-#include "visualization.hpp"
-#include "compact_path.hpp"
+#include "dbg/sparse_dbg.hpp"
+#include "dbg/visualization.hpp"
+#include "dbg/compact_path.hpp"
 
 class MappedNetwork : public Network {
 public:

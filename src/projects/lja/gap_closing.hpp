@@ -1,9 +1,9 @@
 #pragma once
 
-#include "graph_modification.hpp"
-#include "sparse_dbg.hpp"
-#include "compact_path.hpp"
-#include "tip_correction.hpp"
+#include "dbg/graph_modification.hpp"
+#include "dbg/sparse_dbg.hpp"
+#include "dbg/compact_path.hpp"
+#include "error_correction/tip_correction.hpp"
 #include <sequences/sequence.hpp>
 
 class GapCloser {

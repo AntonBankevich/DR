@@ -1,11 +1,10 @@
 #include "crude_correct.hpp"
-#include "dbg_construction.hpp"
-#include "paths.hpp"
+#include "dbg/dbg_construction.hpp"
 #include "common/rolling_hash.hpp"
 #include "sequences/seqio.hpp"
-#include "component.hpp"
-#include "graph_printing.hpp"
-#include "visualization.hpp"
+#include "dbg/component.hpp"
+#include "dbg/graph_printing.hpp"
+#include "dbg/visualization.hpp"
 #include <iostream>
 #include <unordered_set>
 

@@ -1,10 +1,10 @@
 #pragma once
 
-#include "component.hpp"
-#include "sparse_dbg.hpp"
-#include "graph_alignment_storage.hpp"
-#include "graph_printing.hpp"
-#include "visualization.hpp"
+#include "../dbg/component.hpp"
+#include "../dbg/sparse_dbg.hpp"
+#include "../dbg/graph_alignment_storage.hpp"
+#include "../dbg/graph_printing.hpp"
+#include "../dbg/visualization.hpp"
 #include "common/hash_utils.hpp"
 #include <utility>
 

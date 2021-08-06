@@ -1,6 +1,6 @@
 #pragma once
-#include "sparse_dbg.hpp"
-#include "paths.hpp"
+#include "dbg/sparse_dbg.hpp"
+#include "dbg/paths.hpp"
 
 void FillReliableWithConnections(logging::Logger &logger, dbg::SparseDBG &sdbg, double threshold);
 std::unordered_map<dbg::Vertex *, size_t> findReachable(dbg::Vertex &start, double min_cov, size_t max_dist);

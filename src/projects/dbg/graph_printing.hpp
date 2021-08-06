@@ -35,8 +35,7 @@ namespace dbg {
                     out << "S\t" << edge.oldId() << "\t" << edge.start()->seq << edge.seq << "\n";
             }
         }
-        for (const auto &hash : component.v) {
-            const Vertex &vertex = component.graph().getVertex(hash);
+        for (Vertex &vertex : component.verticesUnique()) {
             for (const Edge &out_edge : vertex) {
                 std::string outid = out_edge.oldId();
                 bool outsign = vertex.isCanonical(out_edge);

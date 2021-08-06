@@ -1,6 +1,6 @@
 #pragma once
 
-#include "sparse_dbg.hpp"
+#include "dbg/sparse_dbg.hpp"
 #include "common/logging.hpp"
 
 std::experimental::filesystem::path CrudeCorrect(logging::Logger &logger, dbg::SparseDBG &dbg,

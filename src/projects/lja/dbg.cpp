@@ -3,25 +3,25 @@
 //
 #define _GLIBCXX_PARALLEL
 #include "diploidy_analysis.hpp"
-#include "mult_correction.hpp"
-#include "parameter_estimator.hpp"
-#include "visualization.hpp"
-#include "error_correction.hpp"
-#include "graph_algorithms.hpp"
-#include "dbg_construction.hpp"
-#include "dbg_disjointigs.hpp"
-#include "minimizer_selection.hpp"
-#include "sparse_dbg.hpp"
+#include "error_correction/mult_correction.hpp"
+#include "error_correction/parameter_estimator.hpp"
+#include "dbg/visualization.hpp"
+#include "error_correction/error_correction.hpp"
+#include "dbg/graph_algorithms.hpp"
+#include "dbg/dbg_construction.hpp"
+#include "dbg/dbg_disjointigs.hpp"
+#include "dbg/minimizer_selection.hpp"
+#include "dbg/sparse_dbg.hpp"
 #include "common/rolling_hash.hpp"
 #include "common/hash_utils.hpp"
-#include "crude_correct.hpp"
+#include "error_correction/crude_correct.hpp"
 #include "common/hash_utils.hpp"
-#include "initial_correction.hpp"
+#include "error_correction/initial_correction.hpp"
 #include "sequences/seqio.hpp"
 #include "common/dir_utils.hpp"
 #include "common/cl_parser.hpp"
 #include "common/logging.hpp"
-#include "graph_printing.hpp"
+#include "../dbg/graph_printing.hpp"
 #include <iostream>
 #include <queue>
 #include <omp.h>
@@ -327,7 +327,7 @@ int main(int argc, char **argv) {
         std::experimental::filesystem::path subdatasets_dir = dir / "subdatasets";
         ensure_dir_existance(subdatasets_dir);
         logger.info() << "Extracting subdatasets for connected components" << std::endl;
-        std::vector<Component> comps = LengthSplitter(4000000000ul).split(dbg);
+        std::vector<Component> comps = LengthSplitter(4000000000ul).splitGraph(dbg);
         std::vector<std::ofstream *> os;
         for(size_t i = 0; i < comps.size(); i++) {
             os.emplace_back(new std::ofstream());
@@ -342,7 +342,7 @@ int main(int argc, char **argv) {
             GraphAlignment al = GraphAligner(dbg).align(contig.seq);
             for(size_t j = 0; j < comps.size(); j++) {
                 for(size_t i = 0; i <= al.size(); i++) {
-                    if(comps[j].v.find(al.getVertex(i).hash()) != comps[j].v.end()) {
+                    if(comps[j].contains(al.getVertex(i))) {
 #pragma omp critical
                         *os[j] << ">" << contig.id << "\n" <<initial_seq << "\n";
                         break;
@@ -385,7 +385,7 @@ int main(int argc, char **argv) {
             GraphAlignment al = GraphAligner(dbg).align(contig.seq);
             for(size_t j = 0; j < comps.size(); j++) {
                 for(size_t i = 0; i <= al.size(); i++) {
-                    if(comps[j].v.find(al.getVertex(i).hash()) != comps[j].v.end()) {
+                    if(comps[j].contains(al.getVertex(i))) {
 #pragma omp critical
                         *os[j] << ">" << contig.id << "\n" <<initial_seq << "\n";
                         break;
@@ -461,15 +461,9 @@ int main(int argc, char **argv) {
 
     if(parser.getValue("dbg") == "none") {
         logger.info() << "Printing graph to fasta file " << (dir / "graph.fasta") << std::endl;
-        std::ofstream edges;
-        edges.open(dir / "graph.fasta");
-        printFasta(edges, dbg);
-        edges.close();
+        printFasta(dir / "graph.fasta", Component(dbg));
         logger.info() << "Printing graph to gfa file " << (dir / "graph.gfa") << std::endl;
-        std::ofstream gfa;
-        gfa.open(dir / "graph.gfa");
-        printGFA(gfa, dbg, calculate_coverage);
-        gfa.close();
+        printGFA(dir / "graph.gfa", Component(dbg), calculate_coverage);
         logger.info() << "Printing graph to dot file " << (dir / "graph.dot") << std::endl;
         printDot(dir / "graph.dot", Component(dbg));
     }
@@ -563,10 +557,7 @@ int main(int argc, char **argv) {
         }
         printDot(dir / "simp_graph1.dot", Component(simp_dbg));
         mergeAll(logger, simp_dbg, threads);
-        std::ofstream simp_os;
-        simp_os.open(dir / "simp_graph.fasta");
-        printFasta(simp_os, simp_dbg);
-        simp_os.close();
+        printFasta(dir / "simp_graph.fasta", Component(simp_dbg));
         printDot(dir / "simp_graph.dot", Component(simp_dbg));
     }
     logger.info() << "DBG construction finished" << std::endl;
