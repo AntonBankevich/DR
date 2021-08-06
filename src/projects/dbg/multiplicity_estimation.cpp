@@ -9,7 +9,6 @@ MappedNetwork::MappedNetwork(const Component &component, const std::function<boo
         for(dbg::Vertex *v_it : {&graph.getVertex(hash), &graph.getVertex(hash).rc()}) {
             dbg::Vertex &v = *v_it;
             vertex_mapping[&v] = addVertex();
-            std::cout << vertices.size() << " " << v.hash() << " " << v.isCanonical() << std::endl;
         }
     }
     for(hashing::htype hash : component.v) {
@@ -34,9 +33,9 @@ std::vector<dbg::Edge *> MappedNetwork::getUnique(logging::Logger &logger) {
     std::vector<dbg::Edge*> res;
     std::unordered_map<int, size_t> multiplicities = findFixedMultiplicities();
     for (auto &rec : multiplicities) {
-        logger << "Edge " << edge_mapping[rec.first]->start()->hash() << edge_mapping[rec.first]->start()->isCanonical()
-               << "ACGT"[edge_mapping[rec.first]->seq[0]]
-               << " has fixed multiplicity " << rec.second << std::endl;
+//        logger << "Edge " << edge_mapping[rec.first]->start()->hash() << edge_mapping[rec.first]->start()->isCanonical()
+//               << "ACGT"[edge_mapping[rec.first]->seq[0]]
+//               << " has fixed multiplicity " << rec.second << std::endl;
         if(rec.second == 1)
             res.emplace_back(edge_mapping[rec.first]);
     }

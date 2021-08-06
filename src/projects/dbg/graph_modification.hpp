@@ -115,7 +115,6 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
             anchors.emplace(vit.first);
         }
     }
-    printStats(logger, subgraph);
     for(const auto & vit : dbg){
         VERIFY(subgraph.isAnchor(vit.first) || subgraph.containsVertex(vit.first))
     }

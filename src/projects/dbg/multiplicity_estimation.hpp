@@ -349,7 +349,7 @@ public:
         logger << "Attempting to use coverage for multiplicity estimation with coverage threshold " << threshold << std::endl;
         logger << "Component: ";
         for(Vertex &vertex : subcomponent.verticesUnique()) {
-            logger << " " << vertex.hash() % 100000;
+            logger << " " << vertex.getShortId();
         }
         logger << std::endl;
         MappedNetwork net2(subcomponent, is_unique, rel_coverage, threshold);

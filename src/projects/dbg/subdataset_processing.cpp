@@ -74,7 +74,7 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
     logger.info() << "Running repeat resolution" << std::endl;
     std::string COMMAND = "python3 resolution/sequence_graph/path_graph_multik.py -i {} -o {}";
     std::sort(subdatasets.begin(), subdatasets.end());
-#pragma omp parallel for default(none) shared(subdatasets, COMMAND)
+#pragma omp parallel for schedule(dynamic, 1) default(none) shared(subdatasets, COMMAND)
     for(size_t snum = 0; snum < subdatasets.size(); snum++) {
         Subdataset &subdataset = subdatasets[snum];
         std::experimental::filesystem::path outdir = subdataset.dir / "mltik";

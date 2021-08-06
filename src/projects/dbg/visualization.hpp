@@ -97,10 +97,10 @@ public:
     }
 };
 
-inline void printEdge(std::ostream &os, Vertex & start, Edge &edge, const std::string &extra_label = "",
+inline void printEdge(std::ostream &os, Edge &edge, const std::string &extra_label = "",
                const std::string &color = "black") {
     Vertex &end = *edge.end();
-    os << "\"" << start.getShortId() << "\" -> \"" << end.getShortId() <<
+    os << "\"" << edge.start()->getShortId() << "\" -> \"" << end.getShortId() <<
        "\" [label=\"" << "ACGT"[edge.seq[0]] << " " << edge.size() << "(" << edge.getCoverage() << ")";
     if(!extra_label.empty()) {
         os << "\\n"<<extra_label;
@@ -120,13 +120,10 @@ inline void printDot(std::ostream &os, const Component &component, const std::fu
               const std::function<std::string(Edge &)> &edge_colorer) {
     os << "digraph {\nnodesep = 0.5;\n";
     std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> extended;
-    for(hashing::htype vid : component.v)
-        for(Vertex * vit : component.graph().getVertices(vid)) {
-            Vertex &start = *vit;
-            for (Edge &edge : start) {
-                extended.emplace(edge.end()->hash());
-            }
-        }
+    for(Edge &edge : component.edgesUnique()) {
+        extended.emplace(edge.end()->hash());
+        extended.emplace(edge.start()->hash());
+    }
     for(hashing::htype vid : extended) {
         for(Vertex * vit : component.graph().getVertices(vid)) {
             Vertex &vert = *vit;
@@ -134,19 +131,8 @@ inline void printDot(std::ostream &os, const Component &component, const std::fu
             os << vert.getShortId() << " [style=filled fillcolor=\"" + color + "\"]\n";
         }
     }
-    for(hashing::htype vid : component.v) {
-        for(Vertex * vit : component.graph().getVertices(vid)) {
-            Vertex &start = *vit;
-            for (Edge &edge : start) {
-                Vertex &end = *edge.end();
-                if (!component.contains(end)) {
-                    printEdge(os, start, edge, labeler(edge), edge_colorer(edge));
-                    printEdge(os, end.rc(), edge.rc(), labeler(edge.rc()), edge_colorer(edge));
-                } else {
-                    printEdge(os, start, edge, labeler(edge), edge_colorer(edge));
-                }
-            }
-        }
+    for(Edge &edge : component.edges()) {
+        printEdge(os, edge, labeler(edge), edge_colorer(edge));
     }
     os << "}\n";
 }
