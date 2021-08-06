@@ -281,7 +281,7 @@ namespace dbg {
         static Component neighbourhood(SparseDBG &graph, Contig &contig, size_t radius) {
             std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> v;
             typedef std::pair<size_t, hashing::htype> StoredValue;
-            std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<StoredValue>> queue;
+            std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<>> queue;
             std::vector<PerfectAlignment<Contig, Edge>> als1 = GraphAligner(graph).carefulAlign(contig);
             Contig rc_contig = contig.RC();
 //        TODO Every edge must have a full sequence stored as a composite sequence

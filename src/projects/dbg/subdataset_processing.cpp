@@ -9,10 +9,14 @@ std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::
     std::vector<std::ofstream *> alignments;
     std::vector<Subdataset> result;
     recreate_dir(dir);
+    std::unordered_map<Vertex *, size_t> cmap;
     for(size_t i = 0; i < comps.size(); i++) {
         os.emplace_back(new std::ofstream());
         alignments.emplace_back(new std::ofstream());
         result.emplace_back(i, comps[i], dir / std::to_string(i));
+        for(Vertex &vert : result.back().component.vertices()) {
+            cmap[&vert] = result.back().id;
+        }
         ensure_dir_existance(result.back().dir);
         os.back()->open(result.back().dir / "corrected.fasta");
         alignments.back()->open(result.back().dir / "alignments.txt");
@@ -23,6 +27,13 @@ std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::
         log.close();
         printDot(result.back().dir / "graph.dot", result.back().component, readStorage.labeler());
     }
+    std::ofstream dos;
+    dos.open(dir / "compoments.txt");
+    for(Vertex &vert : dbg.vertices()) {
+        VERIFY(cmap.find(&vert) != cmap.end());
+        dos << vert.getId() << " " << cmap[&vert] << "\n";
+    }
+    dos.close();
     for(AlignedRead &read : readStorage) {
         if(!read.valid() || read.path.size() == 1)
             continue;
