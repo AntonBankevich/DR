@@ -75,14 +75,18 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
     logger.info() << "Running repeat resolution" << std::endl;
     std::string COMMAND = "python3 resolution/sequence_graph/path_graph_multik.py -i {} -o {}";
     std::sort(subdatasets.begin(), subdatasets.end());
-#pragma omp parallel for schedule(dynamic, 1) default(none) shared(subdatasets, COMMAND)
+#pragma omp parallel for schedule(dynamic, 1) default(none) shared(subdatasets, COMMAND, logger)
     for(size_t snum = 0; snum < subdatasets.size(); snum++) {
         Subdataset &subdataset = subdatasets[snum];
         std::experimental::filesystem::path outdir = subdataset.dir / "mltik";
         std::string command = COMMAND;
         command.replace(command.find("{}"), 2, subdataset.dir.string());
         command.replace(command.find("{}"), 2, outdir.string());
-        system(command.c_str());
+        int code = system(command.c_str());
+        if(code != 0) {
+            logger.info() << "Repeat resolution of component " << subdataset.id << " returned code " << code << std::endl;
+            exit(1);
+        }
     }
     logger.info() << "Collecting repeat resolution results" << std::endl;
     ParallelRecordCollector<Contig> res(threads);
