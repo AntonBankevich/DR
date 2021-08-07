@@ -19,6 +19,7 @@ private:
                             id(id), component(std::move(component)), dir(std::move(dir)) {}
         size_t id;
         Component component;
+        std::vector<size_t> reads;
         std::experimental::filesystem::path dir;
         bool operator<(const Subdataset &other) const {
             if(component.size() != other.component.size())
@@ -32,6 +33,7 @@ public:
     }
 
     std::vector<Subdataset> SplitDataset(const std::function<bool(const Edge &)> &is_unique);
+    void prepareDataset(const Subdataset &subdataset);
     std::vector<Contig> ResolveRepeats(logging::Logger &logger, size_t threads,
                                        const std::function<bool(const Edge &)> &is_unique = [](const Edge &){return false;});
     std::vector<Contig> CollectResults(logging::Logger &logger, size_t threads, const std::vector<Contig> &contigs,

@@ -6,67 +6,50 @@
 std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::function<bool(const Edge &)> &is_unique) {
     size_t k = dbg.hasher().getK();
     std::vector<Component> comps = ConditionSplitter(is_unique).splitGraph(dbg);
-//    std::vector<std::ofstream *> os;
-    std::vector<std::ofstream *> alignments;
     std::vector<Subdataset> result;
     recreate_dir(dir);
     std::unordered_map<Vertex *, size_t> cmap;
     for(size_t i = 0; i < comps.size(); i++) {
-//        os.emplace_back(new std::ofstream());
-        alignments.emplace_back(new std::ofstream());
         result.emplace_back(i, comps[i], dir / std::to_string(i));
         for(Vertex &vert : result.back().component.vertices()) {
             cmap[&vert] = result.back().id;
         }
         ensure_dir_existance(result.back().dir);
-//        os.back()->open(result.back().dir / "corrected.fasta");
-        alignments.back()->open(result.back().dir / "alignments.txt");
-        printFasta(result.back().dir / "graph.fasta", result.back().component);
-        std::ofstream log;
-        log.open(result.back().dir / "dbg.log");
-        log << "-k " << k << std::endl;
-        log.close();
-        printDot(result.back().dir / "graph.dot", result.back().component, readStorage.labeler());
     }
-    std::ofstream dos;
-    dos.open(dir / "components.txt");
-    for(Vertex &vert : dbg.vertices()) {
-        VERIFY(cmap.find(&vert) != cmap.end());
-        dos << vert.getId() << " " << cmap[&vert] << "\n";
-        std::cout << vert.getId() << " " << cmap[&vert] << "\n";
-    }
-    dos.close();
-    for(AlignedRead &read : readStorage) {
+    for(size_t rnum = 0; rnum < readStorage.size(); rnum++) {
+        AlignedRead &read = readStorage[rnum];
         if(!read.valid() || read.path.size() == 1)
             continue;
         GraphAlignment al = read.path.getAlignment();
-        Sequence seq = al.Seq();
-        std::stringstream ss;
-        ss  << read.id << " " << al.start().hash() << int(al.start().isCanonical())
-            << " " << read.path.cpath().str() << "\n";
-        CompactPath rc(al.RC());
-        ss  << "-" << read.id << " " << rc.start().hash() << int(rc.start().isCanonical())
-            << " " << rc.cpath().str() << "\n";
-        std::string alignment_record = ss.str();
-        for(size_t j = 0; j < result.size(); j++) {
-            for(size_t i = 1; i < al.size(); i++) {
-                if(result[j].component.contains(al.getVertex(i))) {
-//                    *os[j] << ">" << read.id << "\n" << seq << "\n";
-                    *alignments[j] << alignment_record;
-                    break;
-                }
-            }
+        result[cmap[&al.getVertex(1)]].reads.emplace_back(rnum);
+        for(size_t i = 2; i < al.size(); i++) {
+            VERIFY(cmap[&al.getVertex(1)] == cmap[&al.getVertex(i)]);
         }
-    };
-    for(size_t j = 0; j < comps.size(); j++) {
-//        os[j]->close();
-        alignments[j]->close();
-//        delete os[j];
-        delete alignments[j];
-//        os[j] = nullptr;
-        alignments[j] = nullptr;
     }
     return std::move(result);
+}
+
+void RepeatResolver::prepareDataset(const RepeatResolver::Subdataset &subdataset) {
+    printFasta(subdataset.dir / "graph.fasta", subdataset.component);
+    std::ofstream log;
+    log.open(subdataset.dir / "dbg.log");
+    log << "-k " << dbg.hasher().getK() << std::endl;
+    log.close();
+    printDot(subdataset.dir / "graph.dot", subdataset.component, readStorage.labeler());
+    std::ofstream als;
+    als.open(subdataset.dir / "alignments.txt");
+    for(size_t rnum : subdataset.reads) {
+        AlignedRead &read = readStorage[rnum];
+        GraphAlignment al = read.path.getAlignment();
+        std::stringstream ss;
+        als << read.id << " " << read.path.start().hash() << int(read.path.start().isCanonical())
+            << " " << read.path.cpath().str() << "\n";
+        CompactPath rc = read.path.RC();
+        als  << "-" << read.id << " " << rc.start().hash() << int(rc.start().isCanonical())
+            << " " << rc.cpath().str() << "\n";
+        std::string alignment_record = ss.str();
+    }
+    als.close();
 }
 
 std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size_t threads,
@@ -79,6 +62,7 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
 #pragma omp parallel for schedule(dynamic, 1) default(none) shared(subdatasets, COMMAND, logger)
     for(size_t snum = 0; snum < subdatasets.size(); snum++) {
         Subdataset &subdataset = subdatasets[snum];
+        prepareDataset(subdataset);
         std::experimental::filesystem::path outdir = subdataset.dir / "mltik";
         std::string command = COMMAND;
         command.replace(command.find("{}"), 2, subdataset.dir.string());
