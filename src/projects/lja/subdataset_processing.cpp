@@ -59,11 +59,11 @@ std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::
         }
     };
     for(size_t j = 0; j < comps.size(); j++) {
-        os[j]->close();
+//        os[j]->close();
         alignments[j]->close();
-        delete os[j];
+//        delete os[j];
         delete alignments[j];
-        os[j] = nullptr;
+//        os[j] = nullptr;
         alignments[j] = nullptr;
     }
     return std::move(result);
