@@ -1,24 +1,25 @@
 #include "subdataset_processing.hpp"
 
 #include <utility>
+#include "stdio.h"
 
 std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::function<bool(const Edge &)> &is_unique) {
     size_t k = dbg.hasher().getK();
     std::vector<Component> comps = ConditionSplitter(is_unique).splitGraph(dbg);
-    std::vector<std::ofstream *> os;
+//    std::vector<std::ofstream *> os;
     std::vector<std::ofstream *> alignments;
     std::vector<Subdataset> result;
     recreate_dir(dir);
     std::unordered_map<Vertex *, size_t> cmap;
     for(size_t i = 0; i < comps.size(); i++) {
-        os.emplace_back(new std::ofstream());
+//        os.emplace_back(new std::ofstream());
         alignments.emplace_back(new std::ofstream());
         result.emplace_back(i, comps[i], dir / std::to_string(i));
         for(Vertex &vert : result.back().component.vertices()) {
             cmap[&vert] = result.back().id;
         }
         ensure_dir_existance(result.back().dir);
-        os.back()->open(result.back().dir / "corrected.fasta");
+//        os.back()->open(result.back().dir / "corrected.fasta");
         alignments.back()->open(result.back().dir / "alignments.txt");
         printFasta(result.back().dir / "graph.fasta", result.back().component);
         std::ofstream log;
@@ -50,7 +51,7 @@ std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::
         for(size_t j = 0; j < result.size(); j++) {
             for(size_t i = 1; i < al.size(); i++) {
                 if(result[j].component.contains(al.getVertex(i))) {
-                    *os[j] << ">" << read.id << "\n" << seq << "\n";
+//                    *os[j] << ">" << read.id << "\n" << seq << "\n";
                     *alignments[j] << alignment_record;
                     break;
                 }
