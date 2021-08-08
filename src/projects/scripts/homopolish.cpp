@@ -251,7 +251,7 @@ struct ContigInfo {
         string consensus = "";
 
         for (size_t i = 0; i < len; ) {
-            if (complex_regions.size() > 0 && complex_regions[cur_complex_ind].first == i ) {
+            if (complex_regions.size() > 0 && complex_regions[cur_complex_ind].first == i && complex_strings[i].size() > 1) {
                 consensus = complex_strings[i][complex_strings[i].size() - 1];
                 ss << consensus;
                 auto check = checkMSAConsensus(consensus, complex_strings[i]);
@@ -277,7 +277,7 @@ struct ContigInfo {
 
                 if (debug_f != "none" )
                     for (size_t j = 0; j < consensus.length(); j++) {
-                        debug << total_count + 1 << " 0 "<< complex_strings[i].size() <<" 0 " << consensus[j] << endl;
+                        debug << total_count + 1 << " 0 "<< complex_strings[i].size() - 1 <<" 0 " << consensus[j] << endl;
                         total_count ++;
                     }
 
@@ -285,6 +285,13 @@ struct ContigInfo {
                 if (cur_complex_ind + 1< complex_regions.size())
                     cur_complex_ind ++;
             } else {
+                if (complex_strings[i].size() == 1) {
+                    logger.info() << "Empty consensus decompressed position" << total_count << " compressed position " << i << "compressed length " << complex_regions[cur_complex_ind].second << endl;
+                    logger.info() << "will try median approach" << endl;
+                    if (cur_complex_ind + 1< complex_regions.size())
+                        cur_complex_ind ++;
+                }
+
                 int real_cov = 1;
                 int cov = 1;
                 if (quantity[i] == 0) {
@@ -349,10 +356,11 @@ struct AssemblyInfo {
     size_t filtered_pairs;
     bool get_uncovered_only;
     static const size_t SW_BANDWIDTH = 10;
-
+//Used to check whether complex regions coords are similar in read and compressed contigs
+    static constexpr double COMPRESS_SHIFT = 0.95;
 //We do not believe matches on the ends of match region
 //TODO DO WE
-    static const size_t MATCH_EPS = 1;
+    static const size_t MATCH_EPS = 0;
 
     static const size_t BATCH_SIZE = 10000;
 
@@ -473,7 +481,7 @@ struct AssemblyInfo {
         size_t matched_l = matchedLength(cigars);
         bool valid_cigar = true;
 //TODO: consts
-        while ((matched_l + 300 < aln.length() || !(valid_cigar = verifyCigar(cigars, cur_bandwidth)))) {
+        while ((matched_l < strlen(read) * COMPRESS_SHIFT || !(valid_cigar = verifyCigar(cigars, cur_bandwidth)))) {
             if (matched_l < 50) {
                 logger.trace() << aln.read_id << " ultrashort alignmnent, doing nothing" << endl;
                 break;
@@ -555,7 +563,7 @@ struct AssemblyInfo {
                 size_t start_shift = MATCH_EPS;
                 if (current_match == 1) start_shift = 0;
                 size_t end_shift = MATCH_EPS;
-                if (current_match == 1) end_shift = 0;
+                if (current_match == match_regions) end_shift = 0;
 //TODO should we move critical here?
 #pragma omp critical
                 for (size_t i = start_shift; i + end_shift< (*it).length; i++) {
@@ -577,7 +585,7 @@ struct AssemblyInfo {
                     }
 //Only complete traversion of complex regions taken in account;
 //                    if (current_contig.complex_regions.find(coord) != current_contig.complex_regions.end()) {
-                    if (coord == cur_complex_coord) {
+/*                    if (coord == cur_complex_coord) {
 //                        logger.trace() << "entered complex at coord" << cur_complex_coord;
                         size_t complex_len = complex_regions_iter->second;
                         if (local_read_coords + complex_len < matchedLength(cigars)) {
@@ -588,7 +596,7 @@ struct AssemblyInfo {
                         complex_regions_iter ++;
                         if (complex_regions_iter != current_contig.complex_regions.end())
                             cur_complex_coord = complex_regions_iter->first;
-                    }
+                    } */
                     if (coord == contig_finish) {
                         contig_finish = -1;
                     }
@@ -602,6 +610,27 @@ struct AssemblyInfo {
         return matches;
     }
 
+    void syncComplexRegions(vector<pair<size_t, size_t>> &c_fragments, vector<pair<size_t, size_t>> &r_fragments) {
+        auto c_iter = c_fragments.begin();
+        auto r_iter = r_fragments.begin();
+        while (c_iter != c_fragments.end() && r_iter != r_fragments.end()) {
+//Same fragment,
+            if (c_iter->first > r_iter->first * COMPRESS_SHIFT && r_iter->first > c_iter->first * COMPRESS_SHIFT) {
+                c_iter++;
+                r_iter ++;
+            } else if (c_iter->first > r_iter->first) {
+                r_iter = r_fragments.erase(r_iter);
+            } else {
+                c_iter = c_fragments.erase(c_iter);
+            }
+        }
+        while (c_iter != c_fragments.end())
+            c_iter = c_fragments.erase(c_iter);
+        while (r_iter != r_fragments.end())
+            r_iter = r_fragments.erase(r_iter);
+
+
+    }
     void processReadPair (string& read, AlignmentInfo& aln) {
 //        logger.info() << read.id << endl;
         Sequence read_seq (read);
@@ -631,6 +660,8 @@ struct AssemblyInfo {
 
         auto read_complex_regions = GetComplexRegions(compressed_read);
         vector<pair<size_t, size_t>> contig_complex_regions = GetComplexRegions(contig_seq);
+        syncComplexRegions(read_complex_regions, contig_complex_regions);
+
 //Do not want to take them from global contigs' complex regions because of side effects
 /*
         auto complex_regions_iter = lower_bound(current_contig.complex_regions.begin(), current_contig.complex_regions.end(),make_pair(aln.alignment_start, size_t(0)));
@@ -660,7 +691,7 @@ struct AssemblyInfo {
         for (size_t i = 0; i < read_splt.normal_fragments.size(); i ++) {
             if (i >= contig_splt.normal_fragments.size())
                 break;
-            logger.trace() << aln.read_id << "frag  " << i << " start " << contig_splt.normal_shifts[i] + aln.alignment_start << endl;
+//            logger.trace() << aln.read_id << " normal frag  " << i << " start " << contig_splt.normal_shifts[i] + aln.alignment_start << " length " << contig_splt.normal_fragments[i].length()<< endl;
 
             {
 //                logger.trace() << contig_splt.normal_fragments[i] << endl << read_splt.normal_fragments[i] << endl;
@@ -674,11 +705,12 @@ struct AssemblyInfo {
                 }
             }
         }
-//        logger.info() << "normal fragments processed";
         for (auto i = 0; i < read_splt.complex_fragments.size(); i++) {
-
             if (i >= contig_splt.complex_fragments.size())
                 break;
+//            logger.trace() << aln.read_id << " complex frag  " << i << " start " << contig_splt.complex_shifts[i] + aln.alignment_start << " length " << contig_splt.complex_fragments[i].length()<< endl;
+
+//after first misaligned normal fragment we should not trust any complex fragments.
             if (i == bad_fragment)
                 break;
             if (contig_splt.complex_shifts[i] < MIN_DISTANCE_COMPLEX_REGIONS ||  contig_splt.complex_shifts[i] +  contig_splt.complex_fragments[i].length() + MIN_DISTANCE_COMPLEX_REGIONS > contig_seq.length()) {
