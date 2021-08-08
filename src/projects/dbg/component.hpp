@@ -32,7 +32,8 @@ namespace dbg {
         IterableStorage<ApplyingIterator<iterator, Edge, 16>> edgesUnique() const;
         IterableStorage<ApplyingIterator<iterator, Edge, 16>> edgesInnerUnique() const;
 
-        size_t borderEdges() const;
+        size_t countBorderEdges() const;
+        size_t countTips() const;
         size_t isAcyclic() const;
         size_t realCC() const;
     };

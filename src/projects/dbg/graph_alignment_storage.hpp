@@ -154,7 +154,7 @@ public:
 
     size_t size() const {return reads.size();}
 
-    std::function<std::string(Edge &)> labeler();
+    std::function<std::string(Edge &)> labeler() const;
 
     void addSubpath(const CompactPath &cpath);
     void removeSubpath(const CompactPath &cpath);

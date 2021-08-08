@@ -2,7 +2,7 @@
 // Created by anton on 17.07.2020.
 //
 #define _GLIBCXX_PARALLEL
-#include "diploidy_analysis.hpp"
+#include "error_correction/diploidy_analysis.hpp"
 #include "error_correction/mult_correction.hpp"
 #include "error_correction/parameter_estimator.hpp"
 #include "dbg/visualization.hpp"

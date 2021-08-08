@@ -86,7 +86,7 @@ public:
                 return std::string("");
             }
             size_t num = std::min<size_t>(10, als.size());
-            ss << als[0].seg_from << "->" << als[0].seg_to;
+            ss << als[0].seg_from << "->" << als[0].seg_to.coordinaresStr();
             for (size_t i = 1; i < num; i++) {
                 const PerfectAlignment<Contig, Edge> &al = als[i];
                 ss << "\\n" << al.seg_from << "->" << al.seg_to.coordinaresStr() << "\n";

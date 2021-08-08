@@ -1,7 +1,7 @@
 #pragma once
 
+#include "uniqueness.hpp"
 #include "dbg/sparse_dbg.hpp"
-#include "error_correction/multiplicity_estimation.hpp"
 
 class BulgePath {
 private:
@@ -10,14 +10,14 @@ private:
     dbg::Vertex *start_;
     std::vector<std::pair<dbg::Edge *, dbg::Edge *>> path;
 public:
-    BulgePath(dbg::Vertex &_start) : start_(&_start) {
+    explicit BulgePath(dbg::Vertex &_start) : start_(&_start) {
     }
 
-    BulgePath(dbg::Edge &edge) : start_(edge.start()) {
+    explicit BulgePath(dbg::Edge &edge) : start_(edge.start()) {
         path.emplace_back(&edge, &edge);
     }
 
-    BulgePath(std::vector<std::pair<dbg::Edge *, dbg::Edge *>> &&path_) : path(path_), start_(nullptr) {
+    explicit BulgePath(std::vector<std::pair<dbg::Edge *, dbg::Edge *>> &&path_) : path(path_), start_(nullptr) {
         VERIFY(path.size() > 0);
         start_ = path.front().first->start();
     }
@@ -54,7 +54,7 @@ public:
         VERIFY(finish() == other.start())
         std::vector<std::pair<dbg::Edge *, dbg::Edge *>> sum(path);
         sum.insert(sum.end(), other.path.begin(), other.path.end());
-        return {std::move(sum)};
+        return BulgePath(std::move(sum));
     }
 
     const std::pair<dbg::Edge *, dbg::Edge *> &operator[](size_t ind) const {
@@ -131,7 +131,7 @@ private:
 public:
     std::vector<BulgePath> paths;
 
-    BulgePathAnalyser(dbg::SparseDBG &dbg, size_t min_len = 100000) : dbg(dbg) {
+    explicit BulgePathAnalyser(dbg::SparseDBG &dbg, size_t min_len = 100000) : dbg(dbg) {
         std::unordered_set<dbg::Vertex *> visited;
         for(auto &it : dbg) {
             if(visited.find(&it.second) != visited.end())
@@ -163,7 +163,9 @@ public:
                 continue;
             for(dbg::Vertex * vit : {&it.second, &it.second.rc()}) {
                 for(dbg::Edge & edge : *vit) {
-                    if(edge.size() > min_len) {
+                    if(edge.size() > min_len || (
+                            (edge.start()->inDeg() == 0 || edge.end()->outDeg() == 0) &&
+                            edge.size() > min_len / 3 && edge.getCoverage() > 4)) {
                         paths.emplace_back(edge);
                     }
                 }
@@ -171,9 +173,9 @@ public:
         }
     }
 
-    SetUniquenessStorage uniqueEdges() {
+    SetUniquenessStorage uniqueEdges() const {
         std::vector<dbg::Edge *> res;
-        for(BulgePath &bp : paths) {
+        for(const BulgePath &bp : paths) {
             for (auto & p : bp) {
                 if(p.first != p.second) {
                     res.emplace_back(p.first);

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "lja/diploidy_analysis.hpp"
+#include "diploidy_analysis.hpp"
 #include "multiplicity_estimation.hpp"
 #include "dbg/sparse_dbg.hpp"
 #include "dbg/compact_path.hpp"

@@ -1,17 +1,21 @@
 #include "component.hpp"
 
-size_t dbg::Component::borderEdges() const {
+size_t dbg::Component::countBorderEdges() const {
     size_t res = 0;
-    for (hashing::htype hash : v) {
-        const Vertex &vert = graph().getVertex(hash);
+    for (Vertex &vert : vertices()) {
         for(Edge &edge : vert) {
             if(!contains(*edge.end()))
                 res++;
         }
-        for(Edge &edge : vert.rc()) {
-            if(!contains(*edge.end()))
-                res++;
-        }
+    }
+    return res;
+}
+
+size_t dbg::Component::countTips() const {
+    size_t res = 0;
+    for (Vertex &vert : vertices()) {
+        if(vert.inDeg() == 0)
+            res++;
     }
     return res;
 }
