@@ -54,16 +54,29 @@ void RepeatResolver::prepareDataset(const RepeatResolver::Subdataset &subdataset
 
 std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size_t threads,
                               const std::function<bool(const Edge &)> &is_unique) {
-    logger.info() << "Splitting dataset and printing subdatasets to disk" << std::endl;
+    logger.info() << "Splitting dataset" << std::endl;
     std::vector<Subdataset> subdatasets = SplitDataset(is_unique);
+    logger.info() << "Dataset splitted into " << subdatasets.size() << " parts. Starting resolution." << std::endl;
     logger.info() << "Running repeat resolution" << std::endl;
     std::string COMMAND = "python3 resolution/sequence_graph/path_graph_multik.py -i {} -o {}";
     std::sort(subdatasets.begin(), subdatasets.end());
+    omp_set_num_threads(threads);
 #pragma omp parallel for schedule(dynamic, 1) default(none) shared(subdatasets, COMMAND, logger)
     for(size_t snum = 0; snum < subdatasets.size(); snum++) {
         Subdataset &subdataset = subdatasets[snum];
-        prepareDataset(subdataset);
         std::experimental::filesystem::path outdir = subdataset.dir / "mltik";
+        if(subdataset.reads.empty()) {
+            std::ofstream os;
+            os.open(outdir / "edges.fasta");
+            size_t cnt = 1;
+            for(Edge &edge : subdataset.component.edgesInner()) {
+                os << ">" << cnt << "\n" << (edge.start()->seq + edge.seq) << "\n";
+                cnt++;
+            }
+            os.close();
+            continue;
+        }
+        prepareDataset(subdataset);
         std::string command = COMMAND;
         command.replace(command.find("{}"), 2, subdataset.dir.string());
         command.replace(command.find("{}"), 2, outdir.string());
