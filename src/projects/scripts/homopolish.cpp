@@ -158,7 +158,7 @@ struct ContigInfo {
         auto alignment_engine = spoa::AlignmentEngine::Create(
 // -8 in default for third parameter(gap) opening, -6 for forth(gap extension)
                 spoa::AlignmentType::kNW, 10, -8, -8, -1);  // linear gaps
-
+//TODO: what about length signinficantly different with median?
         spoa::Graph graph{};
         size_t cov = 0;
         for (const auto& it : s) {
@@ -174,7 +174,6 @@ struct ContigInfo {
         string consensus = graph.GenerateConsensus(&coverages);
         size_t pref_remove = 0;
         int suf_remove = coverages.size() - 1;
-        cout << endl;
         while (pref_remove < coverages.size() && coverages[pref_remove] < cov / 2 )
             pref_remove ++;
         while (suf_remove >= 0 && coverages[suf_remove] < cov / 2 )
@@ -200,7 +199,7 @@ struct ContigInfo {
         if (cons_len != all_len[all_len.size()/2]) {
             return "CONSENSUS LENGTH DIFFER FROM MEDIAN";
         }
-        return "AAAAAAA!";
+        return "";
 //What are other suspicious cases? Since we can glue two dimeric regions, commented case is  actually OK
 /*        size_t len = s.length();
         for (size_t i = COMPLEX_EPS + 2; i < len - COMPLEX_EPS; i++) {
@@ -239,19 +238,24 @@ struct ContigInfo {
                 auto check = checkMSAConsensus(consensus, complex_strings[i]);
  //            logger.info() << "consensus of " << complex_strings[start_pos].size() << ": " << consensus.length() << endl << "At position " <<start_pos << endl;
                 if (check != ""){
-                    {
-                        logger.info() << "Problematic consensus starting on decompressed position " << total_count <<" " << check <<" of " <<complex_strings[i].size() - 1 << " sequences "<< endl;
-                        for (size_t j = 0; j < complex_strings[i].size() - 1; j++) {
-                            logger.trace() << complex_strings[i][j] << endl;
-                        }
-                        logger.trace() << endl;
-                        logger.trace() << consensus << endl;
+                    logger.info() << "Problematic consensus starting on decompressed position " << total_count <<" " << check <<" of " <<complex_strings[i].size() - 1 << " sequences "<< endl;
+                    logger.info() << "Position " << complex_regions[cur_complex_ind].first << " len " << complex_regions[cur_complex_ind].second << endl;
+                    stringstream debug_l;
+                    debug_l << "lengths: ";
+                    for (size_t j = 0; j < complex_strings[i].size() - 1; j++) {
+                        debug_l << complex_strings[i][j].length() << " ";
                     }
+                    debug_l <<" : " << consensus.length() << endl;
+                    logger.info() << debug_l.str();
+                    for (size_t j = 0; j < complex_strings[i].size() - 1; j++) {
+                        logger.info() << complex_strings[i][j] << endl;
+                    }
+                    logger.info() << endl;
+                    logger.info() << consensus << endl;
                 }
-
                 if (debug_f != "none" )
                     for (size_t j = 0; j < consensus.length(); j++) {
-                        debug << total_count + 1 << " 0 "<< complex_strings[i].size() <<" 0 " << consensus[j] << endl;
+                        debug << total_count + 1 << " 0 "<< complex_strings[i].size() - 1 <<" 0 " << consensus[j] << endl;
                         total_count ++;
                     }
 
@@ -278,11 +282,12 @@ struct ContigInfo {
 
                     cov = int(round(sum[i] * 1.0 / quantity[i]));
                     if (real_cov != cov) {
-                        logger.info() << "Median disagree with average at position " << i<<" med/avg: "<< real_cov << "/" << cov << endl;
+/*                        logger.info() << "Median disagree with average at position " << i<<" med/avg: "<< real_cov << "/" << cov << endl;
                         stringstream as;
                         for (auto j = 0; j < amounts[i][0]; j++)
                             as << int(amounts[i][j + 1]) << " ";
                         logger.info() << as.str() << endl;
+                        */
                         cov = real_cov;
                     }
                 }
@@ -323,16 +328,16 @@ struct AssemblyInfo {
     size_t filtered_pairs;
     bool get_uncovered_only;
     static const size_t SW_BANDWIDTH = 10;
-//Used if we see that something wrong is with first
-    static const size_t SW_SECOND_BANDWIDTH = 50;
-//We do not believe matches on the ends of match region
-    static const size_t MATCH_EPS = 1;
+
+//We do not believe matches on the ends of match region, DO WE?
+    static const size_t MATCH_EPS = 0;
 
     static const size_t BATCH_SIZE = 10000;
 
     AssemblyInfo (CLParser& parser):parser(parser), logger(true, false), used_pairs(0), filtered_pairs(0), get_uncovered_only(false) {
 //TODO paths;
-        logging::LoggerStorage ls("/home/lab44/work/homo_compress/", "homopolish");
+        logging::LoggerStorage ls(".", "homopolish");
+
         logger.addLogFile(ls.newLoggerFile());
         logger.info() <<"Reading contigs..." << endl;
         std::vector<Contig> assembly = io::SeqReader(parser.getValue("contigs")).readAllContigs();
@@ -452,8 +457,8 @@ struct AssemblyInfo {
             if (matched_l < 50) {
                 logger.trace() << aln.read_id << " ultrashort alignmnent, doing nothing" << endl;
                 logger.trace() <<str_cigars<< endl;
-                logger.trace() << string(contig) << endl;
-                logger.trace() << string (read) << endl;
+//                logger.trace() << string(contig) << endl;
+//                logger.trace() << string (read) << endl;
                 break;
             } else {
                 cur_bandwidth *= 2;
@@ -569,13 +574,9 @@ struct AssemblyInfo {
                 cont_coords += (*it).length;
             }
         }
-
-//        logger.info() << "Matches "<< matches << " mismatches " << mismatches <<" indels " << indels << endl;
+        if (matches < mismatches * 3)
+            logger.info()<<"For read too much mismatches " << aln.read_id << " matches/MM: " << matches << "/" << mismatches << endl;
         return;
-//ssw align check;
-//       aligner.Align(compressed_read.c_str(), contig_seq.c_str(), contig_seq.length(), filter, &alignment, maskLen);
-//        logger.info() << "Cigar " << alignment.cigar_string << endl;
-
     }
     void removeWhitespace(string & s){
         auto white = s.find(' ');
