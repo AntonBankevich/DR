@@ -327,6 +327,9 @@ struct AssemblyInfo {
     size_t used_pairs;
     size_t filtered_pairs;
     bool get_uncovered_only;
+//dinucleotide repeats of larger length will be compressed
+    size_t compression_length;
+
     static const size_t SW_BANDWIDTH = 10;
 
 //We do not believe matches on the ends of match region, DO WE?
@@ -350,7 +353,7 @@ struct AssemblyInfo {
             logger.info() << contig.id << endl;
 
         }
-
+        compression_length= stoi(parser.getValue("compress"));
     }
     void AddRead(string contig_name){
         contigs[contig_name].AddRead();
@@ -404,7 +407,21 @@ struct AssemblyInfo {
         }
     }
 
-//Some strange cigars are output
+    string uncompressCoords (size_t from, size_t to, const string &s, const vector<size_t> & coords) {
+//        logger.info() << from << " " << to << " " << s.length() << endl;
+        size_t real_from = coords[from];
+//can be optimised
+        size_t real_to = coords[to];
+        if (real_to >= real_from)
+            return s.substr(real_from,  real_to -real_from);
+        else {
+            logger.info() << "BULLSHIT";
+            return "";
+        }
+    }
+
+
+    //Some strange cigars are output
     bool verifyCigar(vector<cigar_pair> &cigars, int bandwidth ) {
 //TODO constant??
         if (cigars.size() > 200) {
@@ -483,6 +500,42 @@ struct AssemblyInfo {
         return cigars;
     }
 
+    string compressRead(const string& read, vector<size_t>& uncompressed_positions) {
+//TODO:: is it fast?
+        stringstream res;
+        size_t current_coord = 0;
+        uncompressed_positions.resize(0);
+        for (size_t i = 0; i < read.length(); i++) {
+            bool compressed = false;
+            if (i > 0 && read[i] == read[i - 1]) {
+                compressed = true;
+            } else if (current_coord > 2*compression_length) {
+                bool in_repeat = true;
+                for (size_t j = 1; j < compression_length + 1; j++) {
+                    if (res.str()[current_coord  - 2 * j] != read [i]) {
+                        in_repeat = false;
+                        break;
+                    }
+                }
+                if (in_repeat) {
+                    for (size_t j = 1; j < compression_length; j++) {
+                        if (res.str()[current_coord -1 - 2 * j] != res.str()[current_coord -1]) {
+                            in_repeat = false;
+                            break;
+                        }
+                    }
+                }
+                compressed |= in_repeat;
+            }
+            if (!compressed) {
+                res << read[i];
+                uncompressed_positions.push_back(i);
+                current_coord ++;
+            }
+        }
+        return res.str();
+    }
+
     void processReadPair (string& read, AlignmentInfo& aln) {
 //        logger.info() << read.id << endl;
         Sequence read_seq (read);
@@ -493,11 +546,10 @@ struct AssemblyInfo {
 //            read = read.RC();
         }
         ContigInfo& current_contig = contigs[aln.contig_id];
-        string compressed_read = read_seq.str();
-        compressed_read.erase(std::unique(compressed_read.begin(), compressed_read.end()), compressed_read.end());
+        vector<size_t>compressed_read_coords;
+        string compressed_read = compressRead(read_seq.str(), compressed_read_coords);
+//        compressed_read.erase(std::unique(compressed_read.begin(), compressed_read.end()), compressed_read.end());
         string contig_seq = current_contig.sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
-        size_t cur_bandwidth = SW_BANDWIDTH;
-//strings, match, mismatch, gap_open, gap_extend, width
         auto cigars = getFastAln(aln, contig_seq.c_str(), compressed_read.c_str());
         int cur_ind = 0;
         std:vector<size_t> quantities;
@@ -505,6 +557,7 @@ struct AssemblyInfo {
 
         for (size_t i = 0; i < compressed_read.size(); i++){
             size_t count = 0;
+            cur_ind = compressed_read_coords[i];
             while (cur_ind < read_seq.size() && nucl(read_seq[cur_ind]) == compressed_read[i]) {
                 count ++;
                 cur_ind ++;
@@ -533,6 +586,7 @@ struct AssemblyInfo {
                 if (complex_regions_iter !=  current_contig.complex_regions.end()) {
                     cur_complex_coord = complex_regions_iter->first;
                 }
+//TODO possibly move critical here;
                 for (size_t i = MATCH_EPS; i + MATCH_EPS< (*it).length; i++) {
                     size_t coord = cont_coords + aln.alignment_start + i;
 
@@ -566,7 +620,7 @@ struct AssemblyInfo {
                     }
                     if (coord == contig_finish) {
 #pragma omp critical
-                        current_contig.complex_strings[complex_id].push_back(uncompress(complex_start, read_coords + i, read_seq.str()));
+                        current_contig.complex_strings[complex_id].push_back(uncompressCoords(complex_start, read_coords + i, read_seq.str(), compressed_read_coords));
                         contig_finish = -1;
                     }
                 }
@@ -689,7 +743,7 @@ struct AssemblyInfo {
  *
  */
 int main(int argc, char **argv) {
-    CLParser parser({"alignments=", "contigs=", "output=", "debug=none", "threads="}, {"reads"},
+    CLParser parser({"alignments=", "contigs=", "output=", "debug=none", "threads=8", "compress=16"}, {"reads"},
                     {});
 
     parser.parseCL(argc, argv);
