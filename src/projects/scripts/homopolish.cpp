@@ -437,6 +437,47 @@ struct AssemblyInfo {
         }
         return res;
     }
+
+    std::vector<cigar_pair> getFastAln(AlignmentInfo& aln, const char * contig, const char *read) {
+
+        size_t cur_bandwidth = SW_BANDWIDTH;
+//strings, match, mismatch, gap_open, gap_extend, width
+        auto cigars = align_ksw(contig, read, 1, -5, 5, 2, cur_bandwidth);
+        auto str_cigars = str(cigars);
+        size_t matched_l = matchedLength(cigars);
+        bool valid_cigar = true;
+//TODO: consts
+        while ((matched_l < strlen(read) * 0.9 || !(valid_cigar = verifyCigar(cigars, cur_bandwidth)))) {
+//Do we really need this?
+            if (matched_l < 50) {
+                logger.trace() << aln.read_id << " ultrashort alignmnent, doing nothing" << endl;
+                logger.trace() <<str_cigars<< endl;
+                logger.trace() << string(contig) << endl;
+                logger.trace() << string (read) << endl;
+                break;
+            } else {
+                cur_bandwidth *= 2;
+                if (cur_bandwidth > 200) {
+                    break;
+                }
+                logger.trace() << aln.read_id << endl << str(cigars) << endl << "aln length " << aln.length()
+                               << " read length " << strlen(read)
+                               << " matched length " << matched_l << endl;
+                cigars = align_ksw(contig, read, 1, -5, 5, 2, cur_bandwidth);
+                size_t new_matched_len = matchedLength(cigars);
+                logger.trace() << aln.read_id << " alignment replaced using bandwindth " << cur_bandwidth << endl
+                               << str(cigars) << endl;
+                if (new_matched_len <= matched_l && valid_cigar) {
+                    logger.trace() << aln.read_id << " alignmnent length did not improve after moving to bandwidth " << cur_bandwidth << endl;
+                    matched_l = new_matched_len;
+                    break;
+                }
+                matched_l = new_matched_len;
+            }
+        }
+        return cigars;
+    }
+
     void processReadPair (string& read, AlignmentInfo& aln) {
 //        logger.info() << read.id << endl;
         Sequence read_seq (read);
@@ -452,65 +493,7 @@ struct AssemblyInfo {
         string contig_seq = current_contig.sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
         size_t cur_bandwidth = SW_BANDWIDTH;
 //strings, match, mismatch, gap_open, gap_extend, width
-        auto cigars = align_ksw( contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, cur_bandwidth);
-        auto str_cigars = str(cigars);
-        size_t matched_l = matchedLength(cigars);
-        bool valid_cigar = true;
-        while ((matched_l + 300 < aln.length() || !(valid_cigar = verifyCigar(cigars, cur_bandwidth)))) {
-            if (matched_l < 100) {
-                logger.trace() << aln.read_id << " ultrashort alignmnent, doing nothing" << endl;
-                break;
-            } else {
-                cur_bandwidth *= 2;
-                if (cur_bandwidth > 200) {
-                    break;
-                }
-                logger.trace() << aln.read_id << endl << str(cigars) << endl << "aln length " << aln.length()
-                               << " read length " << compressed_read.length()
-                               << " matched length " << matched_l << endl;
-                cigars = align_ksw(contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, cur_bandwidth);
-                size_t new_matched_len = matchedLength(cigars);
-                logger.trace() << aln.read_id << " alignment replaced using bandwindth " << cur_bandwidth << endl
-                               << str(cigars) << endl;
-                if (new_matched_len <= matched_l && valid_cigar) {
-                    logger.trace() << aln.read_id << " alignmnent length did not improve after moving to bandwidth " << cur_bandwidth << endl;
-                    matched_l = new_matched_len;
-                    break;
-                }
-                matched_l = new_matched_len;
-            }
-        }
-/*
-        if (matched_l + 300 < aln.length() || !verifyCigar(cigars)) {
-
-//Likely long prefix clipped
-//#pragma omp critical
-            {
-                logger.trace() << aln.read_id << endl << str(cigars) << endl << "aln length " << aln.length() << " read length " << compressed_read.length()
-                              << " matched length " << matched_l << endl;
-            }
-            //TODO: we can map to reverse complement, but do not want
-            if (matched_l < 100) {
-//#pragma omp critical
-                logger.trace() << aln.read_id << " ultrashort alignmnent, doing nothing" << endl;
-            } else {
-
-                cigars = align_ksw( contig_seq.c_str(), compressed_read.c_str(), 1, -5, 5, 2, SW_SECOND_BANDWIDTH);
-
-//Possibly multiply by two here
-//#pragma omp critical
-                logger.trace() << aln.read_id << " alignment replaced using bandwindth "<< SW_SECOND_BANDWIDTH << endl
-                << str(cigars) << endl;
-
-            }
-        }
-*/
-//        logger.info() << "Aligned " << minimapaln.size()<<"\n";
-//        if (minimapaln.size() == 0) {
-//            return;
-//        }
-//        logger.info() << "Shift_to " << minimapaln[0].seg_to.left << " shift from " << minimapaln[0].seg_from.left << " rc" << aln.rc << " " << minimapaln[0].cigarString()<< endl;
-
+        auto cigars = getFastAln(aln, contig_seq.c_str(), compressed_read.c_str());
         int cur_ind = 0;
         std:vector<size_t> quantities;
         quantities.resize(compressed_read.length());
