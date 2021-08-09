@@ -344,6 +344,7 @@ struct ContigInfo {
         for (size_t i = 0; i < 20; i++) {
             logger.info() << i << " " << quantities[i] << endl;
         }
+        complex_strings.clear();
         return ss.str();
     }
 };
@@ -357,7 +358,7 @@ struct AssemblyInfo {
     bool get_uncovered_only;
     static const size_t SW_BANDWIDTH = 10;
 //Used to check whether complex regions coords are similar in read and compressed contigs
-    static constexpr double COMPRESS_SHIFT = 0.95;
+    static constexpr double COMPRESS_SHIFT = 0.9;
 //We do not believe matches on the ends of match region
 //TODO DO WE
     static const size_t MATCH_EPS = 0;
@@ -482,10 +483,15 @@ struct AssemblyInfo {
         bool valid_cigar = true;
 //TODO: consts
         while ((matched_l < strlen(read) * COMPRESS_SHIFT || !(valid_cigar = verifyCigar(cigars, cur_bandwidth)))) {
-            if (matched_l < 50) {
+/*            if (matched_l < 50) {
                 logger.trace() << aln.read_id << " ultrashort alignmnent, doing nothing" << endl;
+                logger.trace() <<str_cigars<< endl;
+                logger.trace() << string(contig) << endl;
+                logger.trace() << string (read) << endl;
                 break;
-            } else {
+            } else
+                */
+                {
                 cur_bandwidth *= 2;
                 if (cur_bandwidth > 200) {
                     break;
@@ -613,11 +619,19 @@ struct AssemblyInfo {
     void syncComplexRegions(vector<pair<size_t, size_t>> &c_fragments, vector<pair<size_t, size_t>> &r_fragments) {
         auto c_iter = c_fragments.begin();
         auto r_iter = r_fragments.begin();
+        size_t normal_r_length =0;
+        size_t normal_c_length =0;
         while (c_iter != c_fragments.end() && r_iter != r_fragments.end()) {
 //Same fragment,
+//TODO change Condition with respect to dinucleotide compression in contigs!
             if (c_iter->first > r_iter->first * COMPRESS_SHIFT && r_iter->first > c_iter->first * COMPRESS_SHIFT) {
-                c_iter++;
-                r_iter ++;
+
+                    c_iter++;
+                    r_iter++;
+                } else  {
+                    r_iter = r_fragments.erase(r_iter);
+                    c_iter = c_fragments.erase(c_iter);
+                }
             } else if (c_iter->first > r_iter->first) {
                 r_iter = r_fragments.erase(r_iter);
             } else {
@@ -691,7 +705,8 @@ struct AssemblyInfo {
         for (size_t i = 0; i < read_splt.normal_fragments.size(); i ++) {
             if (i >= contig_splt.normal_fragments.size())
                 break;
-//            logger.trace() << aln.read_id << " normal frag  " << i << " start " << contig_splt.normal_shifts[i] + aln.alignment_start << " length " << contig_splt.normal_fragments[i].length()<< endl;
+            logger.trace() << aln.read_id << " normal frag  " << i << " start " << contig_splt.normal_shifts[i] + aln.alignment_start <<
+            " length " << contig_splt.normal_fragments[i].length() << "/" << read_splt.normal_fragments[i].length()<< endl;
 
             {
 //                logger.trace() << contig_splt.normal_fragments[i] << endl << read_splt.normal_fragments[i] << endl;
@@ -708,7 +723,7 @@ struct AssemblyInfo {
         for (auto i = 0; i < read_splt.complex_fragments.size(); i++) {
             if (i >= contig_splt.complex_fragments.size())
                 break;
-//            logger.trace() << aln.read_id << " complex frag  " << i << " start " << contig_splt.complex_shifts[i] + aln.alignment_start << " length " << contig_splt.complex_fragments[i].length()<< endl;
+            logger.trace() << aln.read_id << " complex frag  " << i << " start " << contig_splt.complex_shifts[i] + aln.alignment_start << " length " << contig_splt.complex_fragments[i].length()<< endl;
 
 //after first misaligned normal fragment we should not trust any complex fragments.
             if (i == bad_fragment)
