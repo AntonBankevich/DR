@@ -478,8 +478,11 @@ struct AssemblyInfo {
 //                logger.trace() << string (read) << endl;
                 break;
             } else {
-                cur_bandwidth *= 2;
-                if (cur_bandwidth > 200) {
+//We allow large indels now, so we'll have to increase bandwidth significantly to overcome them, otherwise iterative process will be stopped
+                if (cur_bandwidth == 10)
+                    cur_bandwidth *= 5;
+                else  cur_bandwidth *= 2;
+                if (cur_bandwidth > 260) {
                     break;
                 }
                 logger.trace() << aln.read_id << endl << str(cigars) << endl << "aln length " << aln.length()
@@ -502,7 +505,8 @@ struct AssemblyInfo {
 
     string compressRead(const string& read, vector<size_t>& uncompressed_positions) {
 //TODO:: is it fast?
-        stringstream res;
+//        logger.trace() << read << endl;
+        string res = "";
         size_t current_coord = 0;
         uncompressed_positions.resize(0);
         for (size_t i = 0; i < read.length(); i++) {
@@ -510,16 +514,18 @@ struct AssemblyInfo {
             if (i > 0 && read[i] == read[i - 1]) {
                 compressed = true;
             } else if (current_coord > 2*compression_length) {
-                bool in_repeat = true;
-                for (size_t j = 1; j < compression_length + 1; j++) {
-                    if (res.str()[current_coord  - 2 * j] != read [i]) {
-                        in_repeat = false;
-                        break;
+                bool in_repeat = (read[i] ==res[current_coord - 2] || read[i] == res[current_coord - 1]);
+                if (in_repeat) {
+                    for (size_t j = 1; j < compression_length; j++) {
+                        if (res[current_coord  - 2 * j] != res[current_coord -2]) {
+                            in_repeat = false;
+                            break;
+                        }
                     }
                 }
                 if (in_repeat) {
                     for (size_t j = 1; j < compression_length; j++) {
-                        if (res.str()[current_coord -1 - 2 * j] != res.str()[current_coord -1]) {
+                        if (res[current_coord -1 - 2 * j] != res[current_coord -1]) {
                             in_repeat = false;
                             break;
                         }
@@ -528,12 +534,13 @@ struct AssemblyInfo {
                 compressed |= in_repeat;
             }
             if (!compressed) {
-                res << read[i];
+                res = std::move(res) + read[i];
                 uncompressed_positions.push_back(i);
                 current_coord ++;
             }
         }
-        return res.str();
+//        logger.trace() << res.str() << endl;
+        return res;
     }
 
     void processReadPair (string& read, AlignmentInfo& aln) {
@@ -545,12 +552,17 @@ struct AssemblyInfo {
             RC(aln);
 //            read = read.RC();
         }
+        logger.trace() << aln.read_id << " "<<  aln.alignment_start << " " << aln.alignment_end << endl;
         ContigInfo& current_contig = contigs[aln.contig_id];
         vector<size_t>compressed_read_coords;
         string compressed_read = compressRead(read_seq.str(), compressed_read_coords);
 //        compressed_read.erase(std::unique(compressed_read.begin(), compressed_read.end()), compressed_read.end());
         string contig_seq = current_contig.sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
         auto cigars = getFastAln(aln, contig_seq.c_str(), compressed_read.c_str());
+        if (matchedLength(cigars) < 50) {
+            logger.trace()<< "Read " << aln.read_id << " not aligned " << endl;
+            return;
+        }
         int cur_ind = 0;
         std:vector<size_t> quantities;
         quantities.resize(compressed_read.length());
@@ -570,7 +582,7 @@ struct AssemblyInfo {
         size_t mismatches = 0;
         size_t indels = 0;
         size_t complex_start = -1;
-        size_t contig_finish = -1;
+        size_t complex_fragment_finish = -1;
         size_t complex_id = -1;
         for (auto it = cigars.begin(); it != cigars.end(); ++it) {
             if ((*it).type == 'I') {
@@ -611,17 +623,20 @@ struct AssemblyInfo {
                         size_t complex_len = complex_regions_iter->second;
                         if (read_coords + complex_len < matchedLength(cigars)) {
                             complex_start = read_coords + i;
-                            contig_finish = coord + complex_len;
+                            complex_fragment_finish = coord + complex_len;
                             complex_id = coord;
                         }
                         complex_regions_iter ++;
                         if (complex_regions_iter != current_contig.complex_regions.end())
                             cur_complex_coord = complex_regions_iter->first;
                     }
-                    if (coord == contig_finish) {
+                    if (coord == complex_fragment_finish) {
 #pragma omp critical
                         current_contig.complex_strings[complex_id].push_back(uncompressCoords(complex_start, read_coords + i, read_seq.str(), compressed_read_coords));
-                        contig_finish = -1;
+                        complex_fragment_finish = -1;
+                    } else if (coord > complex_fragment_finish) {
+                        logger.info() << "Read " << aln.read_id << " missed fragment finish " << complex_fragment_finish << endl;
+                        complex_fragment_finish = -1;
                     }
                 }
                 read_coords += (*it).length;
