@@ -232,7 +232,7 @@ void NewMultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
 void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
                  const std::experimental::filesystem::path &dir,
                  RecordStorage &reads_storage, size_t unique_threshold,
-                 size_t threads, bool dump) {
+                 size_t threads, bool diploid, bool dump) {
     const std::experimental::filesystem::path fig_before = dir / "before.dot";
     const std::experimental::filesystem::path fig_after = dir / "after.dot";
 //    const std::experimental::filesystem::path out_reads = dir / "corrected.fasta";
@@ -242,7 +242,7 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
     size_t k = sdbg.hasher().getK();
     ensure_dir_existance(multiplicity_figures);
     {
-        UniqueClassificator classificator(sdbg, reads_storage);
+        UniqueClassificator classificator(sdbg, reads_storage, diploid);
         classificator.classify(logger, unique_threshold, multiplicity_figures);
         std::unordered_map<const Edge *, CompactPath> unique_extensions =
                 constructUniqueExtensions(logger, sdbg, reads_storage, classificator);

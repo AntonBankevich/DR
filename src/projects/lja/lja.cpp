@@ -153,7 +153,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
                                                                                                       const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
                                                                                                       const io::Library &paths_lib, size_t threads, size_t k, size_t w,
                                                                                                       double threshold, double reliable_coverage, size_t unique_threshold,
-                                                                                                      bool skip, bool dump, bool load) {
+                                                                                                      bool diploid, bool skip, bool dump, bool load) {
     logger.info() << "Performing initial correction with k = " << k << std::endl;
     if (k % 2 == 0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
@@ -162,7 +162,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
     ensure_dir_existance(dir);
     hashing::RollingHash hasher(k, 239);
     std::function<void()> ic_task = [&dir, &logger, &hasher, load, k, w, &reads_lib, &pseudo_reads_lib, &paths_lib,
-                                     threads, threshold, reliable_coverage, dump, unique_threshold] {
+                                     threads, threshold, reliable_coverage, dump, unique_threshold, diploid] {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
         SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
                         DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
@@ -183,7 +183,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         PrintPaths(logger, dir/ "state_dump", "bad", dbg, readStorage, paths_lib, false);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
         PrintPaths(logger, dir/ "state_dump", "uncovered1", dbg, readStorage, paths_lib, false);
-        MultCorrect(dbg, logger, dir, readStorage, unique_threshold, threads, dump);
+        MultCorrect(dbg, logger, dir, readStorage, unique_threshold, threads, diploid, dump);
         PrintPaths(logger, dir/ "state_dump", "mult", dbg, readStorage, paths_lib, false);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
         PrintPaths(logger, dir/ "state_dump", "uncovered2", dbg, readStorage, paths_lib, false);
@@ -236,7 +236,8 @@ std::experimental::filesystem::path CrudeCorrection(logging::Logger &logger, con
 
 std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path>
         MultCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
-                     const io::Library &reads_lib, const io::Library &pseudo_reads_lib, size_t threads, size_t k, size_t w, size_t unique_threshold, bool skip, bool dump) {
+                     const io::Library &reads_lib, const io::Library &pseudo_reads_lib, size_t threads, size_t k, size_t w, size_t unique_threshold, bool diploid,
+                     bool skip, bool dump) {
     logger.info() << "Performing multiplicity-based correction with k = " << k << std::endl;
     if (k % 2 == 0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
@@ -244,14 +245,15 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
     }
     ensure_dir_existance(dir);
     hashing::RollingHash hasher(k, 239);
-    std::function<void()> mc_task = [&dir, &logger, &hasher, k, w, &reads_lib, &pseudo_reads_lib, threads, unique_threshold, dump] {
+    std::function<void()> mc_task = [&dir, &logger, &hasher, k, w, &reads_lib, &pseudo_reads_lib,
+                                     threads, unique_threshold, dump, diploid] {
         const io::Library construction_lib = reads_lib + pseudo_reads_lib;
         SparseDBG dbg = DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
         RecordStorage readStorage(dbg, 0, 1000000, threads, dir/"read_log.txt", true);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
-        MultCorrect(dbg, logger, dir, readStorage, unique_threshold, threads, dump);
+        MultCorrect(dbg, logger, dir, readStorage, unique_threshold, threads, diploid, dump);
         std::ofstream edges;
         dbg.printFastaOld(dir / "graph.fasta");
         readStorage.printAlignments(logger, dir/"alignments.txt");
@@ -302,7 +304,7 @@ int main(int argc, char **argv) {
     CLParser parser({"output-dir=", "threads=16", "k-mer-size=511", "window=2000", "K-mer-size=5001", "Window=500",
                      "cov-threshold=2", "rel-threshold=7", "Cov-threshold=2", "Rel-threshold=7", "crude-threshold=3",
                      "unique-threshold=50000", "dump", "dimer-compress=1000000000,1000000000,1", "restart-from=none", "load",
-                     "alternative"},
+                     "alternative", "diploid"},
                     {"reads", "paths", "ref"},
                     {"o=output-dir", "t=threads", "k=k-mer-size","w=window", "K=K-mer-size","W=Window"},
                     "Error message not implemented");
@@ -325,6 +327,7 @@ int main(int argc, char **argv) {
         logger << argv[i] << " ";
     }
     logger << std::endl;
+    bool diplod = parser.getCheck("diplod");
     std::string first_stage = parser.getValue("restart-from");
     bool skip = first_stage != "none";
     bool load = parser.getCheck("load");
@@ -370,7 +373,7 @@ int main(int argc, char **argv) {
         skip = false;
     std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected2 =
             SecondPhase(logger, dir / "phase2", {corrected1.first}, {corrected1.second}, paths,
-                        threads, K, W, Threshold, Reliable_coverage, unique_threshold, skip, dump, load);
+                        threads, K, W, Threshold, Reliable_coverage, unique_threshold, diplod, skip, dump, load);
     if(first_stage == "phase2")
         load = false;
 

@@ -33,6 +33,7 @@ public:
 class UniqueClassificator : public SetUniquenessStorage{
 private:
     SparseDBG &dbg;
+    bool diploid;
 
     Edge &getStart(const Component &component) const;
 public:
@@ -41,7 +42,8 @@ public:
     void markPseudoHets() const;
 
     void classify(logging::Logger &logger, size_t unique_len, const std::experimental::filesystem::path &dir);
-    explicit UniqueClassificator(SparseDBG &dbg, const RecordStorage &reads_storage) : dbg(dbg), reads_storage(reads_storage) {}
+    explicit UniqueClassificator(SparseDBG &dbg, const RecordStorage &reads_storage, bool diploid) :
+                    dbg(dbg), reads_storage(reads_storage), diploid(diploid) {}
     std::vector<const dbg::Edge *> ProcessUsingCoverage(logging::Logger &logger, const Component &subcomponent,
                               const std::function<bool(const dbg::Edge &)> &is_unique, double rel_coverage) const;
     void processSimpleComponent(logging::Logger &logger, const Component &component) const;

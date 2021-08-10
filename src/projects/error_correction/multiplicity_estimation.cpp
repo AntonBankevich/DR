@@ -154,11 +154,18 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
     for(Edge &edge : dbg.edges()) {
         edge.is_reliable = true;
     }
-    SetUniquenessStorage duninque = BulgePathAnalyser(dbg, unique_len).uniqueEdges();
-    for(Edge &edge : dbg.edges()) {
-        if(duninque.isUnique(edge)) {
-//            if(edge.size() > unique_len || (edge.start()->inDeg() == 0 && edge.size() > unique_len / 3)) {
-            addUnique(edge);
+    if(diploid) {
+        SetUniquenessStorage duninque = BulgePathAnalyser(dbg, unique_len).uniqueEdges();
+        for (Edge &edge : dbg.edges()) {
+            if (duninque.isUnique(edge)) {
+                addUnique(edge);
+            }
+        }
+    } else {
+        for (Edge &edge : dbg.edges()) {
+            if(edge.size() > unique_len || (edge.start()->inDeg() == 0 && edge.size() > unique_len / 3)) {
+                addUnique(edge);
+            }
         }
     }
     markPseudoHets();

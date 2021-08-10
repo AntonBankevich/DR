@@ -100,6 +100,18 @@ public:
         }
         return ss.str();
     }
+
+    bool isBad(size_t bad_bulge_size) const {
+        if(path.size() < 2)
+            return false;
+        for(const auto &p : path) {
+            if(p.first != p.second)
+                if(p.first->size() > bad_bulge_size || p.second->size() > bad_bulge_size) {
+                    return false;
+                }
+        }
+        return true;
+    }
 };
 
 
@@ -128,10 +140,11 @@ private:
     }
 
     dbg::SparseDBG &dbg;
+    size_t min_len;
 public:
     std::vector<BulgePath> paths;
 
-    explicit BulgePathAnalyser(dbg::SparseDBG &dbg, size_t min_len = 100000) : dbg(dbg) {
+    explicit BulgePathAnalyser(dbg::SparseDBG &dbg, size_t min_len = 100000) : dbg(dbg), min_len(min_len) {
         std::unordered_set<dbg::Vertex *> visited;
         for(auto &it : dbg) {
             if(visited.find(&it.second) != visited.end())
@@ -176,13 +189,20 @@ public:
     SetUniquenessStorage uniqueEdges() const {
         std::vector<dbg::Edge *> res;
         for(const BulgePath &bp : paths) {
-            for (auto & p : bp) {
-                if(p.first != p.second) {
-                    res.emplace_back(p.first);
-                    res.emplace_back(p.second);
+            if(bp.isBad(dbg.hasher().getK())) {
+                for (auto & p : bp) {
+                    if(p.first == p.second && p.first->size() > min_len * 2) {
+                        res.emplace_back(p.first);
+                    }
                 }
-            }
-            if(bp.size() == 1)
+            } if(bp.size() > 1) {
+                for (auto &p : bp) {
+                    if (p.first != p.second) {
+                        res.emplace_back(p.first);
+                        res.emplace_back(p.second);
+                    }
+                }
+            } else
                 res.emplace_back(bp[0].first);
         }
         return {res.begin(), res.end()};

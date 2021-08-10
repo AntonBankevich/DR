@@ -151,7 +151,7 @@ int main(int argc, char **argv) {
                      "correct", "simplify", "coverage", "cov-threshold=2", "rel-threshold=10", "tip-correct", "crude-correct",
                      "initial-correct", "mult-correct", "mult-analyse", "compress", "dimer-compress=1000000000,1000000000,1", "help", "genome-path",
                      "dump", "extension-size=none", "print-all", "extract-subdatasets", "print-alignments", "subdataset-radius=10000",
-                     "split"},
+                     "split", "diploid"},
                     {"reads", "pseudo-reads", "align", "paths", "print-segment"},
                     {"h=help", "o=output-dir", "t=threads", "k=k-mer-size","w=window"},
                     constructMessage());
@@ -249,7 +249,7 @@ int main(int argc, char **argv) {
     }
 
     if(parser.getCheck("mult-correct")) {
-        MultCorrect(dbg, logger, dir, readStorage, 50000,threads, parser.getCheck("dump"));
+        MultCorrect(dbg, logger, dir, readStorage, 50000,threads, parser.getCheck("diploid"), parser.getCheck("dump"));
     }
 
     if(parser.getCheck("initial-correct")) {
