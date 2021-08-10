@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 import sys
+if len(sys.argv) != 3:
+    print ('Usage: {sys.argv[0]} <alignments> <position>')
 used_names = set()
 #Get all alignments record (RC ignored) covering exact position
 pos = int(sys.argv[2])
@@ -13,6 +15,7 @@ for line in open (sys.argv[1]):
     end = int(arr[3])
     if start < pos and end > pos:
         print (line.strip())
+
 '''
 cur_pos = 0
 to_use = False
