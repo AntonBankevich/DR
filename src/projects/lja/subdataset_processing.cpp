@@ -65,6 +65,8 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
     for(size_t snum = 0; snum < subdatasets.size(); snum++) {
         Subdataset &subdataset = subdatasets[snum];
         std::experimental::filesystem::path outdir = subdataset.dir / "mltik";
+        ensure_dir_existance(outdir);
+        prepareDataset(subdataset);
         if(subdataset.reads.empty()) {
             std::ofstream os;
             os.open(outdir / "edges.fasta");
@@ -76,7 +78,6 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
             os.close();
             continue;
         }
-        prepareDataset(subdataset);
         std::string command = COMMAND;
         command.replace(command.find("{}"), 2, subdataset.dir.string());
         command.replace(command.find("{}"), 2, outdir.string());

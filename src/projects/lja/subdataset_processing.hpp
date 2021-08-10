@@ -14,6 +14,7 @@ private:
     RecordStorage &readStorage;
     std::experimental::filesystem::path dir;
 
+public:
     struct Subdataset {
         Subdataset(size_t id, Component component, std::experimental::filesystem::path dir) :
                             id(id), component(std::move(component)), dir(std::move(dir)) {}
@@ -27,7 +28,6 @@ private:
             return this < &other;
         }
     };
-public:
     RepeatResolver(SparseDBG &dbg, RecordStorage &readStorage, std::experimental::filesystem::path dir) :
                 dbg(dbg), readStorage(readStorage), dir(std::move(dir)) {
     }

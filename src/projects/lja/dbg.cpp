@@ -22,6 +22,7 @@
 #include "common/cl_parser.hpp"
 #include "common/logging.hpp"
 #include "../dbg/graph_printing.hpp"
+#include "subdataset_processing.hpp"
 #include <iostream>
 #include <queue>
 #include <omp.h>
@@ -206,7 +207,7 @@ int main(int argc, char **argv) {
                     LoadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
 
     bool calculate_alignments = parser.getCheck("crude-correct") || parser.getCheck("initial-correct") ||
-            parser.getCheck("mult-correct") || parser.getCheck("print-alignments");
+            parser.getCheck("mult-correct") || parser.getCheck("print-alignments") || parser.getCheck("split");
     bool calculate_coverage = parser.getCheck("coverage") || parser.getCheck("simplify") ||
             parser.getCheck("correct") || parser.getValue("reference") != "none" ||
             parser.getCheck("tip-correct") || parser.getCheck("crude-correct") ||
@@ -326,36 +327,18 @@ int main(int argc, char **argv) {
     if(parser.getCheck("split")) {
         std::experimental::filesystem::path subdatasets_dir = dir / "subdatasets";
         ensure_dir_existance(subdatasets_dir);
+        RepeatResolver rr(dbg, readStorage, subdatasets_dir);
         logger.info() << "Extracting subdatasets for connected components" << std::endl;
-        std::vector<Component> comps = LengthSplitter(4000000000ul).splitGraph(dbg);
-        std::vector<std::ofstream *> os;
-        for(size_t i = 0; i < comps.size(); i++) {
-            os.emplace_back(new std::ofstream());
-            os.back()->open(subdatasets_dir / (std::to_string(i + 1) + ".fasta"));
+        std::function<bool(const Edge &)> is_unique = [](const Edge &){return false;};
+        std::vector<RepeatResolver::Subdataset> subdatasets = rr.SplitDataset(is_unique);
+#pragma omp parallel for schedule(dynamic, 1) default(none) shared(subdatasets, logger, rr)
+        for(size_t snum = 0; snum < subdatasets.size(); snum++) {
+            RepeatResolver::Subdataset &subdataset = subdatasets[snum];
+            std::experimental::filesystem::path outdir = subdataset.dir / "mltik";
+            ensure_dir_existance(outdir);
+            rr.prepareDataset(subdataset);
         }
-        io::SeqReader read_reader(reads_lib);
-        std::function<void(size_t, StringContig &)> task = [&dbg, &comps, &os, &hasher, w, &logger](size_t pos, StringContig & scontig) {
-            string initial_seq = scontig.seq;
-            Contig contig = scontig.makeContig();
-            if(contig.size() < hasher.getK() + w - 1)
-                return;
-            GraphAlignment al = GraphAligner(dbg).align(contig.seq);
-            for(size_t j = 0; j < comps.size(); j++) {
-                for(size_t i = 0; i <= al.size(); i++) {
-                    if(comps[j].contains(al.getVertex(i))) {
-#pragma omp critical
-                        *os[j] << ">" << contig.id << "\n" <<initial_seq << "\n";
-                        break;
-                    }
-                }
-            }
-        };
-        processRecords(read_reader.begin(), read_reader.end(), logger, threads, task);
-        for(size_t j = 0; j < comps.size(); j++) {
-            os[j]->close();
-            delete os[j];
-            os[j] = nullptr;
-        }
+        logger.info() << "Finished extracting subdatasets for connected components" << std::endl;
     }
 
     if(parser.getCheck("extract-subdatasets")) {
