@@ -599,6 +599,7 @@ struct AssemblyInfo {
                     cur_complex_coord = complex_regions_iter->first;
                 }
 //TODO possibly move critical here;
+#pragma omp critical
                 for (size_t i = MATCH_EPS; i + MATCH_EPS< (*it).length; i++) {
                     size_t coord = cont_coords + aln.alignment_start + i;
 
@@ -609,7 +610,7 @@ struct AssemblyInfo {
                             current_contig.quantity[coord]++;
                             current_contig.sum[coord] += quantities[read_coords + i];
                             if (current_contig.amounts[coord][0] < ContigInfo::VOTES_STORED)
-#pragma omp critical
+//#pragma omp critical
                                 current_contig.amounts[coord][++current_contig.amounts[coord][0]] = quantities[
                                         read_coords + i];
                         }
@@ -631,7 +632,7 @@ struct AssemblyInfo {
                             cur_complex_coord = complex_regions_iter->first;
                     }
                     if (coord == complex_fragment_finish) {
-#pragma omp critical
+//#pragma omp critical
                         current_contig.complex_strings[complex_id].push_back(uncompressCoords(complex_start, read_coords + i, read_seq.str(), compressed_read_coords));
                         complex_fragment_finish = -1;
                     } else if (coord > complex_fragment_finish) {
