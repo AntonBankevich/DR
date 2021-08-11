@@ -195,7 +195,7 @@ public:
                         res.emplace_back(p.first);
                     }
                 }
-            } if(bp.size() > 1) {
+            } else if(bp.size() > 1) {
                 for (auto &p : bp) {
                     if (p.first != p.second) {
                         res.emplace_back(p.first);

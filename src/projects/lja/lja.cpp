@@ -149,11 +149,12 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
     return {res, dir / "graph.fasta"};
 }
 
-std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> SecondPhase(logging::Logger &logger, const std::experimental::filesystem::path &dir,
-                                                                                                      const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
-                                                                                                      const io::Library &paths_lib, size_t threads, size_t k, size_t w,
-                                                                                                      double threshold, double reliable_coverage, size_t unique_threshold,
-                                                                                                      bool diploid, bool skip, bool dump, bool load) {
+std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> SecondPhase(
+        logging::Logger &logger, const std::experimental::filesystem::path &dir,
+        const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
+        const io::Library &paths_lib, size_t threads, size_t k, size_t w,
+        double threshold, double reliable_coverage, size_t unique_threshold,
+        bool diploid, bool skip, bool dump, bool load) {
     logger.info() << "Performing initial correction with k = " << k << std::endl;
     if (k % 2 == 0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
@@ -327,7 +328,7 @@ int main(int argc, char **argv) {
         logger << argv[i] << " ";
     }
     logger << std::endl;
-    bool diplod = parser.getCheck("diplod");
+    bool diplod = parser.getCheck("diploid");
     std::string first_stage = parser.getValue("restart-from");
     bool skip = first_stage != "none";
     bool load = parser.getCheck("load");
