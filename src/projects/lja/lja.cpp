@@ -200,7 +200,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         logger.info()<< "Printing partial repeat resolution results to " << (dir / "partial.fasta") << std::endl;
         PrintFasta(partial_contigs, dir / "partial.fasta");
         std::vector<Contig> contigs = rr.CollectResults(logger, threads, partial_contigs, dir / "merging.txt", is_unique);
-        PrintAlignments(logger, threads, contigs, readStorage, k, w, dir / "uncompressing");
+        PrintAlignments(logger, threads, contigs, readStorage, k, dir / "uncompressing");
         readStorage.printFasta(logger, dir / "corrected.fasta");
     };
     if(!skip)

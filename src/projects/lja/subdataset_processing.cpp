@@ -278,8 +278,10 @@ void PrintFasta(const std::vector<Contig> &contigs, const std::experimental::fil
 }
 
 void PrintAlignments(logging::Logger &logger, size_t threads, std::vector<Contig> &contigs,
-                     const RecordStorage &readStorage, size_t k, size_t w,
+                     const RecordStorage &readStorage, size_t K,
                      const std::experimental::filesystem::path &dir) {
+    size_t k = K / 2;
+    size_t w = K - k;
     ensure_dir_existance(dir);
     std::unordered_map<hashing::htype, std::vector<std::pair<Contig *, size_t>>, hashing::alt_hasher<hashing::htype>> position_map;
     std::ofstream refos;
@@ -302,28 +304,19 @@ void PrintAlignments(logging::Logger &logger, size_t threads, std::vector<Contig
     }
     ParallelRecordCollector<std::pair<size_t, std::pair<RawSeg, Segment<Contig>>>> result(threads);
     omp_set_num_threads(threads);
-#pragma omp parallel for default(none) shared(readStorage, hasher, position_map, k, w, result, std::cout)
+#pragma omp parallel for default(none) shared(readStorage, hasher, position_map, K, k, w, result, std::cout)
     for(size_t i = 0; i < readStorage.size(); i++) {
         const AlignedRead &alignedRead = readStorage[i];
         if(!alignedRead.valid())
             continue;
         Contig read(alignedRead.path.getAlignment().Seq(), alignedRead.id);
-        std::vector<std::pair<Segment<Contig>, Segment<Contig>>> res;
+        std::vector<std::pair<Contig *, int>> res;
         hashing::KWH kwh(hasher, read.seq, 0);
         while (true) {
             if (position_map.find(kwh.fHash()) != position_map.end()) {
                 for(std::pair<Contig *, size_t> &pos : position_map[kwh.fHash()]) {
-                    size_t shrink_left = 0;
-                    if(kwh.pos > pos.second) {
-                        shrink_left = kwh.pos - pos.second;
-                    }
-                    size_t shrink_right = 0;
-                    if(-kwh.pos + pos.second + read.size()> pos.first->size())
-                        shrink_right = -kwh.pos + pos.second + read.size() - pos.first->size();
-                    Segment<Contig> seg_from(read, shrink_left, read.size() - shrink_right);
-                    Segment<Contig> seg_to(*pos.first, pos.second - kwh.pos + shrink_left,
-                                           pos.second - kwh.pos + read.size() - shrink_right);
-                    res.emplace_back(seg_from, seg_to);
+                    int start_pos = int(pos.second) - int(kwh.pos);
+                    res.emplace_back(pos.first, start_pos);
                 }
             }
             if (!kwh.hasNext())
@@ -332,10 +325,20 @@ void PrintAlignments(logging::Logger &logger, size_t threads, std::vector<Contig
         }
         std::sort(res.begin(), res.end());
         res.erase(std::unique(res.begin(), res.end()), res.end());
-        for(std::pair<Segment<Contig>, Segment<Contig>> &al : res) {
-            if(al.first.seq() == al.second.seq()) {
-                RawSeg seg_from(al.first.contig().getId(), al.first.left, al.first.right);
-                result.emplace_back(i, std::make_pair(seg_from, al.second));
+        for(std::pair<Contig *, int> &al : res) {
+            size_t clen = 0;
+            for(int rpos = 0; rpos <= read.size(); rpos++) {
+                if(rpos < read.size() && rpos + al.second >= 0 && rpos + al.second < al.first->size() &&
+                            read.seq[rpos] == al.first->seq[rpos + al.second]) {
+                    clen++;
+                } else {
+                    if(clen > K) {
+                        RawSeg seg_from(read.getId(), rpos - clen, rpos);
+                        Segment<Contig> seg_to(*al.first, rpos + al.second - clen, rpos + al.second);
+                        result.emplace_back(i, std::make_pair(seg_from, seg_to));
+                    }
+                    clen = 0;
+                }
             }
         }
     }
@@ -343,10 +346,22 @@ void PrintAlignments(logging::Logger &logger, size_t threads, std::vector<Contig
     __gnu_parallel::sort(final.begin(), final.end());
     logger.info() << "Finished alignment. Printing alignments to " << (dir/"alignments.txt") << std::endl;
     std::ofstream os;
-    os.open(dir/"alignments.txt");
+    os.open(dir/"good_alignments.txt");
+    std::ofstream os_bad;
+    os_bad.open(dir/"partial_alignments.txt");
     for(auto &rec : final) {
-        os << rec.second.first.id << " " << rec.second.second.contig().getId() << " "
-           << rec.second.second.left << " " << rec.second.second.right << std::endl;
+        size_t len = readStorage[rec.first].path.getAlignment().len() + readStorage[rec.first].path.start().seq.size();
+        if((rec.second.first.left != 0 && rec.second.second.left != 0) ||
+            (rec.second.first.right != len && rec.second.second.right != rec.second.second.contig().size())) {
+            os_bad << rec.second.first.id << " " << rec.second.first.left << " " << rec.second.first.right << " "
+                   << rec.second.second.contig().getId() << " " << rec.second.second.left << " " << rec.second.second.right
+                   << "\n";
+        } else {
+            os << rec.second.first.id << " " << rec.second.first.left << " " << rec.second.first.right << " "
+                   << rec.second.second.contig().getId() << " " << rec.second.second.left << " " << rec.second.second.right
+                   << "\n";
+        }
     }
     os.close();
+    os_bad.close();
 }
