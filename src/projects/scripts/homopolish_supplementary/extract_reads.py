@@ -9,10 +9,10 @@ to_use = False
 id = ""
 #grep -P 'ccs 21|ccs -21'
 for line in open (sys.argv[2]):
-    if line[0] == ">":
-        id = line.strip()[1:]
+    if line[0] == ">" or line[0] == "@":
+        id = line.strip().split()[0][1:]
         if id in used_names:
-            print (">" + id)        
+            print (line[0] + id)        
     else:        
         if id in used_names:
             print (line.strip())
