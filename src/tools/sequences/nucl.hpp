@@ -31,6 +31,8 @@ static const char INVALID_NUCL = char(-1);
  */
 inline bool is_nucl(char c) {
     switch (c) {
+        case 'n':
+        case 'N':
         case 0:
         case 'a':
         case 'A':
@@ -59,8 +61,10 @@ inline char nucl_complement(char c) {
         case 0:
             return 3;
         case 'a':
+        case 'n':
             return 't';
         case 'A':
+        case 'N':
             return 'T';
         case 1:
             return 2;
@@ -80,10 +84,6 @@ inline char nucl_complement(char c) {
             return 'a';
         case 'T':
             return 'A';
-        case 'N':
-            return 'N';
-        case 'n':
-            return 'n';
         default:
             return INVALID_NUCL;
     }
@@ -99,6 +99,8 @@ inline char nucl(char c) {
         case 0:
         case 'a':
         case 'A':
+        case 'n':
+        case 'N':
             return 'A';
         case 1:
         case 'c':
@@ -127,6 +129,8 @@ inline char dignucl(char c) {
         case 0:
         case 'a':
         case 'A':
+        case 'n':
+        case 'N':
             return 0;
         case 1:
         case 'c':
