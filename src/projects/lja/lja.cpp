@@ -155,7 +155,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         const io::Library &paths_lib, size_t threads, size_t k, size_t w,
         double threshold, double reliable_coverage, size_t unique_threshold,
         bool diploid, bool skip, bool dump, bool load) {
-    logger.info() << "Performing initial correction with k = " << k << std::endl;
+    logger.info() << "Performing second phase of correction with k = " << k << std::endl;
     if (k % 2 == 0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
         k += 1;

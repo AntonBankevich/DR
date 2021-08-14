@@ -57,6 +57,7 @@ public:
         std::vector<Segment<Edge>> path;
         Vertex *cur = _start;
         for(size_t i = 0; i < _edges.size(); i++) {
+            VERIFY(cur->hasOutgoing(_edges[i]));
             Edge &edge = cur->getOutgoing(_edges[i]);
             path.emplace_back(edge, 0, edge.size());
             cur = edge.end();
