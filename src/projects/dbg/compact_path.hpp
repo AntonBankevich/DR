@@ -62,8 +62,10 @@ public:
             path.emplace_back(edge, 0, edge.size());
             cur = edge.end();
         }
-        path.front().left += _first_skip;
-        path.back().right -= _last_skip;
+        if(_first_skip > 0)
+            path.front().left += _first_skip;
+        if(_last_skip > 0)
+            path.back().right -= _last_skip;
         return {_start, std::move(path)};
     }
 

@@ -368,7 +368,6 @@ void RecordStorage::addSubpath(const CompactPath &cpath) {
     if(track_cov)
         edge_task = [](Segment<Edge> seg){
             seg.contig().incCov(seg.size());
-            Edge &edge = seg.contig();
         };
     processPath(cpath, vertex_task, edge_task);
 }

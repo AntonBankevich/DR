@@ -106,7 +106,7 @@ inline GraphAlignment CorrectSuffix(const GraphAlignment &al) {
     }
     Sequence tip = al.truncSeq(first_unreliable);
     Sequence alt = alternative.truncSeq();
-    Sequence projection = alt.Subseq(0, bestPrefix(tip, alt));
+    Sequence projection = alt.Subseq(0, bestPrefix(tip, alt).first);
     GraphAlignment res = al.subalignment(0, first_unreliable);
     res.extend(projection);
     return res;

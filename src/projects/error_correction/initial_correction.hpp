@@ -179,13 +179,14 @@ void InitialCorrectionPipeline(logging::Logger &logger, SparseDBG &sdbg, RecordS
                                double reliable_coverage,
                                double threshold, double bulge_threshold, bool dump);
 
-inline GraphAlignment BestAlignmentPrefix(const GraphAlignment &al, const Sequence & seq) {
+inline std::pair<GraphAlignment, size_t> BestAlignmentPrefix(const GraphAlignment &al, const Sequence & seq) {
     Sequence candSeq = al.truncSeq();
-    size_t len = bestPrefix(seq, candSeq);
+    std::pair<size_t, size_t> bp = bestPrefix(seq, candSeq);
+    size_t len = bp.first;
     Sequence prefix = candSeq.Subseq(0, len);
     GraphAlignment res(al.start());
     res.extend(prefix);
-    return res;
+    return {res, bp.second};
 }
 
 inline GraphAlignment processTip(logging::Logger &logger, std::ostream &out, const GraphAlignment &tip,
@@ -228,7 +229,9 @@ inline GraphAlignment processTip(logging::Logger &logger, std::ostream &out, con
     std::vector<GraphAlignment> trunc_alignments;
     Sequence old = tip.truncSeq();
     for(const GraphAlignment &al : read_alternatives_filtered) {
-        trunc_alignments.emplace_back(BestAlignmentPrefix(al, old));
+        std::pair<GraphAlignment, size_t> tres = BestAlignmentPrefix(al, old);
+        if (tres.second < 10 + (al.len() / 50))
+            trunc_alignments.emplace_back(std::move(tres.first));
     }
     message = "s";
     if(trunc_alignments.size() > 1) {
@@ -355,13 +358,13 @@ inline size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,
                         logger << "Edge in " << e.size() << " " << e.getCoverage() << std::endl;
                 }
             }
-            if(step_back == corrected_path.size() && step_front == path.size() - path_pos - 1) {
+            if(corrected_path.size() == 0 && step_front == path.size() - path_pos - 1) {
                 if(dump)
                     logger << "Whole read has low coverage. Skipping." << std::endl;
                 for(const Segment<Edge> &seg : badPath) {
                     corrected_path.push_back(seg);
                 }
-            } else if(step_back == corrected_path.size()) {
+            } else if(corrected_path.size() == 0) {
                 if (dump)
                     logger << "Processing incoming tip" << std::endl;
                 GraphAlignment tip = badPath.RC();
@@ -432,6 +435,7 @@ inline size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,
             path_pos = path_pos + step_front;
         }
         if(path != corrected_path) {
+            VERIFY_OMP(corrected_path.size() > 0, "Corrected path is empty");
             reads_storage.reroute(alignedRead, path, corrected_path, "low coverage correction "+ join("_", messages));
         }
         results.emplace_back(ss.str());

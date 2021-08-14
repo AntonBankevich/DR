@@ -26,7 +26,7 @@ inline size_t edit_distance(Sequence s1, Sequence s2) {
     return d[s1.size()][s2.size()];
 }
 
-inline size_t bestPrefix(const Sequence &s1, const Sequence &s2) {
+inline std::pair<size_t, size_t> bestPrefix(const Sequence &s1, const Sequence &s2) {
     std::vector<size_t> prev(s2.size() + 1);
     std::vector<size_t> cur(s2.size() + 1);
     for(unsigned int j = 0; j <= s2.size(); ++j) cur[j] = j;
@@ -40,5 +40,5 @@ inline size_t bestPrefix(const Sequence &s1, const Sequence &s2) {
     for(size_t j = 0; j <= s2.size(); j++)
         if(cur[j] < cur[res])
             res = j;
-    return res;
+    return {res, cur[res]};
 }
