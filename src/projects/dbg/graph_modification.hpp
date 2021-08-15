@@ -60,7 +60,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
     }
     for(RecordStorage *rit : storages) {
         RecordStorage &storage = *rit;
-#pragma omp parallel for default(none) shared(storage, segmentStorage, lenStorage, std::cout)
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(storage, segmentStorage, lenStorage, std::cout)
         for (size_t i = 0; i < storage.size(); i++) { // NOLINT(modernize-loop-convert)
             AlignedRead &rec = storage[i];
             size_t len = 0;
@@ -147,7 +147,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
         for(AlignedRead &al : storage) {
             new_storage.addRead(AlignedRead(al.id));
         }
-#pragma omp parallel for default(none) shared(storage, new_storage, embedding, std::cout)
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(storage, new_storage, embedding, std::cout)
         for(size_t i = 0; i < storage.size(); i++) {
             AlignedRead &alignedRead = storage[i];
             if(!alignedRead.valid()) {
@@ -229,7 +229,7 @@ inline void AddConnections(logging::Logger &logger, size_t threads, dbg::SparseD
             new_storage.addRead(AlignedRead(al.id));
         }
         omp_set_num_threads(threads);
-#pragma omp parallel for default(none) shared(storage, new_storage, broken_edges, subgraph)
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(storage, new_storage, broken_edges, subgraph)
         for(size_t i = 0; i < storage.size(); i++) {
             AlignedRead &old_read = storage[i];
             if(!old_read.valid())

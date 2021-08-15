@@ -63,6 +63,8 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
     omp_set_num_threads(threads);
 #pragma omp parallel for schedule(dynamic, 1) default(none) shared(subdatasets, COMMAND, logger)
     for(size_t snum = 0; snum < subdatasets.size(); snum++) {
+#pragma omp critical
+        logger.info() << "Starting to process dataset " << subdatasets[snum].id << "(" << snum << ")" << std::endl;
         Subdataset &subdataset = subdatasets[snum];
         std::experimental::filesystem::path outdir = subdataset.dir / "mltik";
         ensure_dir_existance(outdir);
@@ -86,10 +88,12 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
             logger.info() << "Repeat resolution of component " << subdataset.id << " returned code " << code << std::endl;
             exit(1);
         }
+#pragma omp critical
+        logger.info() << "Finished processing dataset " << subdatasets[snum].id << "(" << snum << ")" << std::endl;
     }
     logger.info() << "Collecting repeat resolution results" << std::endl;
     ParallelRecordCollector<Contig> res(threads);
-#pragma omp parallel for default(none) shared(subdatasets, res)
+#pragma omp parallel for default(none) schedule(dynamic, 1) shared(subdatasets, res)
     for(size_t snum = 0; snum < subdatasets.size(); snum++) {
         Subdataset &subdataset = subdatasets[snum];
         std::experimental::filesystem::path outdir = subdataset.dir / "mltik";
@@ -129,7 +133,7 @@ std::vector<Contig> RepeatResolver::CollectResults(logging::Logger &logger, size
     logger.info() << "Collecting partial results"<< std::endl;
     ParallelRecordCollector<AlignedRead> paths(threads);
     omp_set_num_threads(threads);
-#pragma omp parallel for default(none) shared(contigs, is_unique, paths)
+#pragma omp parallel for default(none) schedule(dynamic, 10) shared(contigs, is_unique, paths)
     for(size_t i = 0; i < contigs.size(); i++) {
         GraphAlignment al = GraphAligner(dbg).align(contigs[i].seq);
         if(al.size() == 1 && is_unique(al[0].contig()))
@@ -304,7 +308,7 @@ void PrintAlignments(logging::Logger &logger, size_t threads, std::vector<Contig
     }
     ParallelRecordCollector<std::pair<size_t, std::pair<RawSeg, Segment<Contig>>>> result(threads);
     omp_set_num_threads(threads);
-#pragma omp parallel for default(none) shared(readStorage, hasher, position_map, K, k, w, result, std::cout)
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(readStorage, hasher, position_map, K, k, w, result, std::cout)
     for(size_t i = 0; i < readStorage.size(); i++) {
         const AlignedRead &alignedRead = readStorage[i];
         if(!alignedRead.valid())

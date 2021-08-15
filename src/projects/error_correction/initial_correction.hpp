@@ -284,7 +284,7 @@ inline size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,
     logger.info() << "Correcting low covered regions in reads" << std::endl;
     omp_set_num_threads(threads);
     size_t max_size = std::min(reads_storage.getMaxLen() * 9 / 10, std::max<size_t>(k * 2, 1000));
-#pragma omp parallel for default(none) shared(std::cout, reads_storage, ref_storage, results, threshold, k, max_size, logger, simple_bulge_cnt, bulge_cnt, dump, reliable_threshold)
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(std::cout, reads_storage, ref_storage, results, threshold, k, max_size, logger, simple_bulge_cnt, bulge_cnt, dump, reliable_threshold)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;
         std::vector<std::string> messages;
@@ -483,7 +483,7 @@ inline size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_stora
     ParallelRecordCollector<Edge*> corruption_cnt(threads);
     ParallelRecordCollector<Edge*> heavy_cnt(threads);
     logger.info() << "Collapsing bulges" << std::endl;
-#pragma omp parallel for default(none) shared(reads_storage, ref_storage, results, threshold, k, logger, bulge_cnt, genome_cnt, corruption_cnt, collapsable_cnt)
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(reads_storage, ref_storage, results, threshold, k, logger, bulge_cnt, genome_cnt, corruption_cnt, collapsable_cnt)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;
         AlignedRead &alignedRead = reads_storage[read_ind];
@@ -558,7 +558,7 @@ inline size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, s
     logger.info() << "Correcting dinucleotide errors in reads" << std::endl;
     ParallelCounter cnt(threads);
     omp_set_num_threads(threads);
-#pragma omp parallel for default(none) shared (reads_storage, results, k, logger, cnt, std::cout)
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(reads_storage, results, k, logger, cnt, std::cout)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         AlignedRead &alignedRead = reads_storage[read_ind];
         if(!alignedRead.valid())

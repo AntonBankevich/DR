@@ -116,7 +116,7 @@ inline void CorrectTips(logging::Logger &logger, SparseDBG &dbg, RecordStorage &
     logger.info() << "Correcting tips using reliable edge marks" << std::endl;
     omp_set_num_threads(threads);
     ParallelCounter cnt(threads);
-#pragma omp parallel for default(none) shared(reads, cnt)
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(reads, cnt)
     for(size_t i = 0; i < reads.size(); i++) {
         AlignedRead &read = reads[i];
         if(!read.valid())

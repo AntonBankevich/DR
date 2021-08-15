@@ -351,7 +351,7 @@ size_t ManyKCorrect(logging::Logger &logger, SparseDBG &dbg, RecordStorage &read
     ParallelRecordCollector<std::string> results(threads);
     ParallelCounter cnt(threads);
     omp_set_num_threads(threads);
-#pragma omp parallel for default(none) shared(std::cout, corrector, reads_storage, results, threshold, logger, reliable_threshold, cnt)
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(std::cout, corrector, reads_storage, results, threshold, logger, reliable_threshold, cnt)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;
         std::vector<std::string> messages;

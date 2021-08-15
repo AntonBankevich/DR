@@ -195,7 +195,7 @@ void correctReads(logging::Logger &logger, size_t threads, RecordStorage &reads_
                   std::unordered_map<const Edge *, CompactPath> &unique_extensions) {
     omp_set_num_threads(threads);
     logger.info() << "Correcting reads using unique edge extensions" << std::endl;
-#pragma omp parallel for default(none) shared(reads_storage, unique_extensions)
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(reads_storage, unique_extensions)
     for(size_t i = 0; i < reads_storage.size(); i++) {
         AlignedRead &alignedRead = reads_storage[i];
         if(!alignedRead.valid())

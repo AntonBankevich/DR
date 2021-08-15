@@ -351,7 +351,7 @@ void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, const
         }
     }
     logger.info() << "Could not correct " << to_delete.size() << " reads. They will be removed." << std::endl;
-#pragma omp parallel for default(none) shared(to_delete, message)
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(to_delete, message)
     for(size_t i = 0; i < to_delete.size(); i++) {
         invalidateRead(*to_delete[i], message);
     }
@@ -409,7 +409,7 @@ void RecordStorage::reroute(AlignedRead &alignedRead, const GraphAlignment &corr
 void RecordStorage::applyCorrections(logging::Logger &logger, size_t threads) {
     logger.info() << "Applying corrections to reads" << std::endl;
     omp_set_num_threads(threads);
-#pragma omp parallel for default(none)
+#pragma omp parallel for default(none) schedule(dynamic, 100)
     for(size_t i = 0; i < reads.size(); i++) { // NOLINT(modernize-loop-convert)
         apply(reads[i]);
     }
@@ -471,7 +471,7 @@ void RecordStorage::updateExtensionSize(logging::Logger &logger, size_t threads,
     this->max_len = new_max_extension;
     bool tmp_track_cov = track_cov;
     track_cov = false;
-#pragma omp parallel for default(none)
+#pragma omp parallel for default(none) schedule(dynamic, 100)
     for(size_t i = 0; i < size(); i++) {
         addSubpath(reads[i].path);
         addSubpath(reads[i].path.RC());
