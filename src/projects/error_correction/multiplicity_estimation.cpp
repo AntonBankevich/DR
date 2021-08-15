@@ -168,8 +168,11 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
             }
         }
     }
+    logger.info() << "Marking bulges to collapse" << std::endl;
     markPseudoHets();
+    logger.info() << "Splitting graph with unique edges" << std::endl;
     std::vector<Component> split = UniqueSplitter(*this).split(Component(dbg));
+    logger.info() << "Processing components" << std::endl;
     for(Component &component : split) {
         cnt += 1;
         std::experimental::filesystem::path out_file = dir / (std::to_string(cnt) + ".dot");
@@ -196,6 +199,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         };
         printDot(out_file, component, reads_storage.labeler(), colorer);
     }
+    logger.info() << "Finished unique edges search" << std::endl;
 }
 
 std::vector<const dbg::Edge *>

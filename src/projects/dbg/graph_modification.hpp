@@ -269,8 +269,6 @@ inline void AddConnections(logging::Logger &logger, size_t threads, dbg::SparseD
         Edge rcEdge(&to, &from.rc(), (!connection.connection).Subseq(k));
         from.addEdge(newEdge);
         to.addEdge(rcEdge);
-        subgraph.checkConsistency(threads, logger);
     }
-    subgraph.checkConsistency(threads, logger);
     dbg = std::move(subgraph);
 }
