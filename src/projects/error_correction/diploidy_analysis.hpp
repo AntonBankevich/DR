@@ -149,7 +149,7 @@ public:
         for(auto &it : dbg) {
             if(visited.find(&it.second) != visited.end())
                 continue;
-            if(checkVertex(it.second)) {
+            if(checkVertex(it.second) && checkVertex(it.second.rc())) {
                 BulgePath new_path = forwardPath(it.second);
                 VERIFY(new_path.size() > 0);
                 if(new_path.start() != new_path.finish()) {
