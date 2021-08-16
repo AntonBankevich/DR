@@ -130,7 +130,7 @@ private:
     static BulgePath forwardPath(dbg::Vertex &start) {
         BulgePath res(start);
         dbg::Vertex * cur = &start;
-        while(checkVertex(*cur)) {
+        while(checkVertex(*cur) && checkVertex(cur->rc())) {
             res.extend();
             cur = &res.finish();
             if(cur == &start)
