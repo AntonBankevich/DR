@@ -385,6 +385,7 @@ struct AssemblyInfo {
         size_t tmp = contig_len - aln.alignment_end;
         aln.alignment_end = contig_len - aln.alignment_start;
         aln.alignment_start = tmp;
+        aln.read_end = min(aln.read_end, read_len);
         tmp = read_len - aln.read_end;
         aln.read_end = read_len - aln.read_start;
         aln.read_start = tmp;
