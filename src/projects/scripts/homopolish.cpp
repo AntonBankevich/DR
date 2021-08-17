@@ -554,6 +554,8 @@ struct AssemblyInfo {
 
     void processReadPair (string& read, AlignmentInfo& aln) {
 //        logger.info() << read.id << endl;
+        if (contigs.find(aln.contig_id) == contigs.end())
+            return;
         Sequence uncompressed_read_seq (read);
         size_t rlen = read.length();
         vector<size_t>compressed_read_coords;
