@@ -19,6 +19,8 @@ using logging::Logger;
 struct AlignmentInfo {
     string read_id;
     string contig_id;
+    size_t read_start;
+    size_t read_end;
     size_t alignment_start;
     size_t alignment_end;
     bool rc;
@@ -364,7 +366,9 @@ struct AssemblyInfo {
         AlignmentInfo res;
         if (ss.eof())
             return res;
-        ss >> res.read_id >> res.contig_id >> res.alignment_start>>res.alignment_end;
+//        ss >> res.read_id >> res.contig_id >> res.alignment_start>>res.alignment_end;
+        ss >> res.read_id >> res.read_start >> res.read_end >>res.contig_id >> res.alignment_start>>res.alignment_end;
+
         if (res.contig_id[0] == '-') {
     //1:
             res.contig_id = res.contig_id.substr(1);
@@ -376,11 +380,15 @@ struct AssemblyInfo {
         return res;
     }
 
-    void RC(AlignmentInfo & aln){
+    void RC(AlignmentInfo & aln, size_t read_len){
         size_t contig_len = contigs[aln.contig_id].len;
         size_t tmp = contig_len - aln.alignment_end;
         aln.alignment_end = contig_len - aln.alignment_start;
         aln.alignment_start = tmp;
+        tmp = read_len - aln.read_end;
+        aln.read_end = read_len - aln.read_start;
+        aln.read_start = tmp;
+
     }
     size_t getUncompressedPos(const string &s, size_t pos){
         size_t real_pos = 0;
@@ -545,20 +553,21 @@ struct AssemblyInfo {
 
     void processReadPair (string& read, AlignmentInfo& aln) {
 //        logger.info() << read.id << endl;
-        Sequence read_seq (read);
-        size_t rlen = read.size();
+        Sequence uncompressed_read_seq (read);
+        size_t rlen = read.length();
         if (aln.rc) {
-            read_seq = !read_seq;
-            RC(aln);
+            uncompressed_read_seq = !uncompressed_read_seq;
+            RC(aln, rlen);
 //            read = read.RC();
         }
         logger.trace() << aln.read_id << " "<<  aln.alignment_start << " " << aln.alignment_end << endl;
         ContigInfo& current_contig = contigs[aln.contig_id];
         vector<size_t>compressed_read_coords;
-        string compressed_read = compressRead(read_seq.str(), compressed_read_coords);
+        string compressed_read = compressRead(uncompressed_read_seq.str(), compressed_read_coords);
 //        compressed_read.erase(std::unique(compressed_read.begin(), compressed_read.end()), compressed_read.end());
         string contig_seq = current_contig.sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
-        auto cigars = getFastAln(aln, contig_seq.c_str(), compressed_read.c_str());
+        string read_seq = compressed_read.substr(aln.read_start, aln.read_end - aln.read_start);
+        auto cigars = getFastAln(aln, contig_seq.c_str(), read_seq.c_str());
         if (matchedLength(cigars) < 50) {
             logger.trace()<< "Read " << aln.read_id << " not aligned " << endl;
             return;
@@ -570,7 +579,7 @@ struct AssemblyInfo {
         for (size_t i = 0; i < compressed_read.size(); i++){
             size_t count = 0;
             cur_ind = compressed_read_coords[i];
-            while (cur_ind < read_seq.size() && nucl(read_seq[cur_ind]) == compressed_read[i]) {
+            while (cur_ind < uncompressed_read_seq.size() && nucl(uncompressed_read_seq[cur_ind]) == compressed_read[i]) {
                 count ++;
                 cur_ind ++;
             }
@@ -578,6 +587,7 @@ struct AssemblyInfo {
         }
         size_t cont_coords = 0; //minimapaln[0].seg_to.left;
         size_t read_coords = 0; //minimapaln[0].seg_from.left;
+        read_coords = aln.read_start;
         size_t matches = 0;
         size_t mismatches = 0;
         size_t indels = 0;
@@ -633,7 +643,7 @@ struct AssemblyInfo {
                     }
                     if (coord == complex_fragment_finish) {
 //#pragma omp critical
-                        current_contig.complex_strings[complex_id].push_back(uncompressCoords(complex_start, read_coords + i, read_seq.str(), compressed_read_coords));
+                        current_contig.complex_strings[complex_id].push_back(uncompressCoords(complex_start, read_coords + i, uncompressed_read_seq.str(), compressed_read_coords));
                         complex_fragment_finish = -1;
                     } else if (coord > complex_fragment_finish) {
                         logger.info() << "Read " << aln.read_id << " missed fragment finish " << complex_fragment_finish << endl;
