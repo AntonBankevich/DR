@@ -71,11 +71,12 @@ int main(int argc, char **argv) {
             os.open(log_path, std::ios_base::app);
             os << (max + 1) << " started\n" << command << "\n";
             os.close();
-            system((command + " > " + log.string() + " 2>&1").c_str());
-            std::cout << "Finished running command: " << command << "\n\n" << std::endl;
+            int res = system((command + " > " + log.string() + " 2>&1").c_str());
+            std::cout << "Finished running command: " << command << std::endl;
+            std::cout << "Return code: " << res << "\n\n" << std::endl;
             std::ofstream os1;
             os1.open(log_path, std::ios_base::app);
-            os1 << (max + 1) << " finished" << "\n";
+            os1 << (max + 1) << " finished " << res << "\n\n";
             os1.close();
             max++;
             removeFirst(cfile);
