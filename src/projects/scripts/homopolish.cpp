@@ -93,7 +93,7 @@ struct ContigInfo {
 //neighbourhoud for complex regions;
     static const size_t COMPLEX_EPS = 5;
     static const size_t MAX_CONSENSUS_COVERAGE = 25;
-
+    static constexpr double MAX_ALLOWED_MSA_LENGTH_VARIATION = 1.1;
     //Complex_regions: map from start to length;
 
     vector<pair<size_t, size_t>> complex_regions;
@@ -153,8 +153,10 @@ struct ContigInfo {
     void AddRead() {
 
     }
-
-    string MSAConsensus(vector<string> &s) {
+    bool validLength(size_t med_len, size_t some) {
+        return (med_len < some *MAX_ALLOWED_MSA_LENGTH_VARIATION && med_len * MAX_ALLOWED_MSA_LENGTH_VARIATION > some);
+    }
+    string MSAConsensus(vector<string> &s, Logger & logger) {
 
 //Magic consts from spoa default settings
         auto alignment_engine = spoa::AlignmentEngine::Create(
@@ -163,7 +165,28 @@ struct ContigInfo {
 //TODO: what about length signinficantly different with median?
         spoa::Graph graph{};
         size_t cov = 0;
+        vector<size_t> all_len;
+        for (const auto& it: s) {
+            all_len.push_back(it.length());
+        }
+        sort(all_len.begin(), all_len.end());
+        size_t med_len = all_len[all_len.size()/2];
+        size_t good_cons = 0;
+        for (size_t i = 0; i < all_len.size(); i++) {
+            if (med_len < all_len[i] *1.1 && med_len * 1.1> all_len[i]){
+                good_cons ++;
+            }
+        }
+        bool only_good = true;
+        if (good_cons < 5) {
+            only_good = false;
+            logger.info() << "Few good consenus seqs: " << good_cons << " of " << all_len.size() << endl;
+        }
+
         for (const auto& it : s) {
+            if (only_good && !validLength(med_len, it.length())) {
+                continue;
+            }
             std::int32_t score = 0;
             auto alignment = alignment_engine->Align(it, graph, &score);
             graph.AddAlignment(alignment, it);
@@ -227,7 +250,7 @@ struct ContigInfo {
 #pragma omp parallel for
         for (size_t i = 0; i < complex_regions.size(); i++) {
             size_t start_pos = complex_regions[i].first;
-            auto consensus = MSAConsensus(complex_strings[start_pos]);
+            auto consensus = MSAConsensus(complex_strings[start_pos], logger);
             complex_strings[start_pos].push_back(consensus);
         }
         logger.info() << " Consenus for contig " << name << " calculated "<< endl;
