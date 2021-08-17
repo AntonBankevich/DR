@@ -377,8 +377,8 @@ inline size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,
                 GraphAlignment substitution = processTip(logger, ss, tip, alternatives, ref_storage,
                                                          threshold, new_message, dump);
                 messages.emplace_back("it" + new_message);
-                messages.emplace_back(logging::itos(tip.len(), 0));
-                messages.emplace_back(logging::itos(substitution.len(), 0));
+                messages.emplace_back(itos(tip.len(), 0));
+                messages.emplace_back(itos(substitution.len(), 0));
                 VERIFY_OMP(substitution.start() == tip.start(), "samestart");
                 GraphAlignment rcSubstitution = substitution.RC();
                 corrected_path = std::move(rcSubstitution);
@@ -402,8 +402,8 @@ inline size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,
                 GraphAlignment substitution = processTip(logger, ss, tip, alternatives, ref_storage,
                                                          threshold, new_message, dump);
                 messages.emplace_back("ot" + new_message);
-                messages.emplace_back(logging::itos(tip.len()), 0);
-                messages.emplace_back(logging::itos(substitution.len()), 0);
+                messages.emplace_back(itos(tip.len()), 0);
+                messages.emplace_back(itos(substitution.len()), 0);
                 for (const Segment<Edge> &seg : substitution) {
                     corrected_path.push_back(seg);
                 }
@@ -421,8 +421,8 @@ inline size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg,
                                                                    read_alternatives, new_message, dump);
                 if(!new_message.empty()) {
                     messages.emplace_back(new_message);
-                    messages.emplace_back(logging::itos(badPath.len(), 0));
-                    messages.emplace_back(logging::itos(substitution.len(), 0));
+                    messages.emplace_back(itos(badPath.len(), 0));
+                    messages.emplace_back(itos(substitution.len(), 0));
                 }
                 for (const Segment<Edge> &seg : substitution) {
                     corrected_path.push_back(seg);

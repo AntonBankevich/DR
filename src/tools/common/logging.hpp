@@ -2,8 +2,9 @@
 // Created by anton on 7/27/20.
 //
 #pragma once
-#include "common/output_utils.hpp"
+#include "output_utils.hpp"
 #include "dir_utils.hpp"
+#include "string_utils.hpp"
 #include "sys/types.h"
 #include "sys/sysinfo.h"
 #include <sys/resource.h>
@@ -20,16 +21,6 @@
 namespace logging {
 
 const std::string endl = "\n";
-
-inline std::string itos(size_t val, size_t min_size = 0) {
-    std::stringstream ss;
-    ss << val;
-    std::string res = ss.str();
-    while(res.size() < min_size) {
-        res = "0" + res;
-    }
-    return res;
-}
 
 class TimeSpace {
 private:

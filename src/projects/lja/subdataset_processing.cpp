@@ -112,7 +112,7 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
         for (StringContig stringContig : io::SeqReader(contig_lib)) {
             Contig contig = stringContig.makeContig();
             if (contig.seq <= !contig.seq) {
-                contigs.emplace_back(contig.seq, logging::itos(subdataset.id, 1) + "." + contig.id);
+                contigs.emplace_back(contig.seq, itos(subdataset.id, 1) + "." + contig.id);
             }
         }
         GraphAlignmentStorage storage(dbg);
@@ -183,13 +183,13 @@ std::vector<Contig> RepeatResolver::CollectResults(logging::Logger &logger, size
             merged_path += path_list[cur].path.getAlignment().subalignment(1);
             clen += path_list[cur].path.getAlignment().subalignment(1).len();
             ids.emplace_back(path_list[cur].id);
-            ids.emplace_back("- " + logging::itos(clen) + ")");
+            ids.emplace_back("- " + itos(clen) + ")");
             Segment<Edge> last_seg = path_list[cur].path.getAlignment().back();
             Edge &last = last_seg.contig();
             path_list[cur] = {};
             if(last_seg.size() < last.size() || unique_map.find(&last) == unique_map.end() || unique_map[&last] == size_t(-1))
                 break;
-            ids.emplace_back("( " + logging::itos(clen - last.size()) + " -");
+            ids.emplace_back("( " + itos(clen - last.size()) + " -");
             cur = unique_map[&last];
             if(cur == start)
                 break;
@@ -244,7 +244,7 @@ std::vector<Contig> RepeatResolver::CollectResults(logging::Logger &logger, size
     merge.open(merging);
     std::vector<Contig> final;
     for(size_t i = 0; i < res.size(); i++) {
-        final.emplace_back(res[i].seq, logging::itos(i));
+        final.emplace_back(res[i].seq, itos(i));
         merge << i << "\n" << res[i].id << "\n";
     }
     merge.close();

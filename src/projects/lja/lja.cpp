@@ -20,7 +20,7 @@ std::vector<Contig> ref;
 void PrintPaths(logging::Logger &logger, const std::experimental::filesystem::path &dir, const std::string &stage,
                 SparseDBG &dbg, RecordStorage &readStorage, const io::Library &paths_lib, bool small) {
     stage_num += 1;
-    std::string stage_name = logging::itos(stage_num) + "_" + stage;
+    std::string stage_name = itos(stage_num) + "_" + stage;
     logger.info() << "Dumping current state. Stage id: " << stage_name << std::endl;
     ensure_dir_existance(dir);
     ensure_dir_existance(dir / "paths");

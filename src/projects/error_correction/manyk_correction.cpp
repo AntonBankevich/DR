@@ -102,9 +102,9 @@ GraphAlignment ManyKCorrector::correctRead(GraphAlignment &&read_path, string &m
         VERIFY(tc.start() == tip.tip.start());
         VERIFY(tc.front().left == 0);
         if(!tip_message.empty()) {
-            messages.emplace_back("i" + tip_message + logging::itos(K));
-            messages.emplace_back(logging::itos(tip.tip.len()));
-            messages.emplace_back(logging::itos(tc.len()));
+            messages.emplace_back("i" + tip_message + itos(K));
+            messages.emplace_back(itos(tip.tip.len()));
+            messages.emplace_back(itos(tc.len()));
         }
         corrected += tc.RC();
     }
@@ -114,9 +114,9 @@ GraphAlignment ManyKCorrector::correctRead(GraphAlignment &&read_path, string &m
         std::string bulge_message;
         GraphAlignment bc = correctBulge(bulge, bulge_message);
         if(!bulge_message.empty()) {
-            messages.emplace_back(bulge_message + logging::itos(K));
-            messages.emplace_back(logging::itos(bulge.bulge.len()));
-            messages.emplace_back(logging::itos(bc.len()));
+            messages.emplace_back(bulge_message + itos(K));
+            messages.emplace_back(itos(bulge.bulge.len()));
+            messages.emplace_back(itos(bc.len()));
         }
         VERIFY(!corrected.valid() || corrected.finish() == bc.start());
         corrected += bc;
@@ -129,9 +129,9 @@ GraphAlignment ManyKCorrector::correctRead(GraphAlignment &&read_path, string &m
         VERIFY(tc.start() == tip.tip.start());
         VERIFY(tc.front().left == 0);
         if(!tip_message.empty()) {
-            messages.emplace_back("o" + tip_message + logging::itos(K));
-            messages.emplace_back(logging::itos(tip.tip.len()));
-            messages.emplace_back(logging::itos(tc.len()));
+            messages.emplace_back("o" + tip_message + itos(K));
+            messages.emplace_back(itos(tip.tip.len()));
+            messages.emplace_back(itos(tc.len()));
         }
         VERIFY(!corrected.valid() || corrected.finish() == tc.start());
         corrected += tc;
