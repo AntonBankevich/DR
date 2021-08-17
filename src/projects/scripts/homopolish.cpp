@@ -555,15 +555,18 @@ struct AssemblyInfo {
 //        logger.info() << read.id << endl;
         Sequence uncompressed_read_seq (read);
         size_t rlen = read.length();
+        vector<size_t>compressed_read_coords;
+        string compressed_read;
         if (aln.rc) {
             uncompressed_read_seq = !uncompressed_read_seq;
-            RC(aln, rlen);
+            compressed_read = compressRead(uncompressed_read_seq.str(), compressed_read_coords);
+            RC(aln, compressed_read.length());
 //            read = read.RC();
+        } else {
+            compressed_read = compressRead(uncompressed_read_seq.str(), compressed_read_coords);
         }
         logger.trace() << aln.read_id << " "<<  aln.alignment_start << " " << aln.alignment_end << endl;
         ContigInfo& current_contig = contigs[aln.contig_id];
-        vector<size_t>compressed_read_coords;
-        string compressed_read = compressRead(uncompressed_read_seq.str(), compressed_read_coords);
 //        compressed_read.erase(std::unique(compressed_read.begin(), compressed_read.end()), compressed_read.end());
         string contig_seq = current_contig.sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
         string read_seq = compressed_read.substr(aln.read_start, aln.read_end - aln.read_start);
