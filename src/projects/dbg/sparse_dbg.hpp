@@ -56,6 +56,7 @@ namespace dbg {
         bool operator==(const Edge &other) const;
         bool operator!=(const Edge &other) const;
         bool operator<(const Edge &other) const;
+        bool operator>(const Edge &other) const;
         bool operator<=(const Edge &other) const;
     };
 
@@ -118,6 +119,7 @@ namespace dbg {
         bool operator==(const Vertex &other) const;
         bool operator!=(const Vertex &other) const;
         bool operator<(const Vertex &other) const;
+        bool operator>(const Vertex &other) const;
     };
 
     struct EdgePosition {

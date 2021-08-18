@@ -14,6 +14,7 @@
 #include <queue>
 #include <unordered_set>
 #include <wait.h>
+#include <error_correction/dimer_correction.hpp>
 
 static size_t stage_num = 0;
 std::vector<Contig> ref;
@@ -124,14 +125,17 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
         PrintPaths(logger, dir/ "state_dump", "initial", dbg, readStorage, paths_lib, true);
-        correctAT(logger, readStorage, k, threads);
+
+        correct_dimers(logger, readStorage, k, threads);
+//        correctAT(logger, readStorage, k, threads);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 800, 4, threads);
         PrintPaths(logger, dir/ "state_dump", "mk800", dbg, readStorage, paths_lib, true);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 5 / 2, 3000));
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 2000, 4, threads);
         PrintPaths(logger, dir/ "state_dump", "mk2000", dbg, readStorage, paths_lib, true);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 7 / 2, 5000));
-        correctAT(logger, readStorage, k, threads);
+        correct_dimers(logger, readStorage, k, threads);
+//        correctAT(logger, readStorage, k, threads);
         correctLowCoveredRegions(logger, dbg, readStorage, refStorage, "/dev/null", threshold, reliable_coverage, k, threads, dump);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3500, 4, threads);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
@@ -348,21 +352,12 @@ int main(int argc, char **argv) {
     double threshold = std::stod(parser.getValue("cov-threshold"));
     double reliable_coverage = std::stod(parser.getValue("rel-threshold"));
     std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected1;
-    if(parser.getCheck("alternative")) {
-        if (first_stage == "alternative")
-            skip = false;
-        corrected1 = AlternativeCorrection(logger, dir / "alternative", lib, {}, paths, threads, k, w,
-                                      threshold, reliable_coverage, false, false, skip, dump, load);
-        if (first_stage == "alternative" || first_stage == "none")
-            load = false;
-    } else {
-        if(first_stage == "initial1")
-            skip = false;
-        corrected1 = InitialCorrection(logger, dir / "initial1", lib, {}, paths, threads, k, w,
+    if (first_stage == "alternative")
+        skip = false;
+    corrected1 = AlternativeCorrection(logger, dir / "alternative", lib, {}, paths, threads, k, w,
                                   threshold, reliable_coverage, false, false, skip, dump, load);
-        if(first_stage == "initial1" || first_stage == "none")
-            load = false;
-    }
+    if (first_stage == "alternative" || first_stage == "none")
+        load = false;
     size_t K = std::stoi(parser.getValue("K-mer-size"));
     size_t W = std::stoi(parser.getValue("Window"));
 

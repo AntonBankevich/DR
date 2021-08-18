@@ -151,6 +151,11 @@ public:
         InitFromNucls(s, rc);
     }
 
+    explicit Sequence(const std::vector<unsigned char> &s, bool rc = false)
+            : Sequence(s.size(), 0) {
+        InitFromNucls(s, rc);
+    }
+
     explicit Sequence(char *s, bool rc = false)
             : Sequence(strlen(s), 0) {
         InitFromNucls(s, rc);
@@ -265,6 +270,26 @@ public:
     inline Sequence Prefix(size_t count) const;
 
     inline Sequence Suffix(size_t count) const;
+
+    Sequence dicompress() const {
+        if(size() <= 5)
+            return *this;
+        std::vector<unsigned char> res = {operator[](0), operator[](1),
+                                          operator[](2), operator[](3), operator[](4)};
+        for(size_t i = 5; i < size(); i++) {
+            unsigned char next = operator[](i);
+            if(res.size() >= 5 && next == res[res.size() - 2]
+                        && res[res.size() - 1] == res[res.size() - 3]
+                        && res[res.size() - 2] == res[res.size() - 4]
+                        && res[res.size() - 3] == res[res.size() - 5]){
+                res.pop_back();
+            } else {
+                res.emplace_back(next);
+            }
+            VERIFY(res.back() == next);
+        }
+        return Sequence(res);
+    }
 
     inline std::string str() const;
 

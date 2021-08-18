@@ -45,6 +45,15 @@ namespace dbg {
         std::vector<Segment<Edge>> als;
     public:
 //    TODO change interface
+        template<class Iterator>
+        explicit GraphAlignment(Iterator begin, Iterator end) {
+            while(begin != end) {
+                als.emplace_back(*begin);
+                ++begin;
+            }
+            if(!als.empty())
+                start_ = als.front().contig().start();
+        }
         explicit GraphAlignment(std::vector<Segment<Edge>> &&_path) : start_(_path.front().contig().start()), als(std::move(_path)) {}
         GraphAlignment(Vertex *_start, std::vector<Segment<Edge>> &&_path) : start_(_start), als(std::move(_path)) {}
         explicit GraphAlignment(Vertex &_start) : start_(&_start) {}

@@ -240,7 +240,7 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
     const std::experimental::filesystem::path full_alignments = dir / "full_alignments.txt";
     const std::experimental::filesystem::path multiplicity_figures = dir / "mult_figs";
     size_t k = sdbg.hasher().getK();
-    ensure_dir_existance(multiplicity_figures);
+    recreate_dir(multiplicity_figures);
     {
         UniqueClassificator classificator(sdbg, reads_storage, diploid);
         classificator.classify(logger, unique_threshold, multiplicity_figures);

@@ -86,6 +86,12 @@ public:
                             (left < other.left || left == other.left && right < other.right));
     }
 
+    bool operator>(const Segment<T> &other) const {
+        return contig() > other.contig() ||
+               (contig() == other.contig() &&
+                (left > other.left || left == other.left && right > other.right));
+    }
+
     Segment<T> operator+(const Segment<T> &other) const {
         VERIFY(contig_ptr == other.contig_ptr);
         VERIFY(right == other.left);

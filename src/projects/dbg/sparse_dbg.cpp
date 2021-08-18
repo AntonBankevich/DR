@@ -112,6 +112,14 @@ bool Edge::operator<(const Edge &other) const {
     return this->seq < other.seq;
 }
 
+bool Edge::operator>(const Edge &other) const {
+    if(this == &other)
+        return false;
+    if(start_ != other.start_)
+        return *start_ > *other.start_;
+    return other.seq < seq;
+}
+
 bool Edge::operator<=(const Edge &other) const {
     return *this == other || *this < other;
 }
@@ -301,6 +309,10 @@ bool Vertex::hasOutgoing(unsigned char c) const {
 
 bool Vertex::operator<(const Vertex &other) const {
     return hash_ < other.hash_ || (hash_ == other.hash_ && canonical && !other.canonical);
+}
+
+bool Vertex::operator>(const Vertex &other) const {
+    return hash_ > other.hash_ || (hash_ == other.hash_ && !canonical && other.canonical);
 }
 
 void Vertex::clear() {
