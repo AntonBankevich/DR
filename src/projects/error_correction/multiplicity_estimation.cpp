@@ -208,17 +208,20 @@ UniqueClassificator::ProcessUsingCoverage(logging::Logger &logger, const Compone
                                           double rel_coverage) const {
     double max_cov = 0;
     double min_cov = 100000;
-    for(Vertex &v : subcomponent.vertices()) {
-        for(Edge &edge : v) {
-            if(is_unique(edge)) {
-                const VertexRecord & record = reads_storage.getRecord(edge.end()->rc());
-                std::string s = edge.rc().seq.Subseq(0, 1).str();
-                size_t cnt = record.countStartsWith(Sequence(s + "A")) +
-                             record.countStartsWith(Sequence(s + "C")) +
-                             record.countStartsWith(Sequence(s + "G")) +
-                             record.countStartsWith(Sequence(s + "T"));
+    for(Edge &edge : subcomponent.edges()) {
+        if(is_unique(edge) && subcomponent.contains(*edge.end())) {
+            const VertexRecord & record = reads_storage.getRecord(edge.end()->rc());
+            std::string s = edge.rc().seq.Subseq(0, 1).str();
+            size_t cnt = record.countStartsWith(Sequence(s + "A")) +
+                         record.countStartsWith(Sequence(s + "C")) +
+                         record.countStartsWith(Sequence(s + "G")) +
+                         record.countStartsWith(Sequence(s + "T"));
+            if(edge.size() < 20000) {
                 min_cov = std::min<double>(min_cov, std::min<double>(cnt, edge.getCoverage()));
                 max_cov = std::max<double>(max_cov, std::min<double>(cnt, edge.getCoverage()));
+            } else {
+                min_cov = std::min<double>(min_cov, cnt);
+                max_cov = std::max<double>(max_cov, cnt);
             }
         }
     }
