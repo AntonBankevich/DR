@@ -386,14 +386,15 @@ void RecordStorage::removeSubpath(const CompactPath &cpath) {
     processPath(cpath, vertex_task, edge_task);
 }
 
-void RecordStorage::apply(AlignedRead &alignedRead) {
+bool RecordStorage::apply(AlignedRead &alignedRead) {
     if(!alignedRead.checkCorrected())
-        return;
+        return false;
     this->removeSubpath(alignedRead.path);
     this->removeSubpath(alignedRead.path.RC());
     alignedRead.applyCorrection();
     this->addSubpath(alignedRead.path);
     this->addSubpath(alignedRead.path.RC());
+    return true;
 }
 
 void RecordStorage::reroute(AlignedRead &alignedRead, const GraphAlignment &initial, const GraphAlignment &corrected,
@@ -409,11 +410,14 @@ void RecordStorage::reroute(AlignedRead &alignedRead, const GraphAlignment &corr
 void RecordStorage::applyCorrections(logging::Logger &logger, size_t threads) {
     logger.info() << "Applying corrections to reads" << std::endl;
     omp_set_num_threads(threads);
-#pragma omp parallel for default(none) schedule(dynamic, 100)
+    ParallelCounter cnt(threads);
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(cnt)
     for(size_t i = 0; i < reads.size(); i++) { // NOLINT(modernize-loop-convert)
-        apply(reads[i]);
+        if(apply(reads[i]))
+            cnt += 1;
     }
     flush();
+    logger.info() << "Applied correction to " << cnt.get() << " reads" << std::endl;
 }
 
 void RecordStorage::printAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const {

@@ -16,6 +16,17 @@ namespace io {
 
     typedef std::vector<std::experimental::filesystem::path> Library;
 
+    inline bool CheckLibrary(const Library &lib) {
+        bool res = true;
+        for(const std::experimental::filesystem::path &path : lib) {
+            if(!std::experimental::filesystem::is_regular_file(path)) {
+                std::cerr << "Input file not found: " << path << std::endl;
+                res = false;
+            }
+        }
+        return res;
+    }
+
     template<class Reader>
     class ContigIterator {
     private:
@@ -24,7 +35,7 @@ namespace io {
     public:
         typedef StringContig value_type;
 
-        ContigIterator(Reader &_reader, bool _isend) :reader(_reader), isend(_isend) {
+        ContigIterator(Reader &_reader, bool _isend) : reader(_reader), isend(_isend) {
             if(reader.eof()) {
                 isend = true;
             }

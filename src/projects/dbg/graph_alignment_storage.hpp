@@ -162,7 +162,7 @@ public:
     void invalidateRead(AlignedRead &read, const std::string &message);
     void reroute(AlignedRead &alignedRead, const GraphAlignment &initial, const GraphAlignment &corrected, const std::string &message);
     void reroute(AlignedRead &alignedRead, const GraphAlignment &corrected, const std::string &message);
-    void apply(AlignedRead &alignedRead);
+    bool apply(AlignedRead &alignedRead);
 
     void invalidateBad(logging::Logger &logger, size_t threads, double threshold, const std::string &message);
     void invalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(const Edge &)> &is_bad, const std::string &message);

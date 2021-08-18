@@ -344,9 +344,10 @@ int main(int argc, char **argv) {
     io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     io::Library paths = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("paths"));
     io::Library ref_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("ref"));
-
+    if(!io::CheckLibrary(lib + paths +ref_lib)) {
+        exit(1);
+    }
     ref = io::SeqReader(ref_lib).readAllContigs();
-
     size_t k = std::stoi(parser.getValue("k-mer-size"));
     size_t w = std::stoi(parser.getValue("window"));
     double threshold = std::stod(parser.getValue("cov-threshold"));
