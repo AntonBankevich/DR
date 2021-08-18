@@ -180,7 +180,7 @@ struct ContigInfo {
         bool only_good = true;
         if (good_cons < 5) {
             only_good = false;
-            logger.info() << "Few good consenus seqs: " << good_cons << " of " << all_len.size() << endl;
+            logger.debug() << "Few good consenus seqs: " << good_cons << " of " << all_len.size() << endl;
         }
 
         for (const auto& it : s) {
@@ -253,7 +253,7 @@ struct ContigInfo {
             auto consensus = MSAConsensus(complex_strings[start_pos], logger);
             complex_strings[start_pos].push_back(consensus);
         }
-        logger.info() << " Consenus for contig " << name << " calculated "<< endl;
+        logger.debug() << " Consenus for contig " << name << " calculated "<< endl;
         string consensus = "";
 
         for (size_t i = 0; i < len; ) {
@@ -263,20 +263,20 @@ struct ContigInfo {
                 auto check = checkMSAConsensus(consensus, complex_strings[i]);
  //            logger.info() << "consensus of " << complex_strings[start_pos].size() << ": " << consensus.length() << endl << "At position " <<start_pos << endl;
                 if (check != ""){
-                    logger.info() << "Problematic consensus starting on decompressed position " << total_count <<" " << check <<" of " <<complex_strings[i].size() - 1 << " sequences "<< endl;
-                    logger.info() << "Position " << complex_regions[cur_complex_ind].first << " len " << complex_regions[cur_complex_ind].second << endl;
+                    logger.debug() << "Problematic consensus starting on decompressed position " << total_count <<" " << check <<" of " <<complex_strings[i].size() - 1 << " sequences "<< endl;
+                    logger.debug() << "Position " << complex_regions[cur_complex_ind].first << " len " << complex_regions[cur_complex_ind].second << endl;
                     stringstream debug_l;
                     debug_l << "lengths: ";
                     for (size_t j = 0; j < complex_strings[i].size() - 1; j++) {
                         debug_l << complex_strings[i][j].length() << " ";
                     }
                     debug_l <<" : " << consensus.length() << endl;
-                    logger.info() << debug_l.str();
+                    logger.debug() << debug_l.str();
                     for (size_t j = 0; j < complex_strings[i].size() - 1; j++) {
-                        logger.info() << complex_strings[i][j] << endl;
+                        logger.debug() << complex_strings[i][j] << endl;
                     }
-                    logger.info() << endl;
-                    logger.info() << consensus << endl;
+                    logger.debug() << endl;
+                    logger.debug() << consensus << endl;
                 }
                 if (debug_f != "none" )
                     for (size_t j = 0; j < consensus.length(); j++) {
@@ -335,11 +335,11 @@ struct ContigInfo {
                 i++;
             }
         }
-        logger.info() <<" Contig " << name << " " << sequence.length() << endl;
+        logger.info() <<" Contig " << name << " uncompressed length: " << sequence.length() << " processed." << endl;
         logger.info() << "Zero covered (after filtering) " << zero_covered << endl;
 //Constants;
         for (size_t i = 0; i < 20; i++) {
-            logger.info() << i << " " << quantities[i] << endl;
+            logger.debug() << i << " " << quantities[i] << endl;
         }
         return ss.str();
     }
@@ -375,7 +375,7 @@ struct AssemblyInfo {
 //TODO switch to Contig()
             contigs.emplace(contig.id, ContigInfo(contig.seq.str(), contig.id, debug_f));
 
-            logger.info() << contig.id << endl;
+            logger.debug() << contig.id << endl;
 
         }
         compression_length= stoi(parser.getValue("compress"));
@@ -447,7 +447,7 @@ struct AssemblyInfo {
         if (real_to >= real_from)
             return s.substr(real_from,  real_to -real_from);
         else {
-            logger.info() << "BULLSHIT";
+            logger.info() << "Something went WRONG in uncompression" << endl;
             return "";
         }
     }
@@ -675,7 +675,7 @@ struct AssemblyInfo {
                         current_contig.complex_strings[complex_id].push_back(uncompressCoords(complex_start, read_coords + i, uncompressed_read_seq.str(), compressed_read_coords));
                         complex_fragment_finish = -1;
                     } else if (coord > complex_fragment_finish) {
-                        logger.info() << "Read " << aln.read_id << " missed fragment finish " << complex_fragment_finish << endl;
+                        logger.debug() << "Read " << aln.read_id << " missed fragment finish " << complex_fragment_finish << endl;
                         complex_fragment_finish = -1;
                     }
                 }
@@ -684,7 +684,7 @@ struct AssemblyInfo {
             }
         }
         if (matches < mismatches * 3)
-            logger.info()<<"For read too much mismatches " << aln.read_id << " matches/MM: " << matches << "/" << mismatches << endl;
+            logger.debug()<<"For read too much mismatches " << aln.read_id << " matches/MM: " << matches << "/" << mismatches << endl;
         return;
     }
     void removeWhitespace(string & s){
@@ -711,7 +711,7 @@ struct AssemblyInfo {
         io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
 //        io::Library lib = oneline::initialize<std::experimental::filesystem::path>("reads.fasta");
         io::SeqReader reader(lib);
-        logger.info() << "Initialized\n";
+        logger.debug() << "Initialized\n";
 
         AlignmentInfo cur_align = readAlignment(compressed_reads);
         string cur_compressed = cur_align.read_id;
@@ -737,7 +737,7 @@ struct AssemblyInfo {
                 removeWhitespace(cur.id);
                 reads_count ++;
                 if (reads_count % 1000 == 0) {
-                    logger.info() << "Processed " << reads_count << " original reads " << endl;
+                    logger.debug() << "Processed " << reads_count << " original reads " << endl;
                 }
             }
             if (reads_over) {
