@@ -50,7 +50,7 @@ size_t correct_dimers(logging::Logger &logger, RecordStorage &reads_storage, siz
         }
         if(path != initial_path) {
             size_t d = diff(code(path), code(initial_path));
-            VERIFY(d != 0);
+            VERIFY_OMP(d != 0, "d!=0");
             reads_storage.reroute(alignedRead, path, "AT_" + itos(d));
             cnt += d;
         }
