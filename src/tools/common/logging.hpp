@@ -100,9 +100,13 @@ private:
     TimeSpace time;
     Logger *empty_logger = nullptr;
     bool add_cout;
-    bool debug;
+    bool debug_flag;
 public:
-    explicit Logger(bool _add_cout = true, bool _debug = false) : std::ostream(this), add_cout(_add_cout), debug(_debug) {
+    explicit Logger(bool _add_cout = true, bool _debug = false) : std::ostream(this), add_cout(_add_cout), debug_flag(_debug) {
+        if (! add_cout) {
+//This disables cout flood
+            setstate(std::ios_base::badbit);
+        }
     }
 
     Logger(const Logger &) = delete;
@@ -148,10 +152,24 @@ public:
     }
 
     Logger & trace() {
-        if(debug) {
+        if(debug_flag) {
             std::cout << time.get() << " TRACE: ";
             for (std::ofstream *os : oss) {
                 *os << time.get() << " TRACE: ";
+            }
+            return *this;
+        } else {
+            if (!empty_logger)
+                empty_logger = new Logger(false);
+            return *empty_logger;
+        }
+    }
+
+    Logger & debug() {
+        if(debug_flag) {
+            std::cout << time.get() << " DEBUG: ";
+            for (std::ofstream *os : oss) {
+                *os << time.get() << " DEBUG: ";
             }
             return *this;
         } else {
