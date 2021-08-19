@@ -15,6 +15,7 @@
 #include <unordered_set>
 #include <wait.h>
 #include <error_correction/dimer_correction.hpp>
+#include <polishing/homopolish.hpp>
 
 static size_t stage_num = 0;
 std::vector<Contig> ref;
@@ -213,7 +214,21 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
     std::experimental::filesystem::path res;
     res = dir / "corrected.fasta";
     logger.info() << "Second phase results with k = " << k << " printed to " << res << std::endl;
-    return {res, dir / "split"};
+    return {res, dir / "uncompressing"};
+}
+
+std::experimental::filesystem::path PolishingPhase(
+        logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &output_file,
+        const std::experimental::filesystem::path &contigs_file,
+        const std::experimental::filesystem::path &alignments,
+        const io::Library &reads, size_t dicompress, bool skip) {
+    logger.info() << "Performing polishing and homopolymer uncompression" << std::endl;
+    std::function<void()> ic_task = [&logger, threads, &output_file, &contigs_file, &alignments, &reads, dicompress] {
+        Polish(logger, threads, output_file, contigs_file, alignments, reads, dicompress);
+    };
+    if(!skip)
+        runInFork(ic_task);
+    return output_file;
 }
 
 std::experimental::filesystem::path CrudeCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
@@ -326,7 +341,6 @@ int main(int argc, char **argv) {
     StringContig::SetDimerParameters(parser.getValue("dimer-compress"));
     const std::experimental::filesystem::path dir(parser.getValue("output-dir"));
     ensure_dir_existance(dir);
-    ensure_dir_existance(dir / "paths");
     logging::LoggerStorage ls(dir, "dbg");
     logging::Logger logger;
     logger.addLogFile(ls.newLoggerFile(), debug ? logging::debug : logging::trace);
@@ -375,34 +389,19 @@ int main(int argc, char **argv) {
                         threads, K, W, Threshold, Reliable_coverage, unique_threshold, diplod, skip, dump, load);
     if(first_stage == "phase2")
         load = false;
-
-//    double Threshold = std::stod(parser.getValue("Cov-threshold"));
-//    double Reliable_coverage = std::stod(parser.getValue("Rel-threshold"));
-//    if(first_stage == "initial2")
-//        skip = false;
-//    std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected2 =
-//            InitialCorrection(logger, dir / "initial2", {corrected1.first}, {corrected1.second}, threads, K, W,
-//                              Threshold, Reliable_coverage, true, true, skip, dump, load);
-//    if(first_stage == "initial2")
-//        load = false;
-//
-//    size_t unique_threshold = std::stoi(parser.getValue("unique-threshold"));
-//    if(first_stage == "mult")
-//        skip = false;
-//    std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected4 =
-//            MultCorrection(logger, dir / "mult", {corrected2.first}, {corrected2.second}, threads, K, W, unique_threshold, skip, dump);
-//    if(first_stage == "mult")
-//        load = false;
-//
-//    if(first_stage == "split")
-//        skip = false;
-//    std::experimental::filesystem::path split_dir =
-//            SplitDatasetStage(logger, dir / "subdatasets", {corrected4.first}, {corrected4.second}, threads, K, W, skip, dump);
-//    if(first_stage == "split")
-//        load = false;
-
+    if(first_stage == "polishing")
+        skip = false;
+    std::experimental::filesystem::path final_contigs =
+            PolishingPhase(logger, threads, dir / "assembly.fasta",
+                           corrected2.second / "contigs.fasta",
+                           corrected2.second / "good_alignments.txt",
+                            lib, StringContig::max_dimer_size / 2, skip);
+    if(first_stage == "polishing")
+        load = false;
     logger.info() << "Final corrected reads can be found here: " << corrected2.first << std::endl;
-    logger.info() << "Subdatasets for connected components can be found here: " << corrected2.second << std::endl;
+    logger.info() << "Final homopolymer compressed contigs can be found here: " << (corrected2.second / "contigs.fasta") << std::endl;
+//    logger.info() << "Subdatasets for connected components can be found here: " << corrected2.second << std::endl;
+    logger.info() << "Final assembly can be found here: " << final_contigs << std::endl;
     logger.info() << "LJA pipeline finished" << std::endl;
     return 0;
 }

@@ -69,6 +69,21 @@ inline std::string join(const std::string &s, const std::vector<std::string> &ar
     return ss.str();
 }
 
+template<class I>
+inline std::string join(const std::string &s, I begin, I end) {
+    if(begin == end)
+        return "";
+    std::stringstream ss;
+    ss << *begin;
+    ++begin;
+    while(begin != end) {
+        ss << s << *begin;
+        ++begin;
+    }
+    return ss.str();
+}
+
+
 inline std::vector<std::string> split(const std::string &s) {
     std::vector<std::string> res;
     size_t cur = 0;

@@ -168,7 +168,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
             }
         }
     }
-    logger.info() << "Marking bulges to collapse" << std::endl;
+    logger.trace() << "Marking bulges to collapse" << std::endl;
     markPseudoHets();
     logger.info() << "Splitting graph with unique edges" << std::endl;
     std::vector<Component> split = UniqueSplitter(*this).split(Component(dbg));
@@ -177,7 +177,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         cnt += 1;
         std::experimental::filesystem::path out_file = dir / (std::to_string(cnt) + ".dot");
         printDot(out_file, component, reads_storage.labeler());
-        logger.info() << "Component parameters: size=" << component.size() << " border=" << component.countBorderEdges() <<
+        logger.trace() << "Component parameters: size=" << component.size() << " border=" << component.countBorderEdges() <<
                       " tips=" << component.countTips() <<
                       " subcomponents=" << component.realCC() << " acyclic=" << component.isAcyclic() <<std::endl;
         if(component.size() > 2 && component.countBorderEdges() == 2 &&component.countTips() == 0 &&
@@ -186,7 +186,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         }
         std::vector<const Edge *> new_unique = processComponent(logger, component);
         addUnique(new_unique.begin(), new_unique.end());
-        logger << "Printing component to " << out_file << std::endl;
+        logger.trace() << "Printing component to " << out_file << std::endl;
         const std::function<std::string(Edge &)> labeler = [](Edge &) {return "";};
         const std::function<std::string(Edge &)> colorer = [this](Edge &edge) {
             if(isUnique(edge)) {
@@ -227,33 +227,33 @@ UniqueClassificator::ProcessUsingCoverage(logging::Logger &logger, const Compone
     }
     double threshold = std::max(min_cov * 1.4, max_cov * 1.2);
     double rel_threshold = std::min(min_cov * 0.9, max_cov * 0.7);
-    logger << "Attempting to use coverage for multiplicity estimation with coverage threshold " << threshold << std::endl;
-    logger << "Component: ";
+    logger.trace() << "Attempting to use coverage for multiplicity estimation with coverage threshold " << threshold << std::endl;
+    logger.trace() << "Component: ";
     for(Vertex &vertex : subcomponent.verticesUnique()) {
-        logger << " " << vertex.getShortId();
+        logger.trace() << " " << vertex.getShortId();
     }
-    logger << std::endl;
+    logger.trace() << std::endl;
     MappedNetwork net2(subcomponent, is_unique, rel_coverage, threshold);
     bool res2 = net2.fillNetwork();
     std::vector<const dbg::Edge *> extra_unique;
     if (res2) {
-        logger << "Succeeded to use coverage for multiplicity estimation" << std::endl;
+        logger.trace() << "Succeeded to use coverage for multiplicity estimation" << std::endl;
         for (Edge *edge : net2.getUnique(logger)) {
             extra_unique.emplace_back(edge);
         }
     } else {
-        logger << "Failed to use coverage for multiplicity estimation" << std::endl;
+        logger.trace() << "Failed to use coverage for multiplicity estimation" << std::endl;
         if(rel_coverage == 0) {
-            logger << "Adjusted reliable edge threshold from " << rel_coverage << " to " << rel_threshold << std::endl;
+            logger.trace() << "Adjusted reliable edge threshold from " << rel_coverage << " to " << rel_threshold << std::endl;
             MappedNetwork net3(subcomponent, is_unique, rel_threshold, threshold);
             bool res3 = net3.fillNetwork();
             if (res3) {
-                logger << "Succeeded to use coverage for multiplicity estimation" << std::endl;
+                logger.trace() << "Succeeded to use coverage for multiplicity estimation" << std::endl;
                 for (Edge *edge : net3.getUnique(logger)) {
                     extra_unique.emplace_back(edge);
                 }
             } else {
-                logger << "Failed to use coverage for multiplicity estimation" << std::endl;
+                logger.trace() << "Failed to use coverage for multiplicity estimation" << std::endl;
             }
         }
     }
@@ -296,7 +296,7 @@ void UniqueClassificator::processSimpleComponent(logging::Logger &logger, const 
             break;
     }
     if(end == nullptr) {
-        logger << "Failed to collapse acyclic component" << std::endl;
+        logger.trace() << "Failed to collapse acyclic component" << std::endl;
         return;
     }
     for(Edge &edge : component.edgesInner()) {
@@ -318,23 +318,23 @@ UniqueClassificator::processComponent(logging::Logger &logger, const Component &
     MappedNetwork net(component, is_unique, rel_coverage);
     bool res = net.fillNetwork();
     if(res) {
-        logger << "Found unique edges in component" << std::endl;
+        logger.trace() << "Found unique edges in component" << std::endl;
         for(Edge * edge : net.getUnique(logger)) {
             unique_in_component.emplace(edge);
         }
     } else {
-        logger << "Could not find unique edges in component" << std::endl;
-        logger << "Relaxing flow conditions" << std::endl;
+        logger.trace() << "Could not find unique edges in component" << std::endl;
+        logger.trace() << "Relaxing flow conditions" << std::endl;
         rel_coverage = 15;
         MappedNetwork net1(component, is_unique, rel_coverage);
         res = net1.fillNetwork();
         if(res) {
-            logger << "Found unique edges in component" << std::endl;
+            logger.trace() << "Found unique edges in component" << std::endl;
             for(Edge * edge : net1.getUnique(logger)) {
                 unique_in_component.emplace(edge);
             }
         } else {
-            logger << "Could not find unique edges with relaxed conditions in component" << std::endl;
+            logger.trace() << "Could not find unique edges with relaxed conditions in component" << std::endl;
         }
     }
     if(res) {

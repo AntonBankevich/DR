@@ -116,7 +116,7 @@ private:
     bool add_cout;
 public:
     explicit Logger(bool _add_cout = true) :
-                std::ostream(this), curlevel(LogLevel::info), add_cout(_add_cout) {
+                std::ostream(this), curlevel(LogLevel::trace), add_cout(_add_cout) {
     }
 
     Logger(const Logger &) = delete;
@@ -175,7 +175,7 @@ public:
         return *this;
     }
 
-    Logger & dubug() {
+    Logger & debug() {
         curlevel = LogLevel::debug;
         *this << time.get() << " TRACE: ";
         return *this;

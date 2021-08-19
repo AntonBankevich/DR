@@ -1,3 +1,4 @@
+#include "homopolish.hpp"
 #include <sequences/contigs.hpp>
 #include <common/cl_parser.hpp>
 #include <common/logging.hpp>
@@ -5,31 +6,33 @@
 #include <common/omp_utils.hpp>
 #include <common/zip_utils.hpp>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 #include <iostream>
 
 #include <spoa/spoa.hpp>
 #include <ksw2/ksw_wrapper.hpp>
 
-
-using namespace std;
+using std::vector;
+using std::pair;
 using logging::Logger;
 
 
 struct AlignmentInfo {
     string read_id;
     string contig_id;
-    size_t read_start;
-    size_t read_end;
-    size_t alignment_start;
-    size_t alignment_end;
-    bool rc;
+    size_t read_start = 0;
+    size_t read_end = 0;
+    size_t alignment_start = 0;
+    size_t alignment_end = 0;
+    bool rc = false;
 
-    int length() {
+    size_t length() const {
         return alignment_end - alignment_start;
     }
-    string str() {
-        stringstream ss;
+
+    string str() const {
+        std::stringstream ss;
         ss << read_id << " " << contig_id << " " <<alignment_start << " " << alignment_end << " "<< rc;
         return ss.str();
     }
@@ -42,10 +45,11 @@ struct dinucleotide {
     string seq;
     static const size_t MIN_DINUCLEOTIDE_REPEAT = 10;
 
-    dinucleotide(size_t start, size_t multiplicity, string seq): start(start), multiplicity(multiplicity), seq(seq) {
+    dinucleotide(size_t start, size_t multiplicity, string seq): start(start), multiplicity(multiplicity), seq(std::move(seq)) {
     }
-    string str() {
-        stringstream ss;
+
+    string str() const {
+        std::stringstream ss;
         ss << start << " " << multiplicity << " " <<seq;
         return ss.str();
     }
@@ -67,7 +71,7 @@ vector<dinucleotide> GetDinucleotideRepeats(const Contig& compressed_contig) {
 
         if (multiplicity >= dinucleotide::MIN_DINUCLEOTIDE_REPEAT)
         {
-            stringstream ss;
+            std::stringstream ss;
             ss << compressed_contig[start] << compressed_contig[start+1];
             res.emplace_back(start, multiplicity, ss.str());
 //Dirty hack to avoid reporting overlapping dinucleotide repeats
@@ -81,7 +85,7 @@ vector<dinucleotide> GetDinucleotideRepeats(const Contig& compressed_contig) {
 struct ContigInfo {
     string sequence;
     string name;
-    size_t len;
+    size_t len = 0;
     vector<uint8_t > quantity;
 //array size. possibly switch to []
     static const size_t VOTES_STORED = 21;
@@ -89,7 +93,6 @@ struct ContigInfo {
     vector<vector<uint8_t>> amounts;
     vector<uint16_t> sum;
     size_t zero_covered = 0;
-    string debug_f;
 //neighbourhoud for complex regions;
     static const size_t COMPLEX_EPS = 5;
     static const size_t MAX_CONSENSUS_COVERAGE = 25;
@@ -97,7 +100,7 @@ struct ContigInfo {
     //Complex_regions: map from start to length;
 
     vector<pair<size_t, size_t>> complex_regions;
-    map<size_t, vector<string>> complex_strings;
+    std::map<size_t, vector<string>> complex_strings;
 //TODO more efficient data structure
 
 /*    vector <dinucleotide> dinucleotide_coords;
@@ -119,14 +122,15 @@ struct ContigInfo {
             }
             if (cur_finish > len)
                 cur_finish = len;
-            complex_regions.emplace_back(make_pair(cur_start, cur_finish - cur_start));
+            complex_regions.emplace_back(std::make_pair(cur_start, cur_finish - cur_start));
             complex_strings[cur_start] = vector<string>();
             current_id = next_id;
         }
 
     }
 
-    ContigInfo(string sequence, string name, string debug_f):sequence(sequence), name(name), debug_f(debug_f) {
+    ContigInfo(const string& sequence, string name) :
+                                sequence(sequence), name(std::move(name)) {
         len = sequence.length();
         quantity.resize(len);
         sum.resize(len);
@@ -141,10 +145,11 @@ struct ContigInfo {
     }
     ContigInfo() = default;
 
-    size_t get_finish(dinucleotide d) {
+    size_t get_finish(const dinucleotide& d) {
         return d.start + COMPLEX_EPS + d.multiplicity * 2;
     }
-    size_t get_start(dinucleotide d) {
+
+    size_t get_start(const dinucleotide& d) {
         if (d.start < COMPLEX_EPS) return 0;
         else return d.start - COMPLEX_EPS;
     }
@@ -157,7 +162,6 @@ struct ContigInfo {
         return (med_len < some *MAX_ALLOWED_MSA_LENGTH_VARIATION && med_len * MAX_ALLOWED_MSA_LENGTH_VARIATION > some);
     }
     string MSAConsensus(vector<string> &s, Logger & logger) {
-
 //Magic consts from spoa default settings
         auto alignment_engine = spoa::AlignmentEngine::Create(
 // -8 in default for third parameter(gap) opening, -6 for forth(gap extension)
@@ -195,16 +199,16 @@ struct ContigInfo {
                 break;
             }
         }
+
         vector<uint32_t > coverages;
         string consensus = graph.GenerateConsensus(&coverages);
         size_t pref_remove = 0;
-        int suf_remove = coverages.size() - 1;
+        int suf_remove = int(coverages.size()) - 1;
         while (pref_remove < coverages.size() && coverages[pref_remove] < cov / 2 )
             pref_remove ++;
         while (suf_remove >= 0 && coverages[suf_remove] < cov / 2 )
             suf_remove --;
         if (pref_remove > suf_remove) {
-            cout << "MSA cleanup stupid case" << endl;
             return "";
         }
         return consensus.substr(pref_remove, suf_remove - pref_remove + 1);
@@ -237,35 +241,33 @@ struct ContigInfo {
 
 
     string GenerateConsensus(Logger & logger){
-        io:stringstream ss;
+        std::stringstream ss;
         vector<int> quantities(256);
 
-        ofstream debug;
-        if (debug_f != "none") {
-            debug.open(debug_f + name);
-            debug << name << endl;
-        }
+        std::ofstream debug;
         size_t total_count = 0 ;
         size_t cur_complex_ind = 0;
-#pragma omp parallel for
+#pragma omp parallel for default(none) shared(logger)
         for (size_t i = 0; i < complex_regions.size(); i++) {
             size_t start_pos = complex_regions[i].first;
+            VERIFY_OMP(!complex_strings[start_pos].empty(), this->name + " " + itos(start_pos));
             auto consensus = MSAConsensus(complex_strings[start_pos], logger);
             complex_strings[start_pos].push_back(consensus);
         }
         logger.debug() << " Consenus for contig " << name << " calculated "<< endl;
-        string consensus = "";
+        string consensus;
+
 
         for (size_t i = 0; i < len; ) {
-            if (complex_regions.size() > 0 && complex_regions[cur_complex_ind].first == i ) {
+            if (!complex_regions.empty() && complex_regions[cur_complex_ind].first == i ) {
                 consensus = complex_strings[i][complex_strings[i].size() - 1];
                 ss << consensus;
                 auto check = checkMSAConsensus(consensus, complex_strings[i]);
  //            logger.info() << "consensus of " << complex_strings[start_pos].size() << ": " << consensus.length() << endl << "At position " <<start_pos << endl;
-                if (check != ""){
+                if (!check.empty()){
                     logger.debug() << "Problematic consensus starting on decompressed position " << total_count <<" " << check <<" of " <<complex_strings[i].size() - 1 << " sequences "<< endl;
                     logger.debug() << "Position " << complex_regions[cur_complex_ind].first << " len " << complex_regions[cur_complex_ind].second << endl;
-                    stringstream debug_l;
+                    std::stringstream debug_l;
                     debug_l << "lengths: ";
                     for (size_t j = 0; j < complex_strings[i].size() - 1; j++) {
                         debug_l << complex_strings[i][j].length() << " ";
@@ -278,12 +280,6 @@ struct ContigInfo {
                     logger.debug() << endl;
                     logger.debug() << consensus << endl;
                 }
-                if (debug_f != "none" )
-                    for (size_t j = 0; j < consensus.length(); j++) {
-                        debug << total_count + 1 << " 0 "<< complex_strings[i].size() - 1 <<" 0 " << consensus[j] << endl;
-                        total_count ++;
-                    }
-
                 i += complex_regions[cur_complex_ind].second;
                 if (cur_complex_ind + 1< complex_regions.size())
                     cur_complex_ind ++;
@@ -294,25 +290,11 @@ struct ContigInfo {
                     zero_covered++;
                 } else {
                     size_t real_len =  amounts[i][0];
-
-/*
-                    stringstream uns;
-                    uns << " unsorted";
-                    for (auto j = 0; j < amounts[i].size(); j++)
-                        uns << int(amounts[i][j]) << " ";
-                    logger.info() << uns.str() << endl;
-*/
                     sort(amounts[i].begin() + 1, amounts[i].begin() + 1 + real_len);
                     real_cov = amounts[i][(1 + real_len)/2];
 
                     cov = int(round(sum[i] * 1.0 / quantity[i]));
                     if (real_cov != cov) {
-/*                        logger.info() << "Median disagree with average at position " << i<<" med/avg: "<< real_cov << "/" << cov << endl;
-                        stringstream as;
-                        for (auto j = 0; j < amounts[i][0]; j++)
-                            as << int(amounts[i][j + 1]) << " ";
-                        logger.info() << as.str() << endl;
-                        */
                         cov = real_cov;
                     }
                 }
@@ -322,20 +304,10 @@ struct ContigInfo {
                     ss << sequence[i];
                     total_count++;
                 }
-                if (debug_f != "none") {
-                    for (size_t j = 0; j < cov; j++) {
-                        debug << total_count - cov + j + 1 << " " << sum[i] << " " << int(quantity[i]) << " " << cov << " "
-                              << sequence[i];
-                        debug << "    ";
-                        for (auto jj = 0; jj < amounts[i][0]; jj++)
-                            debug << int(amounts[i][jj + 1]) << " ";
-                        debug << endl;
-                    }
-                }
                 i++;
             }
         }
-        logger.info() <<" Contig " << name << " uncompressed length: " << sequence.length() << " processed." << endl;
+        logger.info() <<"Contig " << name << " uncompressed length: " << sequence.length() << " processed." << endl;
         logger.info() << "Zero covered (after filtering) " << zero_covered << endl;
 //Constants;
         for (size_t i = 0; i < 20; i++) {
@@ -346,12 +318,7 @@ struct ContigInfo {
 };
 
 struct AssemblyInfo {
-    map<string, ContigInfo> contigs;
-    CLParser parser;
-    Logger logger;
-    size_t used_pairs;
-    size_t filtered_pairs;
-    bool get_uncovered_only;
+    std::map<string, ContigInfo> contigs;
 //dinucleotide repeats of larger length will be compressed
     size_t compression_length;
 
@@ -362,25 +329,21 @@ struct AssemblyInfo {
 
     static const size_t BATCH_SIZE = 10000;
 
-    AssemblyInfo (CLParser& parser):parser(parser), logger(true, false), used_pairs(0), filtered_pairs(0), get_uncovered_only(false) {
+    explicit AssemblyInfo (logging::Logger &logger,
+                           const std::experimental::filesystem::path &contigs_file,
+                           size_t dicompress) {
 //TODO paths;
-        logging::LoggerStorage ls(".", "homopolish");
+        std::vector<Contig> assembly = io::SeqReader(contigs_file).readAllContigs();
 
-        logger.addLogFile(ls.newLoggerFile());
-        logger.info() <<"Reading contigs..." << endl;
-        std::vector<Contig> assembly = io::SeqReader(parser.getValue("contigs")).readAllContigs();
-
-        string debug_f = parser.getValue("debug");
-        for (auto contig: assembly) {
+        for (const auto& contig: assembly) {
 //TODO switch to Contig()
-            contigs.emplace(contig.id, ContigInfo(contig.seq.str(), contig.id, debug_f));
-
+            contigs.emplace(contig.id, ContigInfo(contig.seq.str(), contig.id));
             logger.debug() << contig.id << endl;
-
         }
-        compression_length= stoi(parser.getValue("compress"));
+        compression_length= dicompress;
     }
-    void AddRead(string contig_name){
+
+    void AddRead(const string& contig_name){
         contigs[contig_name].AddRead();
     }
 
@@ -389,11 +352,9 @@ struct AssemblyInfo {
         AlignmentInfo res;
         if (ss.eof())
             return res;
-//        ss >> res.read_id >> res.contig_id >> res.alignment_start>>res.alignment_end;
         ss >> res.read_id >> res.read_start >> res.read_end >>res.contig_id >> res.alignment_start>>res.alignment_end;
 
         if (res.contig_id[0] == '-') {
-    //1:
             res.contig_id = res.contig_id.substr(1);
             res.rc = true;
         } else {
@@ -408,12 +369,13 @@ struct AssemblyInfo {
         size_t tmp = contig_len - aln.alignment_end;
         aln.alignment_end = contig_len - aln.alignment_start;
         aln.alignment_start = tmp;
-        aln.read_end = min(aln.read_end, read_len);
+        aln.read_end = std::min(aln.read_end, read_len);
         tmp = read_len - aln.read_end;
         aln.read_end = read_len - aln.read_start;
         aln.read_start = tmp;
 
     }
+
     size_t getUncompressedPos(const string &s, size_t pos){
         size_t real_pos = 0;
         while (pos > 0) {
@@ -431,12 +393,8 @@ struct AssemblyInfo {
         size_t real_from = getUncompressedPos(s, from);
 //can be optimised
         size_t real_to = getUncompressedPos(s, to);
-        if (real_to >= real_from)
-            return s.substr(real_from,  real_to -real_from);
-        else {
-            logger.info() << "BULLSHIT";
-            return "";
-        }
+        VERIFY(real_to >= real_from);
+        return s.substr(real_from,  real_to -real_from);
     }
 
     string uncompressCoords (size_t from, size_t to, const string &s, const vector<size_t> & coords) {
@@ -444,12 +402,8 @@ struct AssemblyInfo {
         size_t real_from = coords[from];
 //can be optimised
         size_t real_to = coords[to];
-        if (real_to >= real_from)
-            return s.substr(real_from,  real_to -real_from);
-        else {
-            logger.info() << "Something went WRONG in uncompression" << endl;
-            return "";
-        }
+        VERIFY_MSG(real_to >= real_from, "Something went WRONG in uncompression");
+        return s.substr(real_from,  real_to -real_from);
     }
 
 
@@ -476,7 +430,7 @@ struct AssemblyInfo {
     }
 
     string str(vector<cigar_pair> &cigars) {
-        stringstream ss;
+        std::stringstream ss;
         for(size_t i = 0; i < cigars.size(); i++) {
             ss << cigars[i].length << cigars[i].type;
         }
@@ -492,7 +446,7 @@ struct AssemblyInfo {
         return res;
     }
 
-    std::vector<cigar_pair> getFastAln(AlignmentInfo& aln, const char * contig, const char *read) {
+    std::vector<cigar_pair> getFastAln(logging::Logger &logger, AlignmentInfo& aln, const char * contig, const char *read) {
 
         size_t cur_bandwidth = SW_BANDWIDTH;
 //strings, match, mismatch, gap_open, gap_extend, width
@@ -504,8 +458,8 @@ struct AssemblyInfo {
         while ((matched_l < strlen(read) * 0.9 || !(valid_cigar = verifyCigar(cigars, cur_bandwidth)))) {
 //Do we really need this?
             if (matched_l < 50) {
-                logger.trace() << aln.read_id << " ultrashort alignmnent, doing nothing" << endl;
-                logger.trace() <<str_cigars<< endl;
+                logger.debug() << aln.read_id << " ultrashort alignmnent, doing nothing" << endl;
+                logger.debug() <<str_cigars<< endl;
 //                logger.trace() << string(contig) << endl;
 //                logger.trace() << string (read) << endl;
                 break;
@@ -513,19 +467,20 @@ struct AssemblyInfo {
 //We allow large indels now, so we'll have to increase bandwidth significantly to overcome them, otherwise iterative process will be stopped
                 if (cur_bandwidth == 10)
                     cur_bandwidth *= 5;
-                else  cur_bandwidth *= 2;
+                else
+                    cur_bandwidth *= 2;
                 if (cur_bandwidth > 260) {
                     break;
                 }
-                logger.trace() << aln.read_id << endl << str(cigars) << endl << "aln length " << aln.length()
+                logger.debug() << aln.read_id << endl << str(cigars) << endl << "aln length " << aln.length()
                                << " read length " << strlen(read)
                                << " matched length " << matched_l << endl;
                 cigars = align_ksw(contig, read, 1, -5, 5, 2, cur_bandwidth);
                 size_t new_matched_len = matchedLength(cigars);
-                logger.trace() << aln.read_id << " alignment replaced using bandwindth " << cur_bandwidth << endl
+                logger.debug() << aln.read_id << " alignment replaced using bandwindth " << cur_bandwidth << endl
                                << str(cigars) << endl;
                 if (new_matched_len <= matched_l && valid_cigar) {
-                    logger.trace() << aln.read_id << " alignmnent length did not improve after moving to bandwidth " << cur_bandwidth << endl;
+                    logger.debug() << aln.read_id << " alignmnent length did not improve after moving to bandwidth " << cur_bandwidth << endl;
                     matched_l = new_matched_len;
                     break;
                 }
@@ -538,7 +493,7 @@ struct AssemblyInfo {
     string compressRead(const string& read, vector<size_t>& uncompressed_positions) {
 //TODO:: is it fast?
 //        logger.trace() << read << endl;
-        string res = "";
+        string res;
         size_t current_coord = 0;
         uncompressed_positions.resize(0);
         for (size_t i = 0; i < read.length(); i++) {
@@ -575,13 +530,13 @@ struct AssemblyInfo {
         return res;
     }
 
-    void processReadPair (string& read, AlignmentInfo& aln) {
+    void processReadPair (logging::Logger &logger, string& read, AlignmentInfo& aln) {
 //        logger.info() << read.id << endl;
         if (contigs.find(aln.contig_id) == contigs.end())
             return;
         Sequence uncompressed_read_seq (read);
         size_t rlen = read.length();
-        vector<size_t>compressed_read_coords;
+        vector<size_t> compressed_read_coords;
         string compressed_read;
         if (aln.rc) {
             uncompressed_read_seq = !uncompressed_read_seq;
@@ -596,7 +551,7 @@ struct AssemblyInfo {
 //        compressed_read.erase(std::unique(compressed_read.begin(), compressed_read.end()), compressed_read.end());
         string contig_seq = current_contig.sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
         string read_seq = compressed_read.substr(aln.read_start, aln.read_end - aln.read_start);
-        auto cigars = getFastAln(aln, contig_seq.c_str(), read_seq.c_str());
+        auto cigars = getFastAln(logger, aln, contig_seq.c_str(), read_seq.c_str());
         if (matchedLength(cigars) < 50) {
             logger.trace()<< "Read " << aln.read_id << " not aligned " << endl;
             return;
@@ -633,7 +588,9 @@ struct AssemblyInfo {
                 indels += (*it).length;
             } else {
                 size_t cur_complex_coord = -1;
-                auto complex_regions_iter = lower_bound(current_contig.complex_regions.begin(), current_contig.complex_regions.end(),make_pair(cont_coords + aln.alignment_start, size_t(0)));
+                auto complex_regions_iter = lower_bound(current_contig.complex_regions.begin(),
+                                                        current_contig.complex_regions.end(),
+                                                        std::make_pair(cont_coords + aln.alignment_start, size_t(0)));
                 if (complex_regions_iter !=  current_contig.complex_regions.end()) {
                     cur_complex_coord = complex_regions_iter->first;
                 }
@@ -685,8 +642,8 @@ struct AssemblyInfo {
         }
         if (matches < mismatches * 3)
             logger.debug()<<"For read too much mismatches " << aln.read_id << " matches/MM: " << matches << "/" << mismatches << endl;
-        return;
     }
+
     void removeWhitespace(string & s){
         auto white = s.find(' ');
         if (white != string::npos) {
@@ -694,31 +651,27 @@ struct AssemblyInfo {
         }
     }
 
-    void processBatch(vector<string>& contigs, vector<AlignmentInfo>& alignments){
-        size_t len = contigs.size();
-#pragma omp parallel for
+    void processBatch(logging::Logger &logger, vector<string>& batch, vector<AlignmentInfo>& alignments){
+        size_t len = batch.size();
+#pragma omp parallel for default(none) shared(logger, len, batch, alignments)
         for (size_t i = 0; i < len; i++) {
-            processReadPair(contigs[i], alignments[i]);
+            processReadPair(logger, batch[i], alignments[i]);
         }
     }
 
-    void process() {
-
-        ifstream compressed_reads;
-        ofstream corrected_contigs;
-        corrected_contigs.open(parser.getValue("output"));
-        compressed_reads.open(parser.getValue("alignments"));
-        io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
-//        io::Library lib = oneline::initialize<std::experimental::filesystem::path>("reads.fasta");
+    vector<Contig> process(logging::Logger &logger, const io::Library &lib,
+                           const std::experimental::filesystem::path &alignmens_file) {
+        std::ifstream compressed_reads;
+        std::ofstream corrected_contigs;
+        compressed_reads.open(alignmens_file);
         io::SeqReader reader(lib);
-        logger.debug() << "Initialized\n";
-
+        logger.trace() << "Initialized\n";
         AlignmentInfo cur_align = readAlignment(compressed_reads);
         string cur_compressed = cur_align.read_id;
-        string cur_read = "";
-        string cur_seq = "";
+        string cur_read;
+        string cur_seq;
         StringContig cur;
-        logger.info() << "Assembly read\n";
+        logger.info() << "Reading initial reads from " << lib << "\n";
         size_t reads_count = 0;
         size_t aln_count = 1;
         vector<AlignmentInfo> align_batch;
@@ -726,7 +679,6 @@ struct AssemblyInfo {
         while (!compressed_reads.eof()) {
             bool reads_over = false;
             while (cur.id != cur_compressed) {
-
                 if (reader.eof()) {
                     logger.info() << "Reads are over\n";
                     reads_over = true;
@@ -737,7 +689,7 @@ struct AssemblyInfo {
                 removeWhitespace(cur.id);
                 reads_count ++;
                 if (reads_count % 1000 == 0) {
-                    logger.debug() << "Processed " << reads_count << " original reads " << endl;
+                    logger.trace() << "Processed " << reads_count << " original reads " << endl;
                 }
             }
             if (reads_over) {
@@ -745,14 +697,13 @@ struct AssemblyInfo {
             }
             align_batch.push_back(cur_align);
             contig_batch.push_back(cur.seq);
-//            processReadPair(cur, cur_align);
 //TODO:: appropriate logic for multiple alignment
             do {
                 cur_align = readAlignment(compressed_reads);
                 aln_count ++;
                 if (aln_count % BATCH_SIZE == 0) {
                     logger.info() << "Batch of size " <<BATCH_SIZE <<" created, processing" << endl;
-                    processBatch(contig_batch, align_batch);
+                    processBatch(logger, contig_batch, align_batch);
 
                     logger.info() << "Processed " << aln_count << " compressed mappings " << endl;
                     contig_batch.resize(0);
@@ -763,54 +714,41 @@ struct AssemblyInfo {
                 if (cur_compressed == cur_align.read_id) {
                     align_batch.push_back(cur_align);
                     contig_batch.push_back(cur.seq);
-
-//                    contig_batch.emplace_back(cur);
-//                    processReadPair(cur, cur_align);
                 }
             } while (cur_compressed == cur_align.read_id);
-/*            if (aln_count %2000 == 1999)
-                break; */
             cur_compressed = cur_align.read_id;
-
         }
-        processBatch(contig_batch, align_batch);
+        processBatch(logger, contig_batch, align_batch);
         logger.info() << "Processed final batch of " << align_batch.size() << " compressed reads " << endl;
-
-        logger.info() << "Reads processed, used " <<used_pairs << " filtered by compressed length " << filtered_pairs << endl;
+        vector<Contig> res;
         for (auto& contig: contigs){
             logger.info() << "Generating consensus for contig " << contig.first << endl;
-            corrected_contigs << ">" << contig.first << '\n' << contig.second.GenerateConsensus(logger) << '\n';
+            res.emplace_back(Sequence(contig.second.GenerateConsensus(logger)), contig.first);
         }
         size_t total_zero_covered = 0;
         for (auto & contig: contigs) {
             total_zero_covered += contig.second.zero_covered;
         }
         logger.info() << "Total zero covered "  << total_zero_covered << endl;
+        return std::move(res);
     }
 };
 
 
-
-/*
- * я выдам записи вида read_id contig_id alignment_start alignment_end
-При этом прикладывания на другой стренд будут закодированы в contig_id. К нему в начале будет добавлен "-"
-и позиции будут как в реверс комплиментарной строке, а не как в исходной
- *
- */
-int main(int argc, char **argv) {
-    CLParser parser({"alignments=", "contigs=", "output=", "debug=none", "threads=8", "compress=16"}, {"reads"},
-                    {});
-
-    parser.parseCL(argc, argv);
-
-    if (!parser.check().empty()) {
-        std::cout << "Incorrect parameters" << std::endl;
-        std::cout << parser.check() << std::endl;
-        return 1;
+std::experimental::filesystem::path Polish(logging::Logger &logger, size_t threads,
+                                           const std::experimental::filesystem::path &output_file,
+                                           const std::experimental::filesystem::path &contigs_file,
+                                           const std::experimental::filesystem::path &alignments,
+                                           const io::Library &reads, size_t dicompress) {
+    omp_set_num_threads(threads);
+    AssemblyInfo assemblyInfo(logger, contigs_file, dicompress);
+    std::vector<Contig> res = assemblyInfo.process(logger, reads, alignments);
+    std::ofstream os;
+    os.open(output_file);
+    for(Contig &contig : res) {
+        os << ">" << contig.getId() << "\n" << contig.seq << "\n";
     }
+    os.close();
+    return output_file;
+}
 
-    omp_set_num_threads(stoi(parser.getValue("threads")));
-    AssemblyInfo assemblyInfo(parser);
-    assemblyInfo.process();
-
- }

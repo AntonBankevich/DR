@@ -58,7 +58,7 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
     std::vector<Subdataset> subdatasets = SplitDataset(is_unique);
     logger.info() << "Dataset splitted into " << subdatasets.size() << " parts. Starting resolution." << std::endl;
     logger.info() << "Running repeat resolution" << std::endl;
-    std::string COMMAND = "python3 resolution/sequence_graph/path_graph_multik.py -i {} -o {} > {}";
+    std::string COMMAND = "python3 py/resolution/sequence_graph/path_graph_multik.py -i {} -o {} > {}";
     std::sort(subdatasets.begin(), subdatasets.end());
     omp_set_num_threads(threads);
 #pragma omp parallel for schedule(dynamic, 1) default(none) shared(subdatasets, COMMAND, logger)
