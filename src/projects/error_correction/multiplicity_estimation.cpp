@@ -210,8 +210,8 @@ UniqueClassificator::ProcessUsingCoverage(logging::Logger &logger, const Compone
     double min_cov = 100000;
     for(Edge &edge : subcomponent.edges()) {
         if(is_unique(edge) && subcomponent.contains(*edge.end())) {
-            const VertexRecord & record = reads_storage.getRecord(edge.end()->rc());
-            std::string s = edge.rc().seq.Subseq(0, 1).str();
+            const VertexRecord & record = reads_storage.getRecord(*edge.start());
+            std::string s = edge.seq.Subseq(0, 1).str();
             size_t cnt = record.countStartsWith(Sequence(s + "A")) +
                          record.countStartsWith(Sequence(s + "C")) +
                          record.countStartsWith(Sequence(s + "G")) +

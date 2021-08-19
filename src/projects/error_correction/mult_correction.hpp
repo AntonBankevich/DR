@@ -68,8 +68,25 @@ struct UEdge {
 std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger, SparseDBG &dbg,
                                         const RecordStorage &reads_storage, const UniqueClassificator &classificator) {
     std::unordered_map<const Edge *, CompactPath> unique_extensions;
+    std::vector<Edge*> uniqueEdges;
     for(Edge &edge : dbg.edges()) {
-        if (!classificator.isUnique(edge) || unique_extensions.find(&edge) != unique_extensions.end())
+        if (classificator.isUnique(edge))
+            uniqueEdges.push_back(&edge);
+    }
+    struct {
+        bool operator()(Edge* a, Edge* b) const {
+            if(a == b)
+                return false;
+            if(a->size() != b->size())
+                return a->size() > b->size();
+            return *a < *b;
+        }
+    } customLess;
+    std::sort(uniqueEdges.begin(), uniqueEdges.end(), customLess);
+    VERIFY(uniqueEdges.empty() || uniqueEdges.front()->size() >= uniqueEdges.back()->size());
+    for(Edge *edgeIt : uniqueEdges) {
+        Edge &edge = *edgeIt;
+        if (unique_extensions.find(&edge) != unique_extensions.end())
             continue;
         Vertex & start = *edge.start();
         const VertexRecord &rec = reads_storage.getRecord(start);
@@ -98,8 +115,9 @@ std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging:
         CompactPath res1(al.RC().subalignment(1, al.size()));
         unique_extensions.emplace(&al.back().contig().rc(), res1);
     }
-    for(Edge &edge : dbg.edges()) {
-        if(!classificator.isUnique(edge) || unique_extensions.find(&edge) != unique_extensions.end())
+    for(Edge *edgeIt : uniqueEdges) {
+        Edge &edge = *edgeIt;
+        if(unique_extensions.find(&edge) != unique_extensions.end())
             continue;
         const VertexRecord &rec = reads_storage.getRecord(*edge.start());
         Sequence seq = edge.seq.Subseq(0, 1);

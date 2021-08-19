@@ -364,9 +364,11 @@ size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg, Record
                 std::string new_message = "";
                 GraphAlignment substitution = processTip(logger, ss, tip, alternatives, ref_storage,
                                                          threshold, new_message, dump);
-                messages.emplace_back("it" + new_message);
-                messages.emplace_back(itos(tip.len(), 0));
-                messages.emplace_back(itos(substitution.len(), 0));
+                if(!new_message.empty()) {
+                    messages.emplace_back("it" + new_message);
+                    messages.emplace_back(itos(tip.len(), 0));
+                    messages.emplace_back(itos(substitution.len(), 0));
+                }
                 VERIFY_OMP(substitution.start() == tip.start(), "samestart");
                 GraphAlignment rcSubstitution = substitution.RC();
                 corrected_path = std::move(rcSubstitution);
@@ -389,9 +391,11 @@ size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg, Record
                 std::string new_message = "";
                 GraphAlignment substitution = processTip(logger, ss, tip, alternatives, ref_storage,
                                                          threshold, new_message, dump);
-                messages.emplace_back("ot" + new_message);
-                messages.emplace_back(itos(tip.len()), 0);
-                messages.emplace_back(itos(substitution.len()), 0);
+                if(!new_message.empty()) {
+                    messages.emplace_back("ot" + new_message);
+                    messages.emplace_back(itos(tip.len()), 0);
+                    messages.emplace_back(itos(substitution.len()), 0);
+                }
                 for (const Segment<Edge> &seg : substitution) {
                     corrected_path.push_back(seg);
                 }
