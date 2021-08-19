@@ -30,11 +30,9 @@
 #include <wait.h>
 using namespace dbg;
 
-using logging::Logger;
-
 void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
                    const std::experimental::filesystem::path &path_dump,
-                   const std::experimental::filesystem::path &mult_dump, Logger &logger) {
+                   const std::experimental::filesystem::path &mult_dump, logging::Logger &logger) {
     logger.info() << "Reading reference" << std::endl;
     std::vector<StringContig> ref = io::SeqReader(ref_file).readAll();
     logger.info() << "Finished reading reference. Starting alignment" << std::endl;
@@ -103,7 +101,7 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
     logger << cov_bad << std::endl << cov_bad_len << std::endl;
 }
 
-void LoadCoverage(const std::experimental::filesystem::path &fname, Logger &logger, SparseDBG &dbg) {
+void LoadCoverage(const std::experimental::filesystem::path &fname, logging::Logger &logger, SparseDBG &dbg) {
     logger.info() << "Loading edge coverages." << std::endl;
     std::ifstream is;
     is.open(fname);
@@ -166,13 +164,15 @@ int main(int argc, char **argv) {
         std::cout << parser.message() << std::endl;
         return 1;
     }
+
+    bool debug = parser.getCheck("debug");
     StringContig::homopolymer_compressing = parser.getCheck("compress");
     StringContig::SetDimerParameters(parser.getValue("dimer-compress"));
     const std::experimental::filesystem::path dir(parser.getValue("output-dir"));
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");
-    Logger logger;
-    logger.addLogFile(ls.newLoggerFile());
+    logging::Logger logger;
+    logger.addLogFile(ls.newLoggerFile(), debug ? logging::debug : logging::trace);
     for(size_t i = 0; i < argc; i++) {
         logger << argv[i] << " ";
     }

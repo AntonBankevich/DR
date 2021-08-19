@@ -133,12 +133,12 @@ void extractCircularDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequenc
 std::vector<Sequence> extractDisjointigs(logging::Logger &logger, SparseDBG &sdbg, size_t threads) {
     logger.info() << "Starting to extract disjointigs." << std::endl;
     ParallelRecordCollector<Sequence> res(threads);
-    logger.info() << "Extracting linear disjointigs." << std::endl;
+    logger.trace() << "Extracting linear disjointigs." << std::endl;
     extractLinearDisjointigs(sdbg, res, logger, threads);
-    logger.info() << "Finished extracting linear disjointigs." << std::endl;
-    logger.info() << "Extracting circular disjointigs." << std::endl;
+    logger.trace() << "Finished extracting linear disjointigs." << std::endl;
+    logger.trace() << "Extracting circular disjointigs." << std::endl;
     extractCircularDisjointigs(sdbg, res, logger, threads);
-    logger.info() << "Finished extracting circular disjointigs." << std::endl;
+    logger.trace() << "Finished extracting circular disjointigs." << std::endl;
     std::vector<Sequence> rres = res.collect();
     std::sort(rres.begin(), rres.end(), [] (const Sequence& lhs, const Sequence& rhs) {
         return lhs.size() > rhs.size();

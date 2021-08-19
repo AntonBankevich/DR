@@ -169,7 +169,7 @@ public:
         {
 #pragma omp single
             {
-                logger.info() << "Starting parallel calculation using " << omp_get_num_threads() << " threads" << std::endl;
+                logger.trace() << "Starting parallel calculation using " << omp_get_num_threads() << " threads" << std::endl;
             }
         };
 //        size_t bucket_length = 1024 * 1024;
@@ -214,13 +214,13 @@ public:
                 }
             }
             doAfter();
-            logger.info() << items.size() << " items of total length "<< clen << " processed " << std::endl;
+            logger.trace() << items.size() << " items of total length "<< clen << " processed " << std::endl;
             total += items.size();
             items.clear();
             total_len += clen;
         }
         doInTheEnd();
-        logger.info() << "Finished parallel processing. Processed " << total <<
+        logger.trace() << "Finished parallel processing. Processed " << total <<
                " items with total length " << total_len << std::endl;
     }
 
@@ -228,7 +228,7 @@ public:
     //This method expects that iterators return references to objects instead of temporary objects.
     template<class I>
     void processObjects(I begin, I end, size_t bucket_size = 1024) {
-        logger.info() << "Starting parallel calculation" << std::endl;
+        logger.trace() << "Starting parallel calculation" << std::endl;
         omp_set_num_threads(threads);
         ParallelProcessor<V> &self = *this;
         size_t buffer_size = 1024 * 1024;
@@ -263,12 +263,12 @@ public:
                 }
             }
             doAfter();
-            logger.info() << "Processed " << items.size() << " items" << std::endl;
+            logger.trace() << "Processed " << items.size() << " items" << std::endl;
             total += items.size();
             items.clear();
         }
         doInTheEnd();
-        logger.info() << "Finished parallel processing. Processed " << total << " items " << std::endl;
+        logger.trace() << "Finished parallel processing. Processed " << total << " items " << std::endl;
     }
 
 };

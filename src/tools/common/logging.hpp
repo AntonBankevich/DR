@@ -88,22 +88,41 @@ public:
     }
 };
 
-class Logger :  public std::streambuf , public std::ostream {
+//info goes to console, trace goes to log file. Debug goes to log file if debug is enabled
+//stage like info but for large stage declaration
+enum LogLevel {stage, info, trace, debug};
+
+class Logger : public std::streambuf , public std::ostream {
 private:
-    std::vector<std::ofstream *> oss;
+    struct LogStream {
+        std::ofstream * os;
+        LogLevel level;
+        LogStream(const std::experimental::filesystem::path &fn, LogLevel level) :
+                os(new std::ofstream()), level(level) {
+            os->open(fn);
+        }
+
+        ~LogStream() {
+            os->close();
+            delete os;
+            os = nullptr;
+        }
+    };
+
+    std::vector<LogStream> oss;
     TimeSpace time;
     Logger *empty_logger = nullptr;
+    LogLevel curlevel;
     bool add_cout;
-    bool debug;
 public:
-    explicit Logger(bool _add_cout = true, bool _debug = false) : std::ostream(this), add_cout(_add_cout), debug(_debug) {
+    explicit Logger(bool _add_cout = true) :
+                std::ostream(this), curlevel(LogLevel::info), add_cout(_add_cout) {
     }
 
     Logger(const Logger &) = delete;
 
-    void addLogFile(const std::experimental::filesystem::path &fn) {
-        oss.push_back(new std::ofstream());
-        oss.back()->open(fn.c_str());
+    void addLogFile(const std::experimental::filesystem::path &fn, LogLevel level = LogLevel::trace) {
+        oss.emplace_back(fn, level);
     }
 
 //    template<class T>
@@ -116,9 +135,11 @@ public:
 //    }
 
     int overflow(int c) override {
-        std::cout.put(c);
-        for(std::ofstream *os : oss) {
-            os->put(c);
+        if(curlevel <= LogLevel::info)
+            std::cout.put(c);
+        for(LogStream &os : oss) {
+            if(curlevel <= os.level)
+                os.os->put(c);
         }
         if(c == '\n') {
             forceFlush();
@@ -127,74 +148,41 @@ public:
     }
 
     void forceFlush() {
-        std::cout.flush();
-        for(std::ofstream *os : oss) {
-            os->flush();
+        if(curlevel <= LogLevel::info)
+            std::cout.flush();
+        for(LogStream &os : oss) {
+            if(curlevel <= os.level)
+                os.os->flush();
         }
     }
 
+    Logger & stage() {
+        curlevel = LogLevel::stage;
+        *this << "==============================================================\n";
+        *this << time.get() << " NEW STAGE: ";
+        return *this;
+    }
+
     Logger & info() {
-        std::cout << time.get() << " INFO: ";
-        for(std::ofstream *os : oss) {
-            *os << time.get() << " INFO: ";
-        }
+        curlevel = LogLevel::info;
+        *this << time.get() << " INFO: ";
         return *this;
     }
 
     Logger & trace() {
-        if(debug) {
-            std::cout << time.get() << " TRACE: ";
-            for (std::ofstream *os : oss) {
-                *os << time.get() << " TRACE: ";
-            }
-            return *this;
-        } else {
-            if (!empty_logger)
-                empty_logger = new Logger(false);
-            return *empty_logger;
-        }
+        curlevel = LogLevel::trace;
+        *this << time.get() << " TRACE: ";
+        return *this;
     }
 
-    void closeAll() {
-        for(std::ofstream *os : oss) {
-            os->close();
-            delete os;
-        }
-        oss.clear();
+    Logger & dubug() {
+        curlevel = LogLevel::debug;
+        *this << time.get() << " TRACE: ";
+        return *this;
     }
 
     ~Logger() override {
-        closeAll();
-        if(empty_logger)
-            delete empty_logger;
+        delete empty_logger;
     }
 };
-//
-//    template<class U, class V>
-//    std::ostream& operator<<(std::ostream& out, const std::pair<U, V>& item) {
-//        return out << "(" << item.first << ", " << item.second << ")";
-//    }
-//
-//    std::ostream& operator<<(std::ostream& out, const unsigned __int128& item) {
-//        std::vector<char> res;
-//        unsigned __int128 tmp = item;
-//        while(tmp != 0) {
-//            res.push_back(char((tmp % 10) + '0'));
-//            tmp /= 10;
-//        }
-//        return out << std::string(res.rbegin(), res.rend());
-//    }
-//
-//
-//    template<class T>
-//    std::ostream& operator<<(std::ostream& out, const std::vector<T>& tree) {
-//        if(tree.size() == 0) {
-//            return out << "[]" << std::endl;
-//        }
-//        out << "[";
-//        for(size_t i = 0; i + 1 < tree.size(); i += 1) {
-//            out << tree[i] << ", ";
-//        }
-//        return out << tree[tree.size() - 1] << "]";
-//    }
 }

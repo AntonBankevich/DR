@@ -48,8 +48,9 @@ inline GraphAlignment realignRead(const GraphAlignment &al,
 
 inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
                             const std::vector<RecordStorage*> &storages, size_t new_extension_size = 0) {
+    logger.info() << "Applying changes to the graph" << std::endl;
     omp_set_num_threads(threads);
-    logger.info() << "Collecting covered edge segments" << std::endl;
+    logger.trace() << "Collecting covered edge segments" << std::endl;
     size_t k = dbg.hasher().getK();
     ParallelRecordCollector<Segment<dbg::Edge>> segmentStorage(threads);
     ParallelRecordCollector<size_t> lenStorage(threads);
@@ -90,13 +91,13 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
     for(size_t len : lenStorage) {
         min_len = std::min(min_len, len);
     }
-    logger.info() << "Min read length is " << min_len << std::endl;
+    logger.trace() << "Min read length is " << min_len << std::endl;
     std::vector<Segment<dbg::Edge>> segments = segmentStorage.collect();
-    logger.info() << "Collected " << segments.size() << " segments. Sorting." << std::endl;
+    logger.trace() << "Collected " << segments.size() << " segments. Sorting." << std::endl;
     __gnu_parallel::sort(segments.begin(), segments.end());
-    logger.info() << "Sorting finished" << std::endl;
+    logger.trace() << "Sorting finished" << std::endl;
     std::vector<Segment<Edge>> segs;
-    logger.info() << "Merging covered edge segments" << std::endl;
+    logger.trace() << "Merging covered edge segments" << std::endl;
     for(Segment<Edge> &seg : segments) {
         if(!segs.empty() && segs.back().contig() == seg.contig() && segs.back().right >= seg.left) {
             if(seg.right > segs.back().right)
@@ -105,8 +106,8 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
             segs.emplace_back(seg);
         }
     }
-    logger.info() << "Extracted " << segs.size() << " covered segments" << std::endl;
-    logger.info() << "Constructing subgraph" << std::endl;
+    logger.trace() << "Extracted " << segs.size() << " covered segments" << std::endl;
+    logger.trace() << "Constructing subgraph" << std::endl;
     SparseDBG subgraph = dbg.Subgraph(segs);
     dbg.checkConsistency(threads, logger);
     std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> anchors;
@@ -121,7 +122,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
     mergeAll(logger, subgraph, threads);
     printStats(logger, subgraph);
     subgraph.fillAnchors(min_len, logger, threads, anchors);
-    logger.info() << "Constructing embedding of old graph into new" << std::endl;
+    logger.trace() << "Constructing embedding of old graph into new" << std::endl;
     std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> embedding;
     ParallelRecordCollector<std::vector<PerfectAlignment<Edge, Edge>>> edgeAlsList(threads);
     std::function<void(size_t, Edge &)> task = [&edgeAlsList, &subgraph](size_t pos, Edge &edge) {
@@ -138,7 +139,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
             VERIFY(embedding.find(&edge) != embedding.end());
         }
     }
-    logger.info() << "Realigning sequences to the new graph" << std::endl;
+    logger.trace() << "Realigning sequences to the new graph" << std::endl;
     for(RecordStorage *sit : storages){
         RecordStorage &storage = *sit;
         if(new_extension_size == 0)
@@ -217,11 +218,11 @@ inline void AddConnections(logging::Logger &logger, size_t threads, dbg::SparseD
         broken_edges.emplace(&connection.pos1.edge->rc());
         broken_edges.emplace(&connection.pos2.edge->rc());
     }
-    logger.info() << "Splitting graph edges" << std::endl;
+    logger.trace() << "Splitting graph edges" << std::endl;
     SparseDBG subgraph = dbg.SplitGraph(break_positions);
     subgraph.checkConsistency(threads, logger);
     subgraph.fillAnchors(500, logger, threads);
-    logger.info() << "Realigning reads to the new graph" << std::endl;
+    logger.trace() << "Realigning reads to the new graph" << std::endl;
     for(RecordStorage* sit : storages) {
         RecordStorage &storage = *sit;
         RecordStorage new_storage(subgraph, storage.getMinLen(), storage.getMaxLen(), threads, "/dev/null", storage.getTrackCov());
@@ -255,9 +256,9 @@ inline void AddConnections(logging::Logger &logger, size_t threads, dbg::SparseD
         }
         storage = std::move(new_storage);
     }
-    logger.info() << "Adding new edges" << std::endl;
+    logger.trace() << "Adding new edges" << std::endl;
     for(const Connection &connection : connections) {
-        logger.info() << "Processing connection" << std::endl;
+        logger.trace() << "Processing connection" << std::endl;
         std::vector<hashing::KWH> kmers = subgraph.extractVertexPositions(connection.connection);
         logger << connection.connection.size() << std::endl;
         for(hashing::KWH &kmer :kmers) {

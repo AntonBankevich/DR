@@ -32,7 +32,9 @@ SparseDBG constructSparseDBGFromReads(logging::Logger &logger, const io::Library
     SparseDBG sdbg(hash_list.begin(), hash_list.end(), hasher);
     logger.info() << "Vertex map constructed." << std::endl;
     io::SeqReader reader(reads_file, (hasher.getK() + w) * 20, (hasher.getK() + w) * 4);
+    logger.info() << "Filling edge sequences." << std::endl;
     FillSparseDBGEdges(sdbg, reader.begin(), reader.end(), logger, threads, w + hasher.getK() - 1);
+    logger.info() << "Finished sparse de Bruijn graph construction." << std::endl;
     return std::move(sdbg);
 }
 
@@ -181,7 +183,7 @@ void MergeEdge(SparseDBG &sdbg, Vertex &start, Edge &edge) {
 }
 
 void mergeLinearPaths(logging::Logger &logger, SparseDBG &sdbg, size_t threads) {
-    logger.info() << "Merging linear unbranching paths" << std::endl;
+    logger.trace() << "Merging linear unbranching paths" << std::endl;
     std::function<void(size_t, std::pair<const htype, Vertex> &)> task =
             [&sdbg](size_t pos, std::pair<const htype, Vertex> & pair) {
                 Vertex &start = pair.second;
@@ -199,11 +201,11 @@ void mergeLinearPaths(logging::Logger &logger, SparseDBG &sdbg, size_t threads) 
                 start.rc().unlock();
             };
     processObjects(sdbg.begin(), sdbg.end(), logger, threads, task);
-    logger.info() << "Finished merging linear unbranching paths" << std::endl;
+    logger.trace() << "Finished merging linear unbranching paths" << std::endl;
 }
 
 void mergeCyclicPaths(logging::Logger &logger, SparseDBG &sdbg, size_t threads) {
-    logger.info() << "Merging cyclic paths" << std::endl;
+    logger.trace() << "Merging cyclic paths" << std::endl;
     ParallelRecordCollector<htype> loops(threads);
     std::function<void(size_t, std::pair<const htype, Vertex> &)> task =
             [&sdbg, &loops](size_t pos, std::pair<const htype, Vertex> & pair) {
@@ -226,25 +228,25 @@ void mergeCyclicPaths(logging::Logger &logger, SparseDBG &sdbg, size_t threads) 
                 start.unlock();
             };
     processObjects(sdbg.begin(), sdbg.end(), logger, threads, task);
-    logger.info() << "Found " << loops.size() << " perfect loops" << std::endl;
+    logger.trace() << "Found " << loops.size() << " perfect loops" << std::endl;
     for(htype loop : loops) {
         Vertex &start = sdbg.getVertex(loop);
         Path path = Path::WalkForward(start[0]);
         mergeLoop(path);
     }
-    logger.info() << "Finished merging cyclic paths" << std::endl;
+    logger.trace() << "Finished merging cyclic paths" << std::endl;
 }
 
 void mergeAll(logging::Logger &logger, SparseDBG &sdbg, size_t threads) {
-    logger.info() << "Merging unbranching paths" << std::endl;
+    logger.trace() << "Merging unbranching paths" << std::endl;
     mergeLinearPaths(logger, sdbg, threads);
 //    sdbg.checkConsistency(threads, logger);
     mergeCyclicPaths(logger, sdbg, threads);
 //    sdbg.checkConsistency(threads, logger);
-    logger.info() << "Removing isolated vertices" << std::endl;
+    logger.trace() << "Removing isolated vertices" << std::endl;
     sdbg.removeMarked();
-    logger.info() << "Finished removing isolated vertices" << std::endl;
-//    sdbg.checkConsistency(threads, logger);
+    logger.trace() << "Finished removing isolated vertices" << std::endl;
+    logger.trace() << "Finished merging unbranching paths" << std::endl;
 }
 
 void CalculateCoverage(const std::experimental::filesystem::path &dir, const RollingHash &hasher, const size_t w,

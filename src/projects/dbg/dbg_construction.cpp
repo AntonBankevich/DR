@@ -114,14 +114,10 @@ constructDBG(logging::Logger &logger, const std::vector<hashing::htype> &vertice
     }
     logger.info() << "Added " << tips.size() << " hanging vertices" << std::endl;
 
-    logger.info() << "Constructed dbg of size " << dbg.size() << std::endl;
-//    dbg.checkConsistency(threads, logger);
-//    dbg.printStats(logger);
-    logger.info() << "Merging edges " << std::endl;
+    logger.info() << "Merging unbranching paths" << std::endl;
     mergeAll(logger, dbg, threads);
-//    dbg.checkConsistency(threads, logger);
     logger.info() << "Ended merging edges. Resulting size " << dbg.size() << std::endl;
-    logger.info() << "Statistics for de Bruijn graph:" << std::endl;
+    logger.trace() << "Statistics for de Bruijn graph:" << std::endl;
     printStats(logger, dbg);
     return std::move(dbg);
 }

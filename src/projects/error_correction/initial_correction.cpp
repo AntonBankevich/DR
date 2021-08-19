@@ -433,8 +433,8 @@ size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg, Record
         results.emplace_back(ss.str());
     }
     reads_storage.applyCorrections(logger, threads);
-    logger << "Corrected " << simple_bulge_cnt.get() << " simple bulges" << std::endl;
-    logger << "Total " << bulge_cnt.get() << " bulges" << std::endl;
+    logger.trace() << "Corrected " << simple_bulge_cnt.get() << " simple bulges" << std::endl;
+    logger.trace() << "Total " << bulge_cnt.get() << " bulges" << std::endl;
     std::ofstream out;
     out.open(out_file);
     size_t res = 0;
@@ -549,7 +549,6 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger, const std::experim
     correctAT(logger, reads_storage, k, threads);
     correctLowCoveredRegions(logger,sdbg, reads_storage, ref_storage, out_file, threshold, reliable_coverage, k, threads, dump);
     collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
-    logger.info() << "Applying changes to the graph" << std::endl;
     RemoveUncovered(logger, threads, sdbg, {&reads_storage, &ref_storage});
     sdbg.checkConsistency(threads, logger);
     logger.info() << "Running second round of error correction" << std::endl;
@@ -559,7 +558,6 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger, const std::experim
     correctAT(logger, reads_storage, k, threads);
     TipCorrectionPipeline(logger, sdbg, reads_storage, threads, reliable_coverage);
     collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
-    logger.info() << "Applying changes to the graph" << std::endl;
     RemoveUncovered(logger, threads, sdbg, {&reads_storage, &ref_storage});
 }
 

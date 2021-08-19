@@ -309,7 +309,7 @@ int main(int argc, char **argv) {
     CLParser parser({"output-dir=", "threads=16", "k-mer-size=511", "window=2000", "K-mer-size=5001", "Window=500",
                      "cov-threshold=2", "rel-threshold=7", "Cov-threshold=2", "Rel-threshold=7", "crude-threshold=3",
                      "unique-threshold=50000", "dump", "dimer-compress=1000000000,1000000000,1", "restart-from=none", "load",
-                     "alternative", "diploid"},
+                     "alternative", "diploid", "debug"},
                     {"reads", "paths", "ref"},
                     {"o=output-dir", "t=threads", "k=k-mer-size","w=window", "K=K-mer-size","W=Window"},
                     "Error message not implemented");
@@ -320,6 +320,8 @@ int main(int argc, char **argv) {
         std::cout << parser.message() << std::endl;
         return 1;
     }
+
+    bool debug = parser.getCheck("debug");
     StringContig::homopolymer_compressing = true;
     StringContig::SetDimerParameters(parser.getValue("dimer-compress"));
     const std::experimental::filesystem::path dir(parser.getValue("output-dir"));
@@ -327,7 +329,7 @@ int main(int argc, char **argv) {
     ensure_dir_existance(dir / "paths");
     logging::LoggerStorage ls(dir, "dbg");
     logging::Logger logger;
-    logger.addLogFile(ls.newLoggerFile());
+    logger.addLogFile(ls.newLoggerFile(), debug ? logging::debug : logging::trace);
     for(size_t i = 0; i < argc; i++) {
         logger << argv[i] << " ";
     }

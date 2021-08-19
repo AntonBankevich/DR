@@ -353,25 +353,25 @@ bool Vertex::operator!=(const Vertex &other) const {
 }
 
 void SparseDBG::checkSeqFilled(size_t threads, logging::Logger &logger) {
-    logger.info() << "Checking vertex sequences" << std::endl;
+    logger.trace() << "Checking vertex sequences" << std::endl;
     std::function<void(size_t, std::pair<const hashing::htype, Vertex> &)> task =
             [&logger](size_t pos, std::pair<const hashing::htype, Vertex> &pair) {
                 const Vertex &vert = pair.second;
                 if (vert.seq.empty() || vert.rc().seq.empty()) {
-                    logger.info() << "Sequence not filled " << pair.first << std::endl;
+                    logger.trace() << "Sequence not filled " << pair.first << std::endl;
                     VERIFY(false);
                 }
                 if (!vert.isCanonical()) {
-                    logger.info() << "Canonical vertex marked not canonical " << pair.first << std::endl;
+                    logger.trace() << "Canonical vertex marked not canonical " << pair.first << std::endl;
                     VERIFY(false);
                 }
                 if (vert.rc().isCanonical()) {
-                    logger.info() << "Noncanonical vertex marked canonical " << pair.first << std::endl;
+                    logger.trace() << "Noncanonical vertex marked canonical " << pair.first << std::endl;
                     VERIFY(false);
                 }
             };
     processObjects(v.begin(), v.end(), logger, threads, task);
-    logger.info() << "Vertex sequence check success" << std::endl;
+    logger.trace() << "Vertex sequence check success" << std::endl;
 }
 
 SparseDBG SparseDBG::Subgraph(std::vector<Segment<Edge>> &pieces) {
@@ -427,7 +427,7 @@ SparseDBG SparseDBG::SplitGraph(const std::vector<EdgePosition> &breaks) {
 }
 
 void SparseDBG::checkConsistency(size_t threads, logging::Logger &logger) {
-    logger.info() << "Checking consistency" << std::endl;
+    logger.trace() << "Checking consistency" << std::endl;
     std::function<void(size_t, std::pair<const hashing::htype, Vertex> &)> task =
             [this](size_t pos, std::pair<const hashing::htype, Vertex> &pair) {
                 const Vertex &vert = pair.second;
@@ -435,7 +435,7 @@ void SparseDBG::checkConsistency(size_t threads, logging::Logger &logger) {
                 vert.rc().checkConsistency();
             };
     processObjects(v.begin(), v.end(), logger, threads, task);
-    logger.info() << "Consistency check success" << std::endl;
+    logger.trace() << "Consistency check success" << std::endl;
 }
 
 Vertex &SparseDBG::addVertex(const hashing::KWH &kwh) {

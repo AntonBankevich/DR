@@ -68,7 +68,7 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
             e += 1;
         }
     }
-    logger << "Graph statistics:" << std::endl;
+    logger.trace() << "Graph statistics:" << std::endl;
     logger << "Total edges: " << e / 2 << std::endl;
     logger << "Total vertices: " << dbg.size() << std::endl;
     logger << "Number of end vertices: " << n01 << std::endl;
