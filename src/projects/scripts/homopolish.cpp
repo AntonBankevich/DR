@@ -712,7 +712,10 @@ struct AssemblyInfo {
 //        io::Library lib = oneline::initialize<std::experimental::filesystem::path>("reads.fasta");
         io::SeqReader reader(lib);
         logger.debug() << "Initialized\n";
-
+        if (compressed_reads.eof()) {
+            logger.info() << "NO ALIGNMENTS AVAILABLE!";
+            exit(1);
+        }
         AlignmentInfo cur_align = readAlignment(compressed_reads);
         string cur_compressed = cur_align.read_id;
         string cur_read = "";
