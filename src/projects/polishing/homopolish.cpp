@@ -168,8 +168,10 @@ struct ContigInfo {
         auto alignment_engine = spoa::AlignmentEngine::Create(
 // -8 in default for third parameter(gap) opening, -6 for forth(gap extension)
                 spoa::AlignmentType::kNW, 10, -8, -8, -1);  // linear gaps
-//TODO: what about length signinficantly different with median?
         spoa::Graph graph{};
+        if (s.size() == 0) {
+            return "";
+        }
         size_t cov = 0;
         vector<size_t> all_len;
         for (const auto& it: s) {
@@ -186,7 +188,7 @@ struct ContigInfo {
         bool only_good = true;
         if (good_cons < 5) {
             only_good = false;
-            logger.debug() << "Few good consenus seqs: " << good_cons << " of " << all_len.size() << endl;
+            logger.debug() << "Few good consensus seqs: " << good_cons << " of " << all_len.size() << endl;
         }
 
         for (const auto& it : s) {
