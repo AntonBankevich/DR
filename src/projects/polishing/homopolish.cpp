@@ -666,6 +666,10 @@ struct AssemblyInfo {
         compressed_reads.open(alignmens_file);
         io::SeqReader reader(lib);
         logger.trace() << "Initialized\n";
+        if (compressed_reads.eof()) {
+            logger.info() << "NO ALIGNMENTS AVAILABLE!";
+            exit(1);
+        }
         AlignmentInfo cur_align = readAlignment(compressed_reads);
         string cur_compressed = cur_align.read_id;
         string cur_read;
