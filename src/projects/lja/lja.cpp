@@ -127,16 +127,16 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
         PrintPaths(logger, dir/ "state_dump", "initial", dbg, readStorage, paths_lib, true);
 
-        correct_dimers(logger, readStorage, k, threads);
-//        correctAT(logger, readStorage, k, threads);
+//        CorrectDimers(logger, readStorage, k, threads, reliable_coverage);
+        correctAT(logger, readStorage, k, threads);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 800, 4, threads);
         PrintPaths(logger, dir/ "state_dump", "mk800", dbg, readStorage, paths_lib, true);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 5 / 2, 3000));
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 2000, 4, threads);
         PrintPaths(logger, dir/ "state_dump", "mk2000", dbg, readStorage, paths_lib, true);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 7 / 2, 5000));
-        correct_dimers(logger, readStorage, k, threads);
-//        correctAT(logger, readStorage, k, threads);
+//        CorrectDimers(logger, readStorage, k, threads, reliable_coverage);
+        correctAT(logger, readStorage, k, threads);
         correctLowCoveredRegions(logger, dbg, readStorage, refStorage, "/dev/null", threshold, reliable_coverage, k, threads, dump);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3500, 4, threads);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
@@ -322,8 +322,8 @@ void ConstructSubdataset(logging::Logger &logger, const std::experimental::files
 
 int main(int argc, char **argv) {
     CLParser parser({"output-dir=", "threads=16", "k-mer-size=511", "window=2000", "K-mer-size=5001", "Window=500",
-                     "cov-threshold=2", "rel-threshold=7", "Cov-threshold=2", "Rel-threshold=7", "crude-threshold=3",
-                     "unique-threshold=50000", "dump", "dimer-compress=1000000000,1000000000,1", "restart-from=none", "load",
+                     "cov-threshold=3", "rel-threshold=7", "Cov-threshold=3", "Rel-threshold=6",
+                     "unique-threshold=40000", "dump", "dimer-compress=30,30,1", "restart-from=none", "load",
                      "alternative", "diploid", "debug"},
                     {"reads", "paths", "ref"},
                     {"o=output-dir", "t=threads", "k=k-mer-size","w=window", "K=K-mer-size","W=Window"},
@@ -348,6 +348,9 @@ int main(int argc, char **argv) {
         logger << argv[i] << " ";
     }
     logger << std::endl;
+    std::string version = logging::logGit(logger, dir / "version.txt");
+    if(!version.empty())
+        logger.info() << version << std::endl;
     bool diplod = parser.getCheck("diploid");
     std::string first_stage = parser.getValue("restart-from");
     bool skip = first_stage != "none";

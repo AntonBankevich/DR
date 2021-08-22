@@ -653,9 +653,6 @@ size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k
             GraphAlignment prev_path = path;
             path = path.reroute(path_pos, path_pos + old_path.size(), rerouting.path());
 //            std::cout << "Rerouted " << alignedRead.id << " " << initial_support << " " << best_support << std::endl;
-            if(path.size() > 10000) {
-                std::cout << extension << "\n" <<best_seq << std::endl;
-            }
             corrected += std::max(prev_path.len(), path.len()) - std::min(prev_path.len(), path.len());
         }
         if(corrected > 0) {

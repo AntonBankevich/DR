@@ -1,5 +1,6 @@
 # Project exclude paths
-/cmake-build-release/
+cmake-build-release/
+cmake-build-debug/
 **/CMakeFiles/
 CMakeCache.txt
 Makefile
@@ -8,4 +9,6 @@ Makefile
 tests/run_tests
 **/*.cmake
 **/*.cbp
+**/__pycache__
 src/tests/googletest-master/googletest/generated/*
+.idea

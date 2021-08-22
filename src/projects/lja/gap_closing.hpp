@@ -78,7 +78,7 @@ public:
         ParallelRecordCollector<std::pair<hashing::htype, size_t>> candidates(threads);
         hashing::RollingHash smallHasher(smallK, 239);
         omp_set_num_threads(threads);
-        logger.info() << "Collecting k-mers from tips" << std::endl;
+        logger.trace() << "Collecting k-mers from tips" << std::endl;
 #pragma omp parallel for default(none) shared(tips, candidates, dbg, smallHasher)
         for (size_t i = 0; i < tips.size(); i++) {
             size_t max_len = std::min(tips[i]->size(), max_overlap);
@@ -90,7 +90,7 @@ public:
                 kwh = kwh.next();
             }
         }
-        logger.info() << "Sorting k-mers from tips" << std::endl;
+        logger.trace() << "Sorting k-mers from tips" << std::endl;
         std::vector<std::pair<hashing::htype, size_t>> candidates_list = candidates.collect();
         __gnu_parallel::sort(candidates_list.begin(), candidates_list.end());
         std::vector<std::pair<size_t, size_t>> pairs;
@@ -135,10 +135,10 @@ public:
                 Connection gap(p1, p2, seq);
                 gap = gap.shrink();
                 res.emplace_back(gap);
-                logger << "New connection " << gap.connection.size() << std::endl;
-                logger << gap.pos1.edge->suffix(gap.pos1.pos) << std::endl;
-                logger << !(gap.pos2.RC().edge->suffix(gap.pos2.RC().pos)) << std::endl;
-                logger << gap.connection << std::endl;
+                logger.trace() << "New connection " << gap.connection.size() << std::endl;
+                logger.trace() << gap.pos1.edge->suffix(gap.pos1.pos) << std::endl;
+                logger.trace() << !(gap.pos2.RC().edge->suffix(gap.pos2.RC().pos)) << std::endl;
+                logger.trace() << gap.connection << std::endl;
             }
         }
         logger.info() << "Collected " << res.size() << " unique overlaps." << std::endl;

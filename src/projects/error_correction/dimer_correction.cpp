@@ -27,12 +27,12 @@ size_t diff(const std::vector<std::pair<size_t, size_t>> &code1, const std::vect
     return res;
 }
 
-size_t correct_dimers(logging::Logger &logger, RecordStorage &reads_storage, size_t k, size_t threads) {
+size_t CorrectDimers(logging::Logger &logger, RecordStorage &reads_storage, size_t k, size_t threads, double reliable_coverage) {
     logger.info() << "Correcting dinucleotide errors in reads" << std::endl;
     ParallelCounter cnt(threads);
 //    threads = 1;
     omp_set_num_threads(threads);
-#pragma omp parallel for default(none) schedule(dynamic, 100) shared(reads_storage, k, logger, cnt, std::cout)
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(reads_storage, k, logger, cnt, reliable_coverage, std::cout)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         AlignedRead &alignedRead = reads_storage[read_ind];
         if (!alignedRead.valid())
@@ -41,8 +41,8 @@ size_t correct_dimers(logging::Logger &logger, RecordStorage &reads_storage, siz
         GraphAlignment initial_path = initial_cpath.getAlignment();
         GraphAlignment path = initial_path;
         for(size_t iter = 0; iter < 4; iter++) {
-            GraphAlignment new_path = iter % 2 == 0 ?   correctFromStart(path) :
-                                      correctFromStart(path.RC()).RC();
+            GraphAlignment new_path = iter % 2 == 0 ? correctFromStart(path, reliable_coverage) :
+                                      correctFromStart(path.RC(), reliable_coverage).RC();
             if(iter >= 1 && new_path.start() == path.start() && new_path.finish() == path.finish()) {
                 break;
             }
@@ -144,7 +144,7 @@ struct StoredValue {
     }
 };
 
-GraphAlignment correctFromStart(const GraphAlignment &al) {
+GraphAlignment correctFromStart(const GraphAlignment &al, double reliable_coverage) {
     if(al.size() <= 1)
         return al;
     Sequence seq1 = al[0].seq().dicompress();
@@ -176,9 +176,9 @@ GraphAlignment correctFromStart(const GraphAlignment &al) {
                 continue;
             size_t new_score = score;
             if(move.second.size() == move.second.contig().size())
-                new_score += move.second.contig().intCov();
+                new_score += std::min(move.second.contig().intCov(), size_t(move.second.size() * reliable_coverage));
             else
-                new_score += std::max<size_t>(1, size_t(move.second.size() * move.second.contig().getCoverage()));
+                new_score += std::max<size_t>(1, size_t(move.second.size() * std::min(move.second.contig().getCoverage(), reliable_coverage)));
             queue.emplace(new_score, move.first, top.state, move.second);
         }
     }
