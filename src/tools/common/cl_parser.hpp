@@ -41,11 +41,11 @@ public:
                 return key.first + " missing";
             }
         }
-        if(!extra.empty()) {
-            return "Unknown parameter(s): " + join(" ", extra);
-        }
         if(!errors.empty()) {
             return errors[0];
+        }
+        if(!extra.empty()) {
+            return "Unknown parameter(s): " + join(" ", extra);
         }
         return "";
     }

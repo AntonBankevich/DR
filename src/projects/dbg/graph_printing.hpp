@@ -10,7 +10,7 @@ namespace dbg {
             Vertex &end = *edge.end();
             out << ">" << cnt << "_" << edge.start()->hash() << int(edge.start()->isCanonical()) <<
                 "_" << end.hash() << int(end.isCanonical()) << "_" << edge.size() << "_" << edge.getCoverage()
-                << std::endl;
+                << "\n";
             cnt++;
             out << tmp.str() << "\n";
         }

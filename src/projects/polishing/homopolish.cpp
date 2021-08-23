@@ -155,12 +155,14 @@ struct ContigInfo {
     }
 
 
-    void AddRead() {
+//    void AddRead() {
+//
+//    }
 
-    }
     bool validLength(size_t med_len, size_t some) {
         return (med_len < some *MAX_ALLOWED_MSA_LENGTH_VARIATION && med_len * MAX_ALLOWED_MSA_LENGTH_VARIATION > some);
     }
+
     string MSAConsensus(vector<string> &s, Logger & logger) {
 //Magic consts from spoa default settings
         auto alignment_engine = spoa::AlignmentEngine::Create(
@@ -235,15 +237,11 @@ struct ContigInfo {
             if (s[i] != s[COMPLEX_EPS] && s[i] != s[COMPLEX_EPS + 1])
                 return "On position " + to_string(i) + " of " + to_string(len) + " not dimeric nucleo";
         } */
-
-
     }
-
 
     string GenerateConsensus(Logger & logger){
         std::stringstream ss;
         vector<int> quantities(256);
-
         std::ofstream debug;
         size_t total_count = 0 ;
         size_t cur_complex_ind = 0;
@@ -327,7 +325,7 @@ struct AssemblyInfo {
 //We do not believe matches on the ends of match region, DO WE?
     static const size_t MATCH_EPS = 0;
 
-    static const size_t BATCH_SIZE = 10000;
+    static const size_t BATCH_SIZE = 100000;
 
     explicit AssemblyInfo (logging::Logger &logger,
                            const std::experimental::filesystem::path &contigs_file,
@@ -343,9 +341,9 @@ struct AssemblyInfo {
         compression_length= dicompress;
     }
 
-    void AddRead(const string& contig_name){
-        contigs[contig_name].AddRead();
-    }
+//    void AddRead(const string& contig_name){
+//        contigs[contig_name].AddRead();
+//    }
 
 
     AlignmentInfo readAlignment(std::ifstream &ss){
@@ -644,13 +642,6 @@ struct AssemblyInfo {
             logger.debug()<<"For read too much mismatches " << aln.read_id << " matches/MM: " << matches << "/" << mismatches << endl;
     }
 
-    void removeWhitespace(string & s){
-        auto white = s.find(' ');
-        if (white != string::npos) {
-            s = s.substr(0, white);
-        }
-    }
-
     void processBatch(logging::Logger &logger, vector<string>& batch, vector<AlignmentInfo>& alignments){
         size_t len = batch.size();
 #pragma omp parallel for default(none) shared(logger, len, batch, alignments)
@@ -690,7 +681,7 @@ struct AssemblyInfo {
                 }
                 cur = reader.read();
 //Some tools clip read names after whitespaces
-                removeWhitespace(cur.id);
+                cur.id = split(cur.id)[0];
                 reads_count ++;
                 if (reads_count % 1000 == 0) {
                     logger.trace() << "Processed " << reads_count << " original reads " << endl;

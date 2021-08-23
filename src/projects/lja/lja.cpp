@@ -3,6 +3,7 @@
 #include "error_correction/mult_correction.hpp"
 #include "dbg/dbg_construction.hpp"
 #include "common/rolling_hash.hpp"
+#include "error_correction/mitochondria_rescue.hpp"
 #include "error_correction/crude_correct.hpp"
 #include "error_correction/initial_correction.hpp"
 #include "sequences/seqio.hpp"
@@ -190,6 +191,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
         PrintPaths(logger, dir/ "state_dump", "uncovered1", dbg, readStorage, paths_lib, false);
         MultCorrect(dbg, logger, dir, readStorage, unique_threshold, threads, diploid, dump);
+        MRescue(logger, threads, dbg, readStorage, unique_threshold, 0.05);
         PrintPaths(logger, dir/ "state_dump", "mult", dbg, readStorage, paths_lib, false);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
         PrintPaths(logger, dir/ "state_dump", "uncovered2", dbg, readStorage, paths_lib, false);

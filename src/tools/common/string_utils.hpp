@@ -99,6 +99,8 @@ inline std::vector<std::string> split(const std::string &s) {
         }
         cur = next + 1;
     }
+    if(res.empty())
+        res.emplace_back("");
     return res;
 }
 

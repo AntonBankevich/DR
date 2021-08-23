@@ -52,6 +52,13 @@ namespace dbg {
         std::vector<Component> split(const Component &comp) const override;
     };
 
+    class CCSplitter : public ConditionSplitter {
+    private:
+        std::function<bool(const Edge &)> splitEdge;
+    public:
+        explicit CCSplitter() : ConditionSplitter([](const Edge &){return false;}) {}
+    };
+
     class LengthSplitter : public ConditionSplitter {
     public:
         explicit LengthSplitter(size_t min_len) :
