@@ -407,6 +407,22 @@ size_t dbg::GraphAlignment::len() const {
     return res;
 }
 
+size_t dbg::GraphAlignment::find(dbg::Edge &edge, size_t pos) const {
+    while(pos < size() && edge != als[pos].contig())
+        pos++;
+    if(pos == size())
+        return -1;
+    return pos;
+}
+
+size_t dbg::GraphAlignment::find(dbg::Vertex &v, size_t pos) const {
+    while(pos <= size() && v != getVertex(pos))
+        pos++;
+    if(pos > size())
+        return -1;
+    return pos;
+}
+
 dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq, dbg::Edge *edge_to, size_t pos_to) {
     size_t k = dbg.hasher().getK();
     size_t cur = k;

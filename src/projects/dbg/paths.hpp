@@ -69,6 +69,8 @@ namespace dbg {
         Segment<Edge> &operator[](size_t i) {return als[i];}
         Vertex &getVertex(size_t i) const {return i == 0 ? *start_ : *als[i - 1].contig().end();}
         Vertex &getVertex(size_t i)  {return i == 0 ? *start_ : *als[i - 1].contig().end();}
+        size_t find(Edge &edge, size_t pos = 0) const;
+        size_t find(Vertex &v, size_t pos = 0) const;
         typename std::vector<Segment<Edge>>::iterator begin() {return als.begin();}
         typename std::vector<Segment<Edge>>::iterator end() {return als.end();}
         typename std::vector<Segment<Edge>>::const_iterator begin() const {return als.begin();}

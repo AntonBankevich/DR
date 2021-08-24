@@ -4,7 +4,7 @@
 size_t BoundRecord::inf = 1000000000000ul;
 
 MappedNetwork::MappedNetwork(const Component &component, const std::function<bool(const dbg::Edge &)> &unique,
-                             double rel_coverage, double unique_coverage) {
+                             double rel_coverage, double unique_coverage, double double_coverage) {
     dbg::SparseDBG &graphr = component.graph();
     for(dbg::Vertex &v : component.vertices()) {
         vertex_mapping[&v] = addVertex();
@@ -13,7 +13,11 @@ MappedNetwork::MappedNetwork(const Component &component, const std::function<boo
         for(dbg::Edge &edge : v) {
             if (!unique(edge)) {
                 size_t min_flow = (!edge.is_reliable || edge.getCoverage() < rel_coverage) ? 0 : 1;
-                size_t max_flow = edge.getCoverage() < unique_coverage ? 1 : 1000000000;
+                size_t max_flow = 1000000000;
+                if(edge.getCoverage() < double_coverage)
+                    max_flow = 2;
+                if(edge.getCoverage() < unique_coverage)
+                    max_flow = 1;
                 int eid = addEdge(vertex_mapping[&v], vertex_mapping[edge.end()], min_flow, max_flow);
                 edge_mapping[eid] = &edge;
             } else {
@@ -177,6 +181,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         cnt += 1;
         std::experimental::filesystem::path out_file = dir / (std::to_string(cnt) + ".dot");
         printDot(out_file, component, reads_storage.labeler());
+        //TODO make parallel trace
         logger.trace() << "Component parameters: size=" << component.size() << " border=" << component.countBorderEdges() <<
                       " tips=" << component.countTips() <<
                       " subcomponents=" << component.realCC() << " acyclic=" << component.isAcyclic() <<std::endl;
@@ -202,12 +207,60 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
     logger.info() << "Finished unique edges search" << std::endl;
 }
 
-std::vector<const dbg::Edge *>
-UniqueClassificator::ProcessUsingCoverage(logging::Logger &logger, const Component &subcomponent,
+std::vector<dbg::Edge *> UniqueClassificator::ProcessUsingCoverage(logging::Logger &logger,
+                                          const Component &subcomponent,
                                           const std::function<bool(const dbg::Edge &)> &is_unique,
                                           double rel_coverage) const {
-    double max_cov = 0;
-    double min_cov = 100000;
+    std::pair<double, double> tmp = minmaxCov(subcomponent, reads_storage, is_unique);
+    double min_cov = tmp.first;
+    double max_cov = tmp.second;
+    double threshold = std::max(min_cov * 1.4, max_cov * 1.2);
+    double double_threshold = 2.4 * min_cov;
+    double adjusted_rel_coverage = std::min(min_cov * 0.9, max_cov * 0.7);
+    logger.trace() << "Attempting to use coverage for multiplicity estimation with coverage threshold " << threshold << std::endl;
+    logger.trace() << "Component: ";
+    for(Vertex &vertex : subcomponent.verticesUnique()) {
+        logger.trace() << " " << vertex.getShortId();
+    }
+    logger.trace() << std::endl;
+    MappedNetwork net2(subcomponent, is_unique, rel_coverage, threshold);
+    bool res = net2.fillNetwork();
+    std::vector<Edge *> unique = {};
+    if (res) {
+        logger.trace() << "Succeeded to use coverage for multiplicity estimation" << std::endl;
+        unique = net2.getUnique(logger);
+    } else {
+        logger.trace() << "Failed to use coverage for multiplicity estimation" << std::endl;
+        if(rel_coverage == 0) {
+            logger.trace() << "Adjusted reliable edge threshold from " << rel_coverage << " to " <<
+                           adjusted_rel_coverage << std::endl;
+            rel_coverage = adjusted_rel_coverage;
+            MappedNetwork net3(subcomponent, is_unique, rel_coverage, threshold);
+            res = net3.fillNetwork();
+            if (res) {
+                logger.trace() << "Succeeded to use coverage for multiplicity estimation" << std::endl;
+                unique = net3.getUnique(logger);
+            } else {
+                logger.trace() << "Failed to use coverage for multiplicity estimation" << std::endl;
+            }
+        }
+    }
+    MappedNetwork net4(subcomponent, is_unique, rel_coverage, threshold, double_threshold);
+    res = net4.fillNetwork();
+    if(res) {
+        unique = net4.getUnique(logger);
+    } else {
+        double_threshold = 0;
+    }
+    logger.trace() << "Succeeded to use coverage for multiplicity estimation with rel_coverage = " << rel_coverage
+                   << " threshold = " << threshold << " double_threshold = " << double_threshold << std::endl;
+    return std::move(unique);
+}
+
+std::pair<double, double> minmaxCov(const Component &subcomponent, const RecordStorage &reads_storage,
+                               const std::function<bool(const dbg::Edge &)> &is_unique) {
+    double max_cov= 0;
+    double min_cov= 100000;
     for(Edge &edge : subcomponent.edges()) {
         if(is_unique(edge) && subcomponent.contains(*edge.end())) {
             const VertexRecord & record = reads_storage.getRecord(*edge.start());
@@ -225,39 +278,7 @@ UniqueClassificator::ProcessUsingCoverage(logging::Logger &logger, const Compone
             }
         }
     }
-    double threshold = std::max(min_cov * 1.4, max_cov * 1.2);
-    double rel_threshold = std::min(min_cov * 0.9, max_cov * 0.7);
-    logger.trace() << "Attempting to use coverage for multiplicity estimation with coverage threshold " << threshold << std::endl;
-    logger.trace() << "Component: ";
-    for(Vertex &vertex : subcomponent.verticesUnique()) {
-        logger.trace() << " " << vertex.getShortId();
-    }
-    logger.trace() << std::endl;
-    MappedNetwork net2(subcomponent, is_unique, rel_coverage, threshold);
-    bool res2 = net2.fillNetwork();
-    std::vector<const dbg::Edge *> extra_unique;
-    if (res2) {
-        logger.trace() << "Succeeded to use coverage for multiplicity estimation" << std::endl;
-        for (Edge *edge : net2.getUnique(logger)) {
-            extra_unique.emplace_back(edge);
-        }
-    } else {
-        logger.trace() << "Failed to use coverage for multiplicity estimation" << std::endl;
-        if(rel_coverage == 0) {
-            logger.trace() << "Adjusted reliable edge threshold from " << rel_coverage << " to " << rel_threshold << std::endl;
-            MappedNetwork net3(subcomponent, is_unique, rel_threshold, threshold);
-            bool res3 = net3.fillNetwork();
-            if (res3) {
-                logger.trace() << "Succeeded to use coverage for multiplicity estimation" << std::endl;
-                for (Edge *edge : net3.getUnique(logger)) {
-                    extra_unique.emplace_back(edge);
-                }
-            } else {
-                logger.trace() << "Failed to use coverage for multiplicity estimation" << std::endl;
-            }
-        }
-    }
-    return std::move(extra_unique);
+    return {min_cov, max_cov};
 }
 
 Edge &UniqueClassificator::getStart(const Component &component) const {
@@ -343,7 +364,7 @@ UniqueClassificator::processComponent(logging::Logger &logger, const Component &
         };
         std::vector<Component> subsplit = ConditionSplitter(is_unique1).split(component);
         for(Component &subcomponent : subsplit) {
-            std::vector<const dbg::Edge *> extra_unique = ProcessUsingCoverage(logger, subcomponent, is_unique1, rel_coverage);
+            std::vector<dbg::Edge *> extra_unique = ProcessUsingCoverage(logger, subcomponent, is_unique1, rel_coverage);
             unique_in_component.insert(extra_unique.begin(), extra_unique.end());
         }
     }
@@ -351,4 +372,66 @@ UniqueClassificator::processComponent(logging::Logger &logger, const Component &
         return (isUnique(edge) || unique_in_component.find(&edge) == unique_in_component.end()) ? "blue" : "black";
     };
     return {unique_in_component.begin(), unique_in_component.end()};
+}
+
+RecordStorage ResolveLoops(logging::Logger &logger, size_t threads, SparseDBG &dbg, RecordStorage &reads_storage,
+                           const std::experimental::filesystem::path &extra_read_log,
+                           const AbstractUniquenessStorage &more_unique) {
+    RecordStorage res(dbg, 0, 10000000000ull, threads, extra_read_log, false);
+    for(const Component &comp : UniqueSplitter(more_unique).splitGraph(dbg)) {
+        if(comp.size() != 2)
+            continue;
+        Vertex *vit = &*comp.vertices().begin();
+        if(vit->inDeg() != 2)
+            vit = &vit->rc();
+        if(vit->inDeg() != 2 || vit->outDeg() != 1)
+            continue;
+        Vertex &start = *vit;
+        Edge &forward_edge = start[0];
+        Vertex &end = *forward_edge.end();
+        if(end.inDeg() != 1 || end.outDeg() != 2)
+            continue;
+        Edge &back_edge = (end[0].end() == &start) ? end[0] : end[1];
+        if(forward_edge.size() > 30000 || back_edge.size() > 50000)
+            continue;
+        if(back_edge.start() != &end || back_edge.end() != &start)
+            continue;
+        Edge &out = end[0] == back_edge ? end[1] : end[0];
+        Edge &in = start.rc()[0].rc() == back_edge ? start.rc()[1].rc() : start.rc()[0].rc();
+        if(!more_unique.isUnique(out) || !more_unique.isUnique(in) || in == out)
+            continue;
+        std::pair<double, double> tmp = minmaxCov(comp, reads_storage, more_unique.asFunction());
+        double min_cov = tmp.first;
+        double max_cov = tmp.second;
+        double med_cov = (max_cov + min_cov) / 2;
+        double dev = std::max<double>(4, max_cov - min_cov) / med_cov / 2;
+        size_t vote1 = floor(forward_edge.getCoverage() / med_cov + 0.5);
+        size_t vote2 = floor(back_edge.getCoverage() / med_cov + 0.5);
+        if(vote1 * dev * 2 > med_cov || vote1 != vote2 + 1)
+            continue;
+        GraphAlignment longest = reads_storage.getRecord(*in.start()).
+                getFullUniqueExtension(in.seq.Subseq(0, 1), 1, 0).getAlignment();
+        size_t pos = longest.find(out);
+        if(pos != size_t(-1)) {
+            VERIFY(pos % 2 == 0 && pos >= 2);
+            if(pos / 2 != vote1) {
+                logger.trace() << "Coverage contradicts read vote. Skipping loop " << forward_edge.getId() << " " << back_edge.getId() <<
+                               " with size " << forward_edge.size() + back_edge.size() << " and multiplicity " << vote2 <<
+                               " vs "  << pos / 2 - 1 << std::endl;
+            }
+            continue;
+        }
+        GraphAlignment alignment;
+        alignment += Segment<Edge>(in, in.size() - std::min<size_t>(in.size(), 1000), in.size());
+        alignment += forward_edge;
+        for(size_t i = 0; i < vote2; i++) {
+            alignment += back_edge;
+            alignment += forward_edge;
+        }
+        alignment += Segment<Edge>(out, 0, std::min<size_t>(out.size(), 1000));
+        res.addRead(AlignedRead(back_edge.getId() + "_" + itos(vote2), alignment));
+        logger.trace() << "Resolved loop " << forward_edge.getId() << " " << back_edge.getId() <<
+                " with size " << forward_edge.size() + back_edge.size() << " and multiplicity " << vote2 << std::endl;
+    }
+    return std::move(res);
 }

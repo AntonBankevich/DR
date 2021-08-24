@@ -66,7 +66,7 @@ struct UEdge {
 //}
 
 std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger, SparseDBG &dbg,
-                                        const RecordStorage &reads_storage, const UniqueClassificator &classificator) {
+                                                                        const RecordStorage &reads_storage, const AbstractUniquenessStorage &classificator) {
     std::unordered_map<const Edge *, CompactPath> unique_extensions;
     std::vector<Edge*> uniqueEdges;
     for(Edge &edge : dbg.edges()) {
@@ -247,41 +247,14 @@ void NewMultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
 }
 
 
-void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
-                 const std::experimental::filesystem::path &dir,
-                 RecordStorage &reads_storage, size_t unique_threshold,
-                 size_t threads, bool diploid, bool dump) {
-    const std::experimental::filesystem::path fig_before = dir / "before.dot";
-    const std::experimental::filesystem::path fig_after = dir / "after.dot";
-//    const std::experimental::filesystem::path out_reads = dir / "corrected.fasta";
-//    const std::experimental::filesystem::path out_alignments = dir / "alignments.txt";
-    const std::experimental::filesystem::path full_alignments = dir / "full_alignments.txt";
-    const std::experimental::filesystem::path multiplicity_figures = dir / "mult_figs";
-    size_t k = sdbg.hasher().getK();
-    recreate_dir(multiplicity_figures);
-    {
-        UniqueClassificator classificator(sdbg, reads_storage, diploid);
-        classificator.classify(logger, unique_threshold, multiplicity_figures);
-        std::unordered_map<const Edge *, CompactPath> unique_extensions =
-                constructUniqueExtensions(logger, sdbg, reads_storage, classificator);
-        Component all(sdbg);
-        std::function<std::string(Edge &)> colorer = classificator.colorer();
-        {
-            std::ofstream os;
-            os.open(fig_before);
-            printDot(os, all, reads_storage.labeler(), colorer);
-            os.close();
-        }
-        correctReads(logger, threads, reads_storage, unique_extensions);
-        {
-            std::ofstream os;
-            os.open(fig_after);
-            printDot(os, all, reads_storage.labeler(), colorer);
-            os.close();
-        }
-    }
+void CorrectBasedOnUnique(logging::Logger &logger, size_t threads, SparseDBG &sdbg, RecordStorage &reads_storage,
+                         const AbstractUniquenessStorage &classificator) {
+    std::unordered_map<const Edge *, CompactPath> unique_extensions =
+            constructUniqueExtensions(logger, sdbg, reads_storage, classificator);
+    correctReads(logger, threads, reads_storage, unique_extensions);
     logger.info() << "Collecting bad edges" << std::endl;
     std::unordered_set<Edge const *> bad_edges;
+    size_t k = sdbg.hasher().getK();
     for(Edge & edge : sdbg.edges()) {
         if(edge.size() > k + 5000)
             continue;
@@ -290,20 +263,53 @@ void MultCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
             bad_edges.emplace(&edge);
         }
     }
-//    logger.info() << "Printing corrected reads to disk" << std::endl;
-//    std::ofstream ors;
     std::ofstream brs;
-//    ors.open(out_reads);
     std::function<bool(const Edge&)> is_bad = [&bad_edges](const Edge &edge) {
         return edge.getCoverage() < 2 || bad_edges.find(&edge) != bad_edges.end();
     };
     reads_storage.invalidateBad(logger, threads, is_bad, "after_mult");
-//    for(auto & alignedRead : reads_storage) {
-//        if(alignedRead.valid()) {
-//            ors << ">" << alignedRead.id << "\n" << alignedRead.path.getAlignment().Seq() << "\n";
-//        }
-//    }
-//    RemoveUncovered(logger, threads, sdbg, {&reads_storage});
-//    reads_storage.printAlignments(logger, out_alignments);
-//    ors.close();
+}
+
+SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t threads, SparseDBG &dbg, RecordStorage &reads_storage,
+                                              const AbstractUniquenessStorage &classificator) {
+    SetUniquenessStorage res;
+    for(Edge &edge : dbg.edges()) {
+        if(classificator.isUnique(edge)) {
+            res.addUnique(edge);
+            continue;
+        }
+        const VertexRecord &rec = reads_storage.getRecord(*edge.start());
+        CompactPath unique_extension = rec.getFullUniqueExtension(edge.seq.Subseq(0, 1), 1, 0);
+        GraphAlignment al = unique_extension.getAlignment();
+        Path path = al.path();
+        size_t len = 0;
+        for(size_t i = 1; i < path.size(); i++) {
+            if(classificator.isUnique(path[i])) {
+                if(len < 3000 && rec.countStartsWith(CompactPath(path.subPath(0, i + 1)).cpath()) >= 4) {
+                    res.addUnique(edge);
+                    break;
+                }
+            }
+            len += path[i].size();
+        }
+    }
+    return std::move(res);
+}
+
+RecordStorage MultCorrect(dbg::SparseDBG &dbg, logging::Logger &logger,
+                 const std::experimental::filesystem::path &dir,
+                 RecordStorage &reads_storage, size_t unique_threshold,
+                 size_t threads, bool diploid, bool dump) {
+    const std::experimental::filesystem::path fig_before = dir / "before.dot";
+    const std::experimental::filesystem::path fig_after = dir / "after.dot";
+    const std::experimental::filesystem::path full_alignments = dir / "full_alignments.txt";
+    const std::experimental::filesystem::path multiplicity_figures = dir / "mult_figs";
+    const std::experimental::filesystem::path extra_read_log = dir / "extra_reads.txt";
+    recreate_dir(multiplicity_figures);
+    UniqueClassificator classificator(dbg, reads_storage, diploid);
+    classificator.classify(logger, unique_threshold, multiplicity_figures);
+    CorrectBasedOnUnique(logger, threads, dbg, reads_storage, classificator);
+    SetUniquenessStorage more_unique = PathUniquenessClassifier(logger, threads, dbg, reads_storage, classificator);
+    CorrectBasedOnUnique(logger, threads, dbg, reads_storage, more_unique);
+    return std::move(ResolveLoops(logger, threads, dbg, reads_storage, extra_read_log, more_unique));
 }

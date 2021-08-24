@@ -11,7 +11,7 @@
 class RepeatResolver {
 private:
     SparseDBG &dbg;
-    RecordStorage &readStorage;
+    std::vector<RecordStorage *> storages;
     std::experimental::filesystem::path dir;
 
 public:
@@ -20,7 +20,7 @@ public:
                             id(id), component(std::move(component)), dir(std::move(dir)) {}
         size_t id;
         Component component;
-        std::vector<size_t> reads;
+        std::vector<AlignedRead *> reads;
         std::experimental::filesystem::path dir;
         bool operator<(const Subdataset &other) const {
             if(component.size() != other.component.size())
@@ -28,8 +28,8 @@ public:
             return this < &other;
         }
     };
-    RepeatResolver(SparseDBG &dbg, RecordStorage &readStorage, std::experimental::filesystem::path dir) :
-                dbg(dbg), readStorage(readStorage), dir(std::move(dir)) {
+    RepeatResolver(SparseDBG &dbg, const std::vector<RecordStorage *> &storages, std::experimental::filesystem::path dir) :
+                dbg(dbg), storages(storages), dir(std::move(dir)) {
     }
 
     std::vector<Subdataset> SplitDataset(const std::function<bool(const Edge &)> &is_unique);

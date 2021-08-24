@@ -21,6 +21,10 @@ public:
     virtual bool isUnique(const dbg::Edge &) const = 0;
     virtual ~AbstractUniquenessStorage() = default;
 
+    std::function<bool(const dbg::Edge &edge)> asFunction() const {
+        return [this](const dbg::Edge &edge) {return isUnique(edge);};
+    }
+
     bool isError(const dbg::Edge &edge) const {
         if(isUnique(edge))
             return false;
@@ -50,12 +54,15 @@ class SetUniquenessStorage : public AbstractUniquenessStorage{
 private:
     std::unordered_set<const dbg::Edge *> unique;
 public:
-    SetUniquenessStorage() {
-    }
+    SetUniquenessStorage() = default;
 
     template<class I>
     SetUniquenessStorage(I begin, I end) {
         addUnique(begin, end);
+    }
+
+    SetUniquenessStorage(const dbg::Component &component, const AbstractUniquenessStorage &other) {
+        fillFromOther(component, other);
     }
 
     bool isUnique(const dbg::Edge &edge) const override {
@@ -74,6 +81,15 @@ public:
             unique.emplace(&edge);
             unique.emplace(&edge.rc());
             ++begin;
+        }
+    }
+
+    void fillFromOther(const dbg::Component &component, const AbstractUniquenessStorage &other) {
+        for(dbg::Edge &edge : component.edgesUnique()) {
+            if(other.isUnique(edge)) {
+                unique.emplace(&edge);
+                unique.emplace(&edge.rc());
+            }
         }
     }
 };

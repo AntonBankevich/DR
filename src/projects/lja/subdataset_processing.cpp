@@ -16,16 +16,17 @@ std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::
         }
         ensure_dir_existance(result.back().dir);
     }
-    for(size_t rnum = 0; rnum < readStorage.size(); rnum++) {
-        AlignedRead &read = readStorage[rnum];
-        if(!read.valid() || read.path.size() == 1)
-            continue;
-        GraphAlignment al = read.path.getAlignment();
-        result[cmap[&al.getVertex(1)]].reads.emplace_back(rnum);
-        for(size_t i = 2; i < al.size(); i++) {
-            VERIFY(cmap[&al.getVertex(1)] == cmap[&al.getVertex(i)]);
+    for(RecordStorage *recordStorage : storages)
+        for(size_t rnum = 0; rnum < recordStorage->size(); rnum++) {
+            AlignedRead &read = recordStorage->operator[](rnum);
+            if(!read.valid() || read.path.size() == 1)
+                continue;
+            GraphAlignment al = read.path.getAlignment();
+            result[cmap[&al.getVertex(1)]].reads.emplace_back(&read);
+            for(size_t i = 2; i < al.size(); i++) {
+                VERIFY(cmap[&al.getVertex(1)] == cmap[&al.getVertex(i)]);
+            }
         }
-    }
     return std::move(result);
 }
 
@@ -35,11 +36,14 @@ void RepeatResolver::prepareDataset(const RepeatResolver::Subdataset &subdataset
     log.open(subdataset.dir / "dbg.log");
     log << "-k " << dbg.hasher().getK() << std::endl;
     log.close();
-    printDot(subdataset.dir / "graph.dot", subdataset.component, readStorage.labeler());
+    printDot(subdataset.dir / "graph.dot", subdataset.component, storages[0]->labeler());
+    if(storages.size() > 1) {
+        printDot(subdataset.dir / "graph_plus.dot", subdataset.component, storages[1]->labeler());
+    }
     std::ofstream als;
     als.open(subdataset.dir / "alignments.txt");
-    for(size_t rnum : subdataset.reads) {
-        AlignedRead &read = readStorage[rnum];
+    for(AlignedRead * rit: subdataset.reads) {
+        AlignedRead &read = *rit;
         GraphAlignment al = read.path.getAlignment();
         std::stringstream ss;
         als << read.id << " " << read.path.start().hash() << int(read.path.start().isCanonical())

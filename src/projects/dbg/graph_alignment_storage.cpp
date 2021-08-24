@@ -121,10 +121,10 @@ std::vector<GraphAlignment> VertexRecord::getBulgeAlternatives(const Vertex &end
 CompactPath VertexRecord::getFullUniqueExtension(const Sequence &start, size_t min_good_cov, size_t max_bad_cov) const {
     Sequence res = start;
     while(true) {
-        char next = getUniqueExtension(res, min_good_cov, max_bad_cov);
-        if(next == (char)-1)
+        unsigned char next = getUniqueExtension(res, min_good_cov, max_bad_cov);
+        if(next == (unsigned char)-1)
             break;
-        std::vector<char> ext = {next};
+        std::vector<unsigned char> ext = {next};
         res = res + Sequence(ext);
     }
     return {v, res};
@@ -294,6 +294,7 @@ void RecordStorage::processPath(const CompactPath &cpath, const std::function<vo
     }
 }
 
+//TODO Remove threads parameter
 RecordStorage::RecordStorage(SparseDBG &dbg, size_t _min_len, size_t _max_len, size_t threads,
                              const std::experimental::filesystem::path &logFile, bool _track_cov) :
         min_len(_min_len), max_len(_max_len), track_cov(_track_cov), readLogger(threads, logFile) {

@@ -140,6 +140,7 @@ public:
         std::swap(track_cov, other.track_cov);
         return *this;
     }
+    RecordStorage(RecordStorage &&other) = default;
 
     const VertexRecord &getRecord(const Vertex &v) const {return data.find(&v)->second;}
     iterator begin() {return reads.begin();}

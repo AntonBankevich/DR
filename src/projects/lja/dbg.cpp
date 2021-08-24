@@ -327,7 +327,7 @@ int main(int argc, char **argv) {
     if(parser.getCheck("split")) {
         std::experimental::filesystem::path subdatasets_dir = dir / "subdatasets";
         ensure_dir_existance(subdatasets_dir);
-        RepeatResolver rr(dbg, readStorage, subdatasets_dir);
+        RepeatResolver rr(dbg, {&readStorage}, subdatasets_dir);
         logger.info() << "Extracting subdatasets for connected components" << std::endl;
         std::function<bool(const Edge &)> is_unique = [](const Edge &){return false;};
         std::vector<RepeatResolver::Subdataset> subdatasets = rr.SplitDataset(is_unique);

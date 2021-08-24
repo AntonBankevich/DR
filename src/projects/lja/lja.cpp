@@ -198,7 +198,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         GapColserPipeline(logger, dbg, readStorage, refStorage, threads);
         PrintPaths(logger, dir/ "state_dump", "gap2", dbg, readStorage, paths_lib, false);
         DrawSplit(Component(dbg), dir / "split_figs", readStorage.labeler());
-        RepeatResolver rr(dbg, readStorage, dir / "split");
+        RepeatResolver rr(dbg, {&readStorage}, dir / "split");
         std::function<bool(const dbg::Edge &)> is_unique = [unique_threshold](const Edge &edge) {
             return edge.size() > unique_threshold;
         };
