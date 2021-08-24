@@ -204,7 +204,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         };
         printDot(out_file, component, reads_storage.labeler(), colorer);
     }
-    logger.info() << "Finished unique edges search" << std::endl;
+    logger.info() << "Finished unique edges search. Found " << size() << " unique edges" << std::endl;
 }
 
 std::vector<dbg::Edge *> UniqueClassificator::ProcessUsingCoverage(logging::Logger &logger,
@@ -374,32 +374,47 @@ UniqueClassificator::processComponent(logging::Logger &logger, const Component &
     return {unique_in_component.begin(), unique_in_component.end()};
 }
 
+std::pair<Edge *, Edge *> CheckLoopComponent(const Component &component) {
+    if(component.size() != 2)
+        return {nullptr, nullptr};
+    Vertex *vit = &*component.vertices().begin();
+    if(vit->inDeg() != 2)
+        vit = &vit->rc();
+    if(vit->inDeg() != 2 || vit->outDeg() != 1)
+        return {nullptr, nullptr};
+    Vertex &start = *vit;
+    Edge &forward_edge = start[0];
+    Vertex &end = *forward_edge.end();
+    if(start == end || start == end.rc())
+        return {nullptr, nullptr};
+    if(end.inDeg() != 1 || end.outDeg() != 2)
+        return {nullptr, nullptr};
+    Edge &back_edge = (end[0].end() == &start) ? end[0] : end[1];
+    if(forward_edge.size() > 30000 || back_edge.size() > 50000)
+        return {nullptr, nullptr};
+    if(back_edge.start() != &end || back_edge.end() != &start)
+        return {nullptr, nullptr};
+    Edge &out = end[0] == back_edge ? end[1] : end[0];
+    Edge &in = start.rc()[0].rc() == back_edge ? start.rc()[1].rc() : start.rc()[0].rc();
+    if(component.contains(*out.end()) || component.contains(*in.start()))
+        return {nullptr, nullptr};
+    return {&forward_edge, &back_edge};
+}
+
 RecordStorage ResolveLoops(logging::Logger &logger, size_t threads, SparseDBG &dbg, RecordStorage &reads_storage,
                            const std::experimental::filesystem::path &extra_read_log,
                            const AbstractUniquenessStorage &more_unique) {
     RecordStorage res(dbg, 0, 10000000000ull, threads, extra_read_log, false);
     for(const Component &comp : UniqueSplitter(more_unique).splitGraph(dbg)) {
-        if(comp.size() != 2)
+        std::pair<Edge *, Edge *> check = CheckLoopComponent(comp);
+        if(check.first == nullptr)
             continue;
-        Vertex *vit = &*comp.vertices().begin();
-        if(vit->inDeg() != 2)
-            vit = &vit->rc();
-        if(vit->inDeg() != 2 || vit->outDeg() != 1)
-            continue;
-        Vertex &start = *vit;
-        Edge &forward_edge = start[0];
+        Edge &forward_edge = *check.first;
+        Edge &back_edge = *check.second;
+        Vertex &start = *forward_edge.start();
         Vertex &end = *forward_edge.end();
-        if(end.inDeg() != 1 || end.outDeg() != 2)
-            continue;
-        Edge &back_edge = (end[0].end() == &start) ? end[0] : end[1];
-        if(forward_edge.size() > 30000 || back_edge.size() > 50000)
-            continue;
-        if(back_edge.start() != &end || back_edge.end() != &start)
-            continue;
         Edge &out = end[0] == back_edge ? end[1] : end[0];
         Edge &in = start.rc()[0].rc() == back_edge ? start.rc()[1].rc() : start.rc()[0].rc();
-        if(!more_unique.isUnique(out) || !more_unique.isUnique(in) || in == out)
-            continue;
         std::pair<double, double> tmp = minmaxCov(comp, reads_storage, more_unique.asFunction());
         double min_cov = tmp.first;
         double max_cov = tmp.second;
@@ -415,11 +430,17 @@ RecordStorage ResolveLoops(logging::Logger &logger, size_t threads, SparseDBG &d
         if(pos != size_t(-1)) {
             VERIFY(pos % 2 == 0 && pos >= 2);
             if(pos / 2 != vote1) {
-                logger.trace() << "Coverage contradicts read vote. Skipping loop " << forward_edge.getId() << " " << back_edge.getId() <<
-                               " with size " << forward_edge.size() + back_edge.size() << " and multiplicity " << vote2 <<
-                               " vs "  << pos / 2 - 1 << std::endl;
+                logger.trace() << "Coverage contradicts bridging read. Skipping loop " << forward_edge.getId() << " "
+                        << back_edge.getId() << " with size " << forward_edge.size() + back_edge.size()
+                        << " and multiplicity " << vote2 << " vs "  << pos / 2 - 1 << std::endl;
             }
             continue;
+        }
+        Sequence bad = (back_edge.seq.Subseq(0, 1) + forward_edge.seq.Subseq(0, 1)) * (vote2 + 1);
+        if(reads_storage.getRecord(end).countStartsWith(bad) > 0) {
+            logger.trace() << "Coverage contradicts circling read. Skipping loop " << forward_edge.getId() << " "
+                        << back_edge.getId() << " with size " << forward_edge.size() + back_edge.size()
+                        << " and multiplicity " << vote2 << std::endl;
         }
         GraphAlignment alignment;
         alignment += Segment<Edge>(in, in.size() - std::min<size_t>(in.size(), 1000), in.size());

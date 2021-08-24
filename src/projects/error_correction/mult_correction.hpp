@@ -272,6 +272,7 @@ void CorrectBasedOnUnique(logging::Logger &logger, size_t threads, SparseDBG &sd
 
 SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t threads, SparseDBG &dbg, RecordStorage &reads_storage,
                                               const AbstractUniquenessStorage &classificator) {
+    logger.info() << "Looking for more unique edges" << std::endl;
     SetUniquenessStorage res;
     for(Edge &edge : dbg.edges()) {
         if(classificator.isUnique(edge)) {
@@ -287,12 +288,14 @@ SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t th
             if(classificator.isUnique(path[i])) {
                 if(len < 3000 && rec.countStartsWith(CompactPath(path.subPath(0, i + 1)).cpath()) >= 4) {
                     res.addUnique(edge);
+                    logger.trace() << "Found extra unique edge " << edge.getId() << " " << edge.size() << " " << edge.getCoverage() << std::endl;
                     break;
                 }
             }
             len += path[i].size();
         }
     }
+    logger.info() << "Finished unique edges search. Found " << res.size() << " unique edges" << std::endl;
     return std::move(res);
 }
 

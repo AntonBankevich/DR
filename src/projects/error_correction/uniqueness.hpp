@@ -65,6 +65,10 @@ public:
         fillFromOther(component, other);
     }
 
+    size_t size() const {
+        return unique.size() / 2;
+    }
+
     bool isUnique(const dbg::Edge &edge) const override {
         return unique.find(&edge) != unique.end();
     }

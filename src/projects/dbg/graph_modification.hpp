@@ -171,7 +171,6 @@ public:
 
     Connection(dbg::EdgePosition pos1, dbg::EdgePosition pos2, Sequence connection) :
             pos1(pos1), pos2(pos2), connection(connection) {
-        std::cout << connection << "\n" << pos1.kmerSeq() << " " << pos2.RC().kmerSeq() << std::endl;
         VERIFY(connection.startsWith(pos1.kmerSeq()));
         VERIFY(!connection.startsWith(pos2.RC().kmerSeq()));
     }
@@ -190,9 +189,6 @@ public:
               rc.edge->seq[rc.pos + right] == rcSeq[right + k]) {
             right++;
         }
-        std::cout << pos1.pos << " " << left <<  " " << pos1.edge->seq.size() <<std::endl;
-        std::cout << rc.pos << " " << right <<  " " << rc.edge->seq.size() << std::endl;
-        std::flush(std::cout);
         VERIFY(left + right + k < connection.size());
         return {dbg::EdgePosition(*pos1.edge, pos1.pos + left),
                 dbg::EdgePosition(*pos2.edge, pos2.pos - right),

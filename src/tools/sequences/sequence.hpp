@@ -267,6 +267,8 @@ public:
 
     inline Sequence operator+(const Sequence &s) const;
 
+    inline Sequence operator*(size_t mult) const;
+
     inline Sequence Prefix(size_t count) const;
 
     inline Sequence Suffix(size_t count) const;
@@ -464,6 +466,15 @@ public:
         return s;
     }
 };
+
+Sequence Sequence::operator*(size_t mult) const {
+    SequenceBuilder sb;
+    for(size_t i = 0; i < mult; i++) {
+        sb.append(*this);
+    }
+    return sb.BuildSequence();
+}
+
 
 class CompositeSequence {
 private:
