@@ -9,12 +9,14 @@
 #include <utility>
 #include <vector>
 #include <iostream>
-
+#include <array>
 #include <spoa/spoa.hpp>
 #include <ksw2/ksw_wrapper.hpp>
 
 using std::vector;
 using std::pair;
+using std::array;
+using std::sort;
 using logging::Logger;
 
 
@@ -90,7 +92,7 @@ struct ContigInfo {
 //array size. possibly switch to []
     static const size_t VOTES_STORED = 21;
     //To avoid multiple resizes real length stored in first element of each vector
-    vector<vector<uint8_t>> amounts;
+    vector<array<uint8_t, VOTES_STORED + 1>> amounts;
     vector<uint16_t> sum;
     size_t zero_covered = 0;
 //neighbourhoud for complex regions;
@@ -138,7 +140,7 @@ struct ContigInfo {
         for (size_t i = 0; i < len; i ++){
             sum[i] = 0;
             quantity[i] = 0;
-            amounts[i].resize(VOTES_STORED + 1);
+//            amounts[i].resize(VOTES_STORED + 1);
             amounts[i][0] = 0;
         }
         FillComplex();
