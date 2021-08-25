@@ -187,7 +187,7 @@ namespace logging {
     };
 
     inline std::string logGit(Logger &logger, const std::experimental::filesystem::path &out) {
-        system(("bash -c \"git rev-parse HEAD;git diff\" 2> /dev/null > " + out.string()).c_str());
+        int code = system(("bash -c \"git rev-parse HEAD;git diff\" 2> /dev/null > " + out.string()).c_str());
         std::ifstream is;
         is.open(out);
         std::string res;

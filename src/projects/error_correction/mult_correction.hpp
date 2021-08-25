@@ -65,24 +65,9 @@ struct UEdge {
 //    std::unordered_map<Edge *, UEdge> choice;
 //}
 
-std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger, SparseDBG &dbg,
-                                                                        const RecordStorage &reads_storage, const AbstractUniquenessStorage &classificator) {
-    std::unordered_map<const Edge *, CompactPath> unique_extensions;
-    std::vector<Edge*> uniqueEdges;
-    for(Edge &edge : dbg.edges()) {
-        if (classificator.isUnique(edge))
-            uniqueEdges.push_back(&edge);
-    }
-    struct {
-        bool operator()(Edge* a, Edge* b) const {
-            if(a == b)
-                return false;
-            if(a->size() != b->size())
-                return a->size() > b->size();
-            return *a < *b;
-        }
-    } customLess;
-    std::sort(uniqueEdges.begin(), uniqueEdges.end(), customLess);
+inline void findEasyExtensions(const std::vector<Edge *> &uniqueEdges, const RecordStorage &reads_storage,
+                        const AbstractUniquenessStorage &classificator,
+                        std::unordered_map<const Edge *, CompactPath> &unique_extensions) {
     VERIFY(uniqueEdges.empty() || uniqueEdges.front()->size() >= uniqueEdges.back()->size());
     for(Edge *edgeIt : uniqueEdges) {
         Edge &edge = *edgeIt;
@@ -92,6 +77,8 @@ std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging:
         const VertexRecord &rec = reads_storage.getRecord(start);
         Sequence seq = edge.seq.Subseq(0, 1);
         CompactPath path = rec.getFullUniqueExtension(seq, 1, 0);
+        if(path.size() == 1)
+            continue;
         GraphAlignment al = path.getAlignment();
         for(size_t i = 1; i < al.size(); i++) {
             Segment<Edge> &seg = al[i];
@@ -115,46 +102,120 @@ std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging:
         CompactPath res1(al.RC().subalignment(1, al.size()));
         unique_extensions.emplace(&al.back().contig().rc(), res1);
     }
+}
+
+Path greedyExtension(const VertexRecord &rec, const AbstractUniquenessStorage &classificator, Edge &edge) {
+    Path path(*edge.start());
+    path += edge;
+    Sequence seq = CompactPath(path).cpath();
+    while(true) {
+        Sequence best;
+        size_t best_val = 0;
+        Edge *next_edge = nullptr;
+        for(Edge &next_candidate : path.finish()) {
+            if(classificator.isError(next_candidate))
+                continue;
+            Sequence next = seq + next_candidate.seq.Subseq(0, 1);
+            size_t val = rec.countStartsWith(next);
+            if(val > best_val) {
+                best_val = val;
+                best = next;
+                next_edge = &next_candidate;
+            }
+        }
+        if(best_val == 0)
+            break;
+        seq = best;
+        path += *next_edge;
+    }
+    return path;
+}
+
+inline CompactPath findBulgeExtension(const VertexRecord &rec, const Edge &edge, const CompactPath & greedy) {
+    if(edge.end()->outDeg() != 2)
+        return greedy;
+    Edge &edge1 = edge.end()->operator[](0);
+    Edge &edge2 = edge.end()->operator[](1);
+    CompactPath cp1 = rec.getFullUniqueExtension(edge.firstNucl() + edge1.firstNucl(), 1, 0);
+    CompactPath cp2 = rec.getFullUniqueExtension(edge.firstNucl() + edge2.firstNucl(), 1, 0);
+    if(greedy.cpath().startsWith(cp2.cpath())) {
+        std::swap(cp1, cp2);
+    } else {
+        if(!greedy.cpath().startsWith(cp1.cpath()))
+            return greedy;
+    }
+    Path p1 = cp1.getPath();
+    Path p2 = cp2.getPath();
+    size_t b1 = 0;
+    size_t b2 = 0;
+    Sequence choice;
+    if(p2.find(p1.getVertex(2), 2) != size_t (-1)) {
+        b1 = 2;
+        b2 = p2.find(p1.getVertex(2), 2);
+        choice = cp2.cpath().Subseq(0, b2);
+        if(p1.find(p2.getVertex(2), 2) != size_t(-1)) {
+            return greedy;
+        }
+    } else if(p1.find(p2.getVertex(2), 2) != size_t(-1)) {
+        b1 = p1.find(p2.getVertex(2), 2);
+        b2 = 2;
+        choice = cp1.cpath().Subseq(0, b1);
+    }
+    if(!cp1.cpath().Subseq(b1).nonContradicts(cp2.cpath().Subseq(b2)))
+        return greedy;
+    return CompactPath(*edge.start(), choice + greedy.cpath().Subseq(b1));
+}
+
+inline void findComplexExtensions(const std::vector<Edge *> &uniqueEdges, const RecordStorage &reads_storage,
+                                  const AbstractUniquenessStorage &classificator,
+                                  std::unordered_map<const Edge *, CompactPath> &unique_extensions) {
     for(Edge *edgeIt : uniqueEdges) {
         Edge &edge = *edgeIt;
         if(unique_extensions.find(&edge) != unique_extensions.end())
             continue;
         const VertexRecord &rec = reads_storage.getRecord(*edge.start());
-        Sequence seq = edge.seq.Subseq(0, 1);
-        dbg::Path path(*edge.start());
-        path += edge;
-        while(true) {
-            Sequence best;
-            size_t best_val = 0;
-            Edge *next_edge = nullptr;
-            for(Edge &next_candidate : path.finish()) {
-                if(classificator.isError(next_candidate))
-                    continue;
-                Sequence next = seq + next_candidate.seq.Subseq(0, 1);
-                size_t val = rec.countStartsWith(next);
-                if(val > best_val) {
-                    best_val = val;
-                    best = next;
-                    next_edge = &next_candidate;
-                }
+        Path path = greedyExtension(rec, classificator, edge);
+        VERIFY(edge == path[0]);
+        path = findBulgeExtension(rec, edge, CompactPath(path)).getPath();
+        VERIFY(edge == path[0]);
+        for(size_t i = 1; i < path.size(); i++) {
+            if(classificator.isUnique(path[i])) {
+                path = path.subPath(0, i + 1);
+                break;
             }
-            if(best_val == 0)
-                break;
-            seq = best;
-            path += *next_edge;
-            if(classificator.isUnique(*next_edge))
-                break;
         }
-        CompactPath res(*edge.end(), seq.Subseq(1), 0, 0);
-        unique_extensions.emplace(&edge, CompactPath(*edge.end(), seq.Subseq(1), 0, 0));
-//        logger << "Unique extension for edge " << edge.str() << " " << seq.Subseq(1) << std::endl;
-        if(classificator.isUnique(path.back())) {
-            Edge &last_rc_edge = path.back().rc();
-            CompactPath res1(path.RC().subPath(1, path.size()));
-            unique_extensions.emplace(&last_rc_edge, res1);
-//            logger << "Unique extension for edge " << last_rc_edge.str() << " " << res1.cpath() << std::endl;
+        if(path.size() == 1) {
+            continue;
+        }
+        VERIFY(edge == path[0]);
+        unique_extensions.emplace(&edge, CompactPath(path.subPath(1, path.size())));
+        Edge &last_rc_edge = path.back().rc();
+        if(classificator.isUnique(last_rc_edge) && unique_extensions.find(&last_rc_edge) == unique_extensions.end()) {
+            unique_extensions.emplace(&last_rc_edge, CompactPath(path.RC().subPath(1, path.size())));
         }
     }
+}
+
+inline std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger, SparseDBG &dbg,
+                                                                        const RecordStorage &reads_storage, const AbstractUniquenessStorage &classificator) {
+    std::unordered_map<const Edge *, CompactPath> unique_extensions;
+    std::vector<Edge*> uniqueEdges;
+    for(Edge &edge : dbg.edges()) {
+        if (classificator.isUnique(edge))
+            uniqueEdges.push_back(&edge);
+    }
+    struct {
+        bool operator()(Edge* a, Edge* b) const {
+            if(a == b)
+                return false;
+            if(a->size() != b->size())
+                return a->size() > b->size();
+            return *a < *b;
+        }
+    } customLess;
+    std::sort(uniqueEdges.begin(), uniqueEdges.end(), customLess);
+    findEasyExtensions(uniqueEdges, reads_storage, classificator, unique_extensions);
+    findComplexExtensions(uniqueEdges, reads_storage, classificator, unique_extensions);
     return std::move(unique_extensions);
 }
 
@@ -255,14 +316,16 @@ void CorrectBasedOnUnique(logging::Logger &logger, size_t threads, SparseDBG &sd
     logger.info() << "Collecting bad edges" << std::endl;
     std::unordered_set<Edge const *> bad_edges;
     size_t k = sdbg.hasher().getK();
-    for(Edge & edge : sdbg.edges()) {
+    for(Edge & edge : sdbg.edgesUnique()) {
         if(edge.size() > k + 5000)
             continue;
         if(reads_storage.getRecord(*edge.start()).isDisconnected(edge) ||
                 reads_storage.getRecord(*edge.rc().start()).isDisconnected(edge.rc())) {
             bad_edges.emplace(&edge);
+            bad_edges.emplace(&edge.rc());
         }
     }
+    logger.info() << "Removed " << bad_edges.size() / 2 << "Disconnected edges"<< std::endl;
     std::ofstream brs;
     std::function<bool(const Edge&)> is_bad = [&bad_edges](const Edge &edge) {
         return edge.getCoverage() < 2 || bad_edges.find(&edge) != bad_edges.end();

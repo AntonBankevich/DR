@@ -42,6 +42,22 @@ dbg::Vertex &dbg::Path::getVertex(size_t i) const {
         return *path[i - 1]->end();
 }
 
+size_t dbg::Path::find(dbg::Edge &edge, size_t pos) const {
+    while(pos < size() && edge != *path[pos])
+        pos++;
+    if(pos == size())
+        return -1;
+    return pos;
+}
+
+size_t dbg::Path::find(dbg::Vertex &v, size_t pos) const {
+    while(pos <= size() && v != getVertex(pos))
+        pos++;
+    if(pos > size())
+        return -1;
+    return pos;
+}
+
 double dbg::Path::minCoverage() const {
     double res = 100000;
     for (const Edge *edge : path) {

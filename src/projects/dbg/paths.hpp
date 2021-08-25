@@ -20,6 +20,8 @@ namespace dbg {
         Vertex &getVertex(size_t i) const;
         Vertex &start() const {return *start_;}
         Vertex &finish() const {return path.empty() ? start() : *path.back()->end();}
+        size_t find(Edge &edge, size_t pos = 0) const;
+        size_t find(Vertex &v, size_t pos = 0) const;
         Edge &back() {return *path.back();}
         Edge &front() {return *path.front();}
         size_t size() const {return path.size();}

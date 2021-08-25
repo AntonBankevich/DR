@@ -82,7 +82,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
                        threshold, 2 * threshold, reliable_coverage, threads, dump);
         PrintPaths(logger, dir/ "paths", "low", dbg, readStorage, paths_lib, true);
         if(close_gaps) {
-            GapColserPipeline(logger, dbg, readStorage, refStorage, threads);
+            GapColserPipeline(logger, threads, dbg, {&readStorage, &refStorage});
             PrintPaths(logger, dir/ "paths", "gap", dbg, readStorage, paths_lib, true);
         }
         if(remove_bad) {
@@ -184,21 +184,21 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         initialCorrect(dbg, logger, dir / "correction.txt", readStorage, refStorage,
                        threshold, 2 * threshold, reliable_coverage, threads, dump);
         PrintPaths(logger, dir/ "state_dump", "low", dbg, readStorage, paths_lib, false);
-        GapColserPipeline(logger, dbg, readStorage, refStorage, threads);
+        GapColserPipeline(logger, threads, dbg, {&readStorage, &refStorage});
         PrintPaths(logger, dir/ "state_dump", "gap1", dbg, readStorage, paths_lib, false);
         readStorage.invalidateBad(logger, threads, threshold, "after_gap1");
         PrintPaths(logger, dir/ "state_dump", "bad", dbg, readStorage, paths_lib, false);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
         PrintPaths(logger, dir/ "state_dump", "uncovered1", dbg, readStorage, paths_lib, false);
-        MultCorrect(dbg, logger, dir, readStorage, unique_threshold, threads, diploid, dump);
+        RecordStorage extra_reads = MultCorrect(dbg, logger, dir, readStorage, unique_threshold, threads, diploid, dump);
         MRescue(logger, threads, dbg, readStorage, unique_threshold, 0.05);
         PrintPaths(logger, dir/ "state_dump", "mult", dbg, readStorage, paths_lib, false);
-        RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
+        RemoveUncovered(logger, threads, dbg, {&readStorage, &extra_reads, &refStorage});
         PrintPaths(logger, dir/ "state_dump", "uncovered2", dbg, readStorage, paths_lib, false);
-        GapColserPipeline(logger, dbg, readStorage, refStorage, threads);
+        GapColserPipeline(logger, threads, dbg, {&readStorage, &extra_reads, &refStorage});
         PrintPaths(logger, dir/ "state_dump", "gap2", dbg, readStorage, paths_lib, false);
         DrawSplit(Component(dbg), dir / "split_figs", readStorage.labeler());
-        RepeatResolver rr(dbg, {&readStorage}, dir / "split");
+        RepeatResolver rr(dbg, {&readStorage, &extra_reads}, dir / "split");
         std::function<bool(const dbg::Edge &)> is_unique = [unique_threshold](const Edge &edge) {
             return edge.size() > unique_threshold;
         };

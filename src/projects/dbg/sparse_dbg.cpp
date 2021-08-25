@@ -164,6 +164,10 @@ std::string Edge::getShortId() const {
     return start_->getShortId() + "ACGT"[seq[0]];
 }
 
+Sequence Edge::firstNucl() const {
+    return seq.Subseq(0, 1);
+}
+
 //std::ostream &operator<<(std::ostream &os, const Edge &edge) {
 //    os << edge.getShortId();
 //    return os;

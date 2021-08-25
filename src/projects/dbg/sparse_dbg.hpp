@@ -50,6 +50,7 @@ namespace dbg {
         Edge &rc() const;
         Edge &sparseRcEdge() const;
         void incCov(size_t val) const;
+        Sequence firstNucl() const;
         Sequence kmerSeq(size_t pos) const;
         Sequence suffix(size_t pos) const;
         std::string str() const;

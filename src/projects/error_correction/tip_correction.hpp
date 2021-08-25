@@ -13,7 +13,7 @@ inline void MakeUnreliable(Edge &e) {
 }
 
 inline void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, double reliable_threshold) {
-    logger << "Remarking reliable edges" << std::endl;
+    logger.info() << "Remarking reliable edges" << std::endl;
     for(auto &vit : sdbg) {
         for(Vertex * vp : {&vit.second, &vit.second.rc()}) {
             Vertex &v = *vp;
@@ -112,29 +112,32 @@ inline GraphAlignment CorrectSuffix(const GraphAlignment &al) {
     return res;
 }
 
-inline void CorrectTips(logging::Logger &logger, SparseDBG &dbg, RecordStorage &reads, size_t threads) {
+inline void CorrectTips(logging::Logger &logger, size_t threads, SparseDBG &dbg,
+                        const std::vector<RecordStorage *> &storages) {
     logger.info() << "Correcting tips using reliable edge marks" << std::endl;
     omp_set_num_threads(threads);
     ParallelCounter cnt(threads);
-#pragma omp parallel for default(none) schedule(dynamic, 100) shared(reads, cnt)
-    for(size_t i = 0; i < reads.size(); i++) {
-        AlignedRead &read = reads[i];
-        if(!read.valid())
-            continue;
-        GraphAlignment al = read.path.getAlignment();
-        GraphAlignment al1 = CorrectSuffix(al);
-        GraphAlignment al2 = CorrectSuffix(al1.RC()).RC();
-        if(al != al2) {
-            cnt += 1;
-            reads.reroute(read, al, al2, "Tip corrected");
+    for(RecordStorage *storageIt : storages) {
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(storageIt, cnt)
+        for (size_t i = 0; i < storageIt->size(); i++) {
+            AlignedRead &read = storageIt->operator[](i);
+            if (!read.valid())
+                continue;
+            GraphAlignment al = read.path.getAlignment();
+            GraphAlignment al1 = CorrectSuffix(al);
+            GraphAlignment al2 = CorrectSuffix(al1.RC()).RC();
+            if (al != al2) {
+                cnt += 1;
+                storageIt->reroute(read, al, al2, "Tip corrected");
+            }
         }
+        storageIt->applyCorrections(logger, threads);
     }
-    reads.applyCorrections(logger, threads);
     logger.info() << "Corrected tips for " << cnt.get() << " reads" << std::endl;
 }
 
 inline void TipCorrectionPipeline(logging::Logger &logger, SparseDBG &dbg, RecordStorage &reads,
                            size_t threads,double reliable_threshold) {
     FillReliableTips(logger, dbg, reliable_threshold);
-    CorrectTips(logger, dbg, reads, threads);
+    CorrectTips(logger, threads, dbg, {&reads});
 }
