@@ -6,14 +6,45 @@ namespace dbg {
     inline void printFasta(std::ostream &out, const Component &component) {
         size_t cnt = 0;
         for (Edge &edge : component.edges()) {
-            Sequence tmp = edge.start()->seq + edge.seq;
+            Sequence edge_seq = edge.start()->seq + edge.seq;
             Vertex &end = *edge.end();
             out << ">" << cnt << "_" << edge.start()->hash() << int(edge.start()->isCanonical()) <<
-                "_" << end.hash() << int(end.isCanonical()) << "_" << edge.size() << "_" << edge.getCoverage()
-                << "\n";
+                "_" << end.hash() << int(end.isCanonical()) << "_" << edge.size()
+                << "_" << edge.getCoverage() << "\n";
+            out << edge_seq << "\n";
             cnt++;
-            out << tmp.str() << "\n";
         }
+    }
+
+    inline Sequence cheatingCutStart(Sequence seq, unsigned char c, size_t min_size, size_t k) {
+        size_t pos = seq.size() - min_size;
+        while(pos > 0 && seq[pos + k] != c)
+            pos--;
+        return seq.Subseq(pos, seq.size());
+    }
+
+    inline void cheatingFasta(const std::experimental::filesystem::path &outf, const Component &component, size_t cut) {
+        std::ofstream out;
+        out.open(outf);
+        size_t cnt = 0;
+        size_t k = component.graph().hasher().getK();
+        for (Edge &edge : component.edges()) {
+            Sequence edge_seq = edge.start()->seq + edge.seq;
+            if(edge.size() > cut) {
+                if(!component.contains(*edge.start())) {
+                    edge_seq = cheatingCutStart(edge_seq, edge.seq[0], cut, k);
+                } else if(!component.contains(*edge.end())) {
+                    edge_seq = !cheatingCutStart(!edge_seq, edge.rc().seq[0], cut, k);
+                }
+            }
+            Vertex &end = *edge.end();
+            out << ">" << cnt << "_" << edge.start()->hash() << int(edge.start()->isCanonical()) <<
+                "_" << end.hash() << int(end.isCanonical()) << "_" << edge_seq.size() - edge.start()->seq.size()
+                << "_" << edge.getCoverage() << "\n";
+            out << edge_seq << "\n";
+            cnt++;
+        }
+        out.close();
     }
 
     inline void printFasta(const std::experimental::filesystem::path &outf, const Component &component) {

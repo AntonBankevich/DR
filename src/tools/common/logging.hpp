@@ -8,6 +8,7 @@
 #include "sys/types.h"
 #include "sys/sysinfo.h"
 #include <sys/resource.h>
+#include <omp.h>
 #include <experimental/filesystem>
 #include <ctime>
 #include <string>
@@ -183,6 +184,43 @@ namespace logging {
 
         ~Logger() override {
             delete empty_logger;
+        }
+    };
+
+    class ProgressBar {
+    private:
+        Logger &logger;
+        size_t cur;
+        size_t size;
+        size_t bar_num;
+        size_t mod;
+        std::vector<size_t> progress;
+        size_t cnt;
+    public:
+        ProgressBar(Logger &logger, size_t size, size_t threads, size_t bar_num = 20) : logger(logger), cur(1),
+                            size(size), bar_num(std::min(bar_num, size)),
+                            mod(std::max<size_t>(1, size / bar_num / threads / 5)), progress(threads), cnt(0) {
+
+        }
+
+        void tick() {
+            size_t thread = omp_get_thread_num();
+            progress[thread]++;
+#pragma omp atomic
+            cnt++;
+            if(progress[thread] % mod == 0) {
+#pragma omp critical
+                {
+                    size_t tmp = cnt;
+                    if(cnt * bar_num >= size * cur) {
+                        logger << "|";
+                    }
+                }
+            }
+        }
+
+        void finish() {
+            logger << std::endl;
         }
     };
 

@@ -31,7 +31,8 @@ std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::
 }
 
 void RepeatResolver::prepareDataset(const RepeatResolver::Subdataset &subdataset) {
-    printFasta(subdataset.dir / "graph.fasta", subdataset.component);
+//    printFasta(subdataset.dir / "graph.fasta", subdataset.component);
+    cheatingFasta(subdataset.dir / "graph.fasta", subdataset.component, 100000);
     std::ofstream log;
     log.open(subdataset.dir / "dbg.log");
     log << "-k " << dbg.hasher().getK() << std::endl;
@@ -141,6 +142,10 @@ std::vector<Contig> RepeatResolver::CollectResults(logging::Logger &logger, size
 #pragma omp parallel for default(none) schedule(dynamic, 10) shared(contigs, is_unique, paths)
     for(size_t i = 0; i < contigs.size(); i++) {
         GraphAlignment al = GraphAligner(dbg).align(contigs[i].seq);
+        for(Segment<Edge> &seg : al) {
+            if(seg.size() > 90000)
+                seg = Segment<Edge>(seg.contig(), 0, seg.contig().size());
+        }
         if(al.size() == 1 && is_unique(al[0].contig()))
             continue;
         paths.emplace_back(contigs[i].id, al);

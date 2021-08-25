@@ -19,6 +19,7 @@ inline void MRescue(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
                     RecordStorage &reads_storage, size_t unique_length, double error_fraction = 0.05) {
     logger.info() << "Attempting to rescue small circular highly covered components" << std::endl;
     std::unordered_set<Edge const *> bad_edges;
+    size_t cnt = 0;
     for(const Component &component : CCSplitter().splitGraph(dbg)) {
         if(component.size() > 100)
             continue;
@@ -45,7 +46,8 @@ inline void MRescue(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
                             sz += edge.size();
                         }
                     }
-                    logger << "Rescued component of size " << (sz / 2) << std::endl;
+                    logger.trace() << "Rescued component of size " << (sz / 2) << std::endl;
+                    cnt++;
                     break;
                 }
             }
@@ -55,4 +57,5 @@ inline void MRescue(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
         return bad_edges.find(&edge) != bad_edges.end();
     };
     reads_storage.invalidateBad(logger, threads, is_bad, "after_mitres");
+    logger.info() << "Rescued " << cnt << " circular highly covered components" << std::endl;
 }

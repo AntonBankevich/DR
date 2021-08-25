@@ -3,7 +3,7 @@
 # Released under the BSD license (see LICENSE file)
 
 import networkx as nx
-from path_graph_multik import PathMultiKGraph
+from sequence_graph.path_graph_multik import PathMultiKGraph
 
 
 class DB1:
