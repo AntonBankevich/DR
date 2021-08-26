@@ -170,6 +170,7 @@ struct ContigInfo {
                 spoa::AlignmentType::kNW, 10, -8, -8, -1);  // linear gaps
         spoa::Graph graph{};
         if (s.size() == 0) {
+            logger.info() << "Zero strings for consensus, that's bad" << endl;
             return "";
         }
         size_t cov = 0;
@@ -254,7 +255,7 @@ struct ContigInfo {
 #pragma omp parallel for default(none) shared(logger)
         for (size_t i = 0; i < complex_regions.size(); i++) {
             size_t start_pos = complex_regions[i].first;
-            VERIFY_OMP(!complex_strings[start_pos].empty(), this->name + " " + itos(start_pos));
+//            VERIFY_OMP(!complex_strings[start_pos].empty(), this->name + " " + itos(start_pos));
             auto consensus = MSAConsensus(complex_strings[start_pos], logger);
             complex_strings[start_pos].push_back(consensus);
         }
