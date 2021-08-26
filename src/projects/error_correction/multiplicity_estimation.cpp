@@ -154,6 +154,7 @@ void UniqueClassificator::markPseudoHets() const {
 void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
                                    const std::experimental::filesystem::path &dir) {
     logger.info() << "Looking for unique edges" << std::endl;
+    recreate_dir(dir);
     size_t cnt = 0;
     for(Edge &edge : dbg.edges()) {
         edge.is_reliable = true;
@@ -220,9 +221,9 @@ std::vector<dbg::Edge *> UniqueClassificator::ProcessUsingCoverage(logging::Logg
     logger.trace() << "Attempting to use coverage for multiplicity estimation with coverage threshold " << threshold << std::endl;
     logger.trace() << "Component: ";
     for(Vertex &vertex : subcomponent.verticesUnique()) {
-        logger.trace() << " " << vertex.getShortId();
+        logger << " " << vertex.getShortId();
     }
-    logger.trace() << std::endl;
+    logger << std::endl;
     MappedNetwork net2(subcomponent, is_unique, rel_coverage, threshold);
     bool res = net2.fillNetwork();
     std::vector<Edge *> unique = {};
