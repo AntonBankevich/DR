@@ -217,13 +217,14 @@ std::vector<dbg::Edge *> UniqueClassificator::ProcessUsingCoverage(logging::Logg
     double max_cov = tmp.second;
     double threshold = std::max(min_cov * 1.4, max_cov * 1.2);
     double double_threshold = 2.4 * min_cov;
-    double adjusted_rel_coverage = std::min(min_cov * 0.9, max_cov * 0.7);
+    double adjusted_rel_coverage = std::min(min_cov * 0.9, max_cov * 0.8);
     logger.trace() << "Attempting to use coverage for multiplicity estimation with coverage threshold " << threshold << std::endl;
     logger.trace() << "Component: ";
     for(Vertex &vertex : subcomponent.verticesUnique()) {
         logger << " " << vertex.getShortId();
     }
     logger << std::endl;
+    rel_coverage = 0;
     MappedNetwork net2(subcomponent, is_unique, rel_coverage, threshold);
     bool res = net2.fillNetwork();
     std::vector<Edge *> unique = {};

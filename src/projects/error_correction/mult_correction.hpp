@@ -323,7 +323,7 @@ void CorrectBasedOnUnique(logging::Logger &logger, size_t threads, SparseDBG &sd
             bad_edges.emplace(&edge.rc());
         }
     }
-    logger.info() << "Removed " << bad_edges.size() / 2 << "Disconnected edges"<< std::endl;
+    logger.info() << "Removed " << bad_edges.size() / 2 << " disconnected edges"<< std::endl;
     std::ofstream brs;
     std::function<bool(const Edge&)> is_bad = [&bad_edges](const Edge &edge) {
         return edge.getCoverage() < 2 || bad_edges.find(&edge) != bad_edges.end();
@@ -381,7 +381,7 @@ void DrawMult(const std::experimental::filesystem::path &dir, dbg::SparseDBG &db
 RecordStorage MultCorrect(dbg::SparseDBG &dbg, logging::Logger &logger,
                  const std::experimental::filesystem::path &dir,
                  RecordStorage &reads_storage, size_t unique_threshold,
-                 size_t threads, bool diploid, bool dump) {
+                 size_t threads, bool diploid) {
     const std::experimental::filesystem::path multiplicity_figures = dir / "mult_figs";
     const std::experimental::filesystem::path extra_read_log = dir / "extra_reads.txt";
     const std::experimental::filesystem::path dump_dir = dir / "mult";

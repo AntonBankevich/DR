@@ -3,6 +3,8 @@
 #include <utility>
 #include "stdio.h"
 
+std::string RepeatResolver::COMMAND = "python3 py/resolution/sequence_graph/path_graph_multik.py -i {} -o {} > {}";
+
 std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::function<bool(const Edge &)> &is_unique) {
     size_t k = dbg.hasher().getK();
     std::vector<Component> comps = ConditionSplitter(is_unique).splitGraph(dbg);
@@ -14,7 +16,6 @@ std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::
         for(Vertex &vert : result.back().component.vertices()) {
             cmap[&vert] = result.back().id;
         }
-        ensure_dir_existance(result.back().dir);
     }
     for(RecordStorage *recordStorage : storages)
         for(size_t rnum = 0; rnum < recordStorage->size(); rnum++) {
@@ -31,6 +32,7 @@ std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::
 }
 
 void RepeatResolver::prepareDataset(const RepeatResolver::Subdataset &subdataset) {
+    recreate_dir(subdataset.dir);
 //    printFasta(subdataset.dir / "graph.fasta", subdataset.component);
     cheatingFasta(subdataset.dir / "graph.fasta", subdataset.component, 100000);
     std::ofstream log;
@@ -57,76 +59,79 @@ void RepeatResolver::prepareDataset(const RepeatResolver::Subdataset &subdataset
     als.close();
 }
 
-std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size_t threads,
-                              const std::function<bool(const Edge &)> &is_unique) {
-    logger.info() << "Splitting dataset" << std::endl;
-    std::vector<Subdataset> subdatasets = SplitDataset(is_unique);
-    logger.info() << "Dataset splitted into " << subdatasets.size() << " parts. Starting resolution." << std::endl;
-    logger.info() << "Running repeat resolution" << std::endl;
-    std::string COMMAND = "python3 py/resolution/sequence_graph/path_graph_multik.py -i {} -o {} > {}";
-    std::sort(subdatasets.begin(), subdatasets.end());
-    omp_set_num_threads(threads);
-#pragma omp parallel for schedule(dynamic, 1) default(none) shared(subdatasets, COMMAND, logger)
-    for(size_t snum = 0; snum < subdatasets.size(); snum++) {
-#pragma omp critical
-        logger.info() << "Starting to process dataset " << subdatasets[snum].id << "(" << snum << ")" << std::endl;
-        Subdataset &subdataset = subdatasets[snum];
-        std::experimental::filesystem::path outdir = subdataset.dir / "mltik";
-        ensure_dir_existance(outdir);
-        prepareDataset(subdataset);
-        if(subdataset.reads.empty()) {
-            std::ofstream os;
-            os.open(outdir / "edges.fasta");
-            size_t cnt = 1;
-            for(Edge &edge : subdataset.component.edgesInner()) {
-                os << ">" << cnt << "\n" << (edge.start()->seq + edge.seq) << "\n";
-                cnt++;
+std::vector<Contig> RepeatResolver::ProcessSubdataset(logging::Logger &logger, const Subdataset &subdataset) {
+    std::vector<Contig> res;
+    if(subdataset.reads.empty()) {
+        size_t cnt = 0;
+        for(Edge &edge : subdataset.component.edgesInner()) {
+            Sequence seq = edge.start()->seq + edge.seq;
+            if(seq <= !seq) {
+                res.emplace_back(seq, itos(subdataset.id) + "." + itos(cnt));
             }
-            os.close();
-            continue;
+            cnt++;
         }
-        std::string command = COMMAND;
-        command.replace(command.find("{}"), 2, subdataset.dir.string());
-        command.replace(command.find("{}"), 2, outdir.string());
-        command.replace(command.find("{}"), 2, "/dev/null");
-        int code = system(command.c_str());
-        if(code != 0) {
-            logger.info() << "Repeat resolution of component " << subdataset.id << " returned code " << code << std::endl;
-            exit(1);
-        }
-#pragma omp critical
-        logger.info() << "Finished processing dataset " << subdatasets[snum].id << "(" << snum << ")" << std::endl;
+        return std::move(res);
     }
-    logger.info() << "Collecting repeat resolution results" << std::endl;
-    ParallelRecordCollector<Contig> res(threads);
-#pragma omp parallel for default(none) schedule(dynamic, 1) shared(subdatasets, res)
-    for(size_t snum = 0; snum < subdatasets.size(); snum++) {
-        Subdataset &subdataset = subdatasets[snum];
-        std::experimental::filesystem::path outdir = subdataset.dir / "mltik";
-        std::experimental::filesystem::path out_fasta;
-        bool found = false;
-        for (const std::experimental::filesystem::path &f : std::experimental::filesystem::directory_iterator(outdir)) {
-            if (endsWith(f.string(), ".fasta")) {
-                out_fasta = f;
-                found = true;
-            }
+    prepareDataset(subdataset);
+    std::experimental::filesystem::path outdir = subdataset.dir / "mltik";
+    recreate_dir(outdir);
+    std::string command = COMMAND;
+    command.replace(command.find("{}"), 2, subdataset.dir.string());
+    command.replace(command.find("{}"), 2, outdir.string());
+    command.replace(command.find("{}"), 2, "/dev/null");
+    int code = system(command.c_str());
+    if(code != 0) {
+        logger.info() << "Repeat resolution of component " << subdataset.id << " returned code " << code << std::endl;
+        exit(1);
+    }
+    bool found = false;
+    std::experimental::filesystem::path out_fasta;
+    for (const std::experimental::filesystem::path &f : std::experimental::filesystem::directory_iterator(outdir)) {
+        if (endsWith(f.string(), ".fasta")) {
+            out_fasta = f;
+            found = true;
         }
-        io::Library contig_lib = {out_fasta};
-        if (!found)
-            continue;
-        std::vector<Contig> contigs;
-        for (StringContig stringContig : io::SeqReader(contig_lib)) {
-            Contig contig = stringContig.makeContig();
-            if (contig.seq <= !contig.seq) {
-                contigs.emplace_back(contig.seq, itos(subdataset.id, 1) + "." + contig.id);
-            }
+    }
+    io::Library contig_lib = {out_fasta};
+    if (!found)
+        return {};
+    std::vector<Contig> contigs;
+    for (StringContig stringContig : io::SeqReader(contig_lib)) {
+        Contig contig = stringContig.makeContig();
+        if (contig.seq <= !contig.seq) {
+            contigs.emplace_back(contig.seq, itos(subdataset.id) + "." + contig.id);
         }
+    }
+    if(debug) {
         GraphAlignmentStorage storage(dbg);
         for(Contig &contig : contigs) {
             storage.fill(contig);
             res.emplace_back(contig);
         }
         printDot(subdataset.dir / "graph_with_contigs.dot", subdataset.component, storage.labeler());
+    } else
+        std::experimental::filesystem::remove_all(subdataset.dir);
+    return std::move(res);
+}
+
+std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size_t threads,
+                              const std::function<bool(const Edge &)> &is_unique) {
+    logger.info() << "Splitting dataset" << std::endl;
+    std::vector<Subdataset> subdatasets = SplitDataset(is_unique);
+    logger.info() << "Dataset splitted into " << subdatasets.size() << " parts. Starting resolution." << std::endl;
+    logger.info() << "Running repeat resolution" << std::endl;
+    std::sort(subdatasets.begin(), subdatasets.end());
+    omp_set_num_threads(threads);
+    ParallelRecordCollector<Contig> res(threads);
+#pragma omp parallel for schedule(dynamic, 1) default(none) shared(subdatasets, logger, res)
+    for(size_t snum = 0; snum < subdatasets.size(); snum++) {
+#pragma omp critical
+        logger.info() << "Starting to process dataset " << subdatasets[snum].id << "(" << snum << ")" << std::endl;
+        Subdataset &subdataset = subdatasets[snum];
+        std::vector<Contig> resolution_result = ProcessSubdataset(logger, subdataset);
+        res.addAll(resolution_result.begin(), resolution_result.end());
+#pragma omp critical
+        logger.info() << "Finished processing dataset " << subdatasets[snum].id << "(" << snum << ")" << std::endl;
     }
     logger.info() << "Finished repeat resolution" << std::endl;
     return res.collect();
@@ -378,4 +383,10 @@ void PrintAlignments(logging::Logger &logger, size_t threads, std::vector<Contig
     }
     os.close();
     os_bad.close();
+}
+
+bool RepeatResolver::Subdataset::operator<(const RepeatResolver::Subdataset &other) const {
+    if(component.size() != other.component.size())
+        return component.size() > other.component.size();
+    return this < &other;
 }

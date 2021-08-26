@@ -10,10 +10,11 @@
 
 class RepeatResolver {
 private:
+    static std::string COMMAND;
     SparseDBG &dbg;
     std::vector<RecordStorage *> storages;
     std::experimental::filesystem::path dir;
-
+    bool debug;
 public:
     struct Subdataset {
         Subdataset(size_t id, Component component, std::experimental::filesystem::path dir) :
@@ -22,18 +23,16 @@ public:
         Component component;
         std::vector<AlignedRead *> reads;
         std::experimental::filesystem::path dir;
-        bool operator<(const Subdataset &other) const {
-            if(component.size() != other.component.size())
-                return component.size() > other.component.size();
-            return this < &other;
-        }
+        bool operator<(const Subdataset &other) const;
     };
-    RepeatResolver(SparseDBG &dbg, const std::vector<RecordStorage *> &storages, std::experimental::filesystem::path dir) :
-                dbg(dbg), storages(storages), dir(std::move(dir)) {
+
+    RepeatResolver(SparseDBG &dbg, std::vector<RecordStorage *> storages, const std::experimental::filesystem::path &dir,
+                   bool debug) : dbg(dbg), storages(std::move(storages)), dir(dir), debug(debug) {
     }
 
     std::vector<Subdataset> SplitDataset(const std::function<bool(const Edge &)> &is_unique);
     void prepareDataset(const Subdataset &subdataset);
+    std::vector<Contig> ProcessSubdataset(logging::Logger &logger, const Subdataset &subdataset);
     std::vector<Contig> ResolveRepeats(logging::Logger &logger, size_t threads,
                                        const std::function<bool(const Edge &)> &is_unique = [](const Edge &){return false;});
     std::vector<Contig> CollectResults(logging::Logger &logger, size_t threads, const std::vector<Contig> &contigs,
