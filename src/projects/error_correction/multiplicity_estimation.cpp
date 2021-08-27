@@ -292,7 +292,7 @@ Edge &UniqueClassificator::getStart(const Component &component) const {
 }
 
 void UniqueClassificator::processSimpleComponent(logging::Logger &logger, const Component &component) const {
-    logger << "Collapsing acyclic component" << std::endl;
+    logger.trace() << "Collapsing acyclic component" << std::endl;
     typedef std::pair<size_t, Edge *> StoredValue;
     std::priority_queue<StoredValue> queue;
     queue.emplace(0, &getStart(component));

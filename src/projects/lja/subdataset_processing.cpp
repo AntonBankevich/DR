@@ -106,11 +106,13 @@ std::vector<Contig> RepeatResolver::ProcessSubdataset(logging::Logger &logger, c
         GraphAlignmentStorage storage(dbg);
         for(Contig &contig : contigs) {
             storage.fill(contig);
-            res.emplace_back(contig);
         }
         printDot(subdataset.dir / "graph_with_contigs.dot", subdataset.component, storage.labeler());
     } else
         std::experimental::filesystem::remove_all(subdataset.dir);
+    for(Contig &contig : contigs) {
+        res.emplace_back(contig);
+    }
     return std::move(res);
 }
 
@@ -126,12 +128,12 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
 #pragma omp parallel for schedule(dynamic, 1) default(none) shared(subdatasets, logger, res)
     for(size_t snum = 0; snum < subdatasets.size(); snum++) {
 #pragma omp critical
-        logger.info() << "Starting to process dataset " << subdatasets[snum].id << "(" << snum << ")" << std::endl;
+        logger.trace() << "Starting to process dataset " << subdatasets[snum].id << "(" << snum << ")" << std::endl;
         Subdataset &subdataset = subdatasets[snum];
         std::vector<Contig> resolution_result = ProcessSubdataset(logger, subdataset);
         res.addAll(resolution_result.begin(), resolution_result.end());
 #pragma omp critical
-        logger.info() << "Finished processing dataset " << subdatasets[snum].id << "(" << snum << ")" << std::endl;
+        logger.trace() << "Finished processing dataset " << subdatasets[snum].id << "(" << snum << ")" << std::endl;
     }
     logger.info() << "Finished repeat resolution" << std::endl;
     return res.collect();
@@ -307,7 +309,17 @@ void PrintAlignments(logging::Logger &logger, size_t threads, std::vector<Contig
     refos.open(dir/"contigs.fasta");
     std::vector<Contig> all_contigs;
     logger.info() << "Printing compressed assembly to disk" << std::endl;
+    size_t size = 0;
     for(const Contig & contig : contigs) {
+        size += contig.size();
+    }
+    size_t sum = 0;
+    for(const Contig & contig : contigs) {
+        sum += contig.size();
+        if(sum * 2 >= size) {
+            logger.trace() << "Compressed assembly N50 = " << contig.size() << std::endl;
+            size = size_t(-1);
+        }
         refos << ">" << contig.id << "\n" << contig.seq << std::endl;
         all_contigs.emplace_back(contig);
         all_contigs.emplace_back(contig.RC());
