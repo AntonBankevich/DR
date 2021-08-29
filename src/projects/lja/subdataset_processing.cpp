@@ -145,8 +145,31 @@ std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size
 #pragma omp critical
         logger.trace() << "Finished processing dataset " << subdatasets[snum].id << "(" << snum << ")" << std::endl;
     }
+    std::vector<Contig> moreContigs = missingEdges(subdatasets, is_unique);
+    res.addAll(moreContigs.begin(), moreContigs.end());
     logger.info() << "Finished repeat resolution" << std::endl;
     return res.collect();
+}
+
+std::vector<Contig> RepeatResolver::missingEdges(const std::vector<Subdataset> &subdatasets,
+                                                 const std::function<bool(const Edge &)> &is_unique) const {
+    std::vector<Contig> tmp;
+    std::unordered_set<Vertex *> end_vertices;
+    for(const Subdataset &subdataset : subdatasets) {
+        if(subdataset.reads.empty()) {
+            for(Vertex &v : subdataset.component.vertices()) {
+                end_vertices.emplace(&v);
+            }
+        }
+    }
+    for(Edge &edge : dbg.edges()) {
+        if(is_unique(edge) && end_vertices.find(edge.start()) != end_vertices.end() && end_vertices.find(edge.end()) != end_vertices.end()) {
+            tmp.emplace_back(edge.start()->seq + edge.seq,
+                             join("_", {edge.getId(), edge.start()->getId(), itos(edge.start()->seq.size()),
+                                                                      edge.end()->getId(), itos(edge.end()->seq.size())}));
+        }
+    }
+    return tmp;
 }
 
 std::vector<Contig> RepeatResolver::CollectResults(logging::Logger &logger, size_t threads, const std::vector<Contig> &contigs,

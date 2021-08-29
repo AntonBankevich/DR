@@ -40,6 +40,9 @@ public:
                                        const std::experimental::filesystem::path &merging,
                                        const std::function<bool(const Edge &)> &is_unique = [](const Edge &){return false;});
     multigraph::MultiGraph ConstructMultiGraph(const std::vector<Contig> &contigs);
+
+    std::vector<Contig>
+    missingEdges(const std::vector<Subdataset> &subdatasets, const std::function<bool(const Edge &)> &is_unique) const;
 };
 
 void PrintFasta(const std::vector<Contig> &contigs, const std::experimental::filesystem::path &path);
