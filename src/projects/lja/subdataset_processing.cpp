@@ -2,6 +2,7 @@
 
 #include <utility>
 #include "stdio.h"
+#include "multi_graph.hpp"
 
 std::string RepeatResolver::COMMAND = "python3 py/resolution/sequence_graph/path_graph_multik.py -i {} -o {} > {}";
 
@@ -60,15 +61,13 @@ void RepeatResolver::prepareDataset(const RepeatResolver::Subdataset &subdataset
 }
 
 std::vector<Contig> RepeatResolver::ProcessSubdataset(logging::Logger &logger, const Subdataset &subdataset) {
+    std::string dataset_code = itos(subdataset.id) + ".";
     std::vector<Contig> res;
     if(subdataset.reads.empty()) {
-        size_t cnt = 0;
         for(Edge &edge : subdataset.component.edgesInner()) {
             Sequence seq = edge.start()->seq + edge.seq;
-            if(seq <= !seq) {
-                res.emplace_back(seq, itos(subdataset.id) + "." + itos(cnt));
-            }
-            cnt++;
+            res.emplace_back(seq, join("_", {edge.getId(), edge.start()->getId(), itos(edge.start()->seq.size()),
+                                             edge.end()->getId(), itos(edge.end()->seq.size())}));
         }
         return std::move(res);
     }
@@ -87,7 +86,7 @@ std::vector<Contig> RepeatResolver::ProcessSubdataset(logging::Logger &logger, c
     bool found = false;
     std::experimental::filesystem::path out_fasta;
     for (const std::experimental::filesystem::path &f : std::experimental::filesystem::directory_iterator(outdir)) {
-        if (endsWith(f.string(), ".fasta")) {
+        if (endsWith(f.string(), ".graph")) {
             out_fasta = f;
             found = true;
         }
@@ -95,24 +94,35 @@ std::vector<Contig> RepeatResolver::ProcessSubdataset(logging::Logger &logger, c
     io::Library contig_lib = {out_fasta};
     if (!found)
         return {};
-    std::vector<Contig> contigs;
     for (StringContig stringContig : io::SeqReader(contig_lib)) {
         Contig contig = stringContig.makeContig();
-        if (contig.seq <= !contig.seq) {
-            contigs.emplace_back(contig.seq, itos(subdataset.id) + "." + contig.id);
+        std::vector<std::string> s = split(contig.getId(), "_");
+        GraphAlignment al = GraphAligner(subdataset.component.graph()).align(contig.seq);
+        if(!subdataset.component.contains(al.start())) {
+            s[1] = al.front().contig().getId();
+            s[2] = itos(al.front().contig().size() + al.start().seq.size());
+            al.front().left = 0;
+        } else {
+            s[1] = dataset_code + s[1];
         }
+        if(!subdataset.component.contains(al.finish())) {
+            s[3] = al.back().contig().getId();
+            s[4] = itos(al.back().contig().size() + al.finish().seq.size());
+            al.back().right = al.back().contig().size();
+        } else {
+            s[3] = dataset_code + s[3];
+        }
+        contig.seq = al.Seq();
+        res.emplace_back(contig.seq, join("_", {dataset_code + s[0], s[1], s[2], s[3], s[4]}));
     }
     if(debug) {
         GraphAlignmentStorage storage(dbg);
-        for(Contig &contig : contigs) {
+        for(Contig &contig : res) {
             storage.fill(contig);
         }
         printDot(subdataset.dir / "graph_with_contigs.dot", subdataset.component, storage.labeler());
     } else
         std::experimental::filesystem::remove_all(subdataset.dir);
-    for(Contig &contig : contigs) {
-        res.emplace_back(contig);
-    }
     return std::move(res);
 }
 
@@ -148,6 +158,8 @@ std::vector<Contig> RepeatResolver::CollectResults(logging::Logger &logger, size
     omp_set_num_threads(threads);
 #pragma omp parallel for default(none) schedule(dynamic, 10) shared(contigs, is_unique, paths)
     for(size_t i = 0; i < contigs.size(); i++) {
+        if(!(contigs[i].seq <= !contigs[i].seq))
+            continue;
         GraphAlignment al = GraphAligner(dbg).align(contigs[i].seq);
         for(Segment<Edge> &seg : al) {
             if(seg.size() > 90000)
@@ -267,6 +279,60 @@ std::vector<Contig> RepeatResolver::CollectResults(logging::Logger &logger, size
     merge.close();
     logger.info() << "Finished collecting repeat resolution results"<< std::endl;
     return std::move(final);
+}
+
+std::vector<std::pair<Sequence, std::string>> CollectVertexList(const std::vector<Contig> &contigs) {
+    std::vector<std::pair<Sequence, std::string>> vertices;
+    for(const Contig &contig : contigs) {
+        std::vector<std::string> s = split(contig.id, "_");
+        size_t len = std::stoull(s[2]);
+        Sequence seq = contig.seq.Subseq(0, len);
+        if (seq <= !seq)
+            vertices.emplace_back(seq, s[1]);
+        else
+            vertices.emplace_back(!seq, "_" + s[1]);
+        len = std::stoull(s[4]);
+        seq = contig.seq.Subseq(contig.seq.size() - len, contig.seq.size());
+        if (seq <= !seq)
+            vertices.emplace_back(seq, s[3]);
+        else
+            vertices.emplace_back(!seq, "_" + s[3]);
+    }
+    return std::move(vertices);
+}
+multigraph::MultiGraph RepeatResolver::ConstructMultiGraph(const std::vector<Contig> &contigs) {
+    std::vector<std::pair<Sequence, std::string>> vertices = CollectVertexList(contigs);
+    std::sort(vertices.begin(), vertices.end());
+    vertices.erase(std::unique(vertices.begin(), vertices.end()), vertices.end());
+    size_t cur = 0;
+    multigraph::MultiGraph res;
+    std::unordered_map<std::string, multigraph::Vertex *> vmap;
+    while(cur < vertices.size()) {
+        std::pair<Sequence, std::string> &val = vertices[cur];
+        if(cur + 1 < vertices.size() && val.first == vertices[cur + 1].first) {
+            std::pair<Sequence, std::string> &val1 = vertices[cur + 1];
+            cur++;
+            if(val.second[0] != '_') {
+                VERIFY(val1.second[0] == '_');
+                vmap[val.second] = &res.addVertex(val.first);
+                vmap[val1.second.substr(1)] = vmap[val.second]->rc;
+            } else {
+                vmap[val1.second] = &res.addVertex(val.first);
+                vmap[val.second.substr(1)] = vmap[val1.second]->rc;
+            }
+        } else {
+            vmap[val.second] = &res.addVertex(val.first);
+        }
+        cur++;
+    }
+    for(const Contig &contig : contigs) {
+        std::vector<std::string> s = split(contig.id, "_");
+        if(contig.seq <= !contig.seq) {
+            res.addEdge(*vmap[s[1]], *vmap[s[3]], contig.seq);
+        }
+    }
+    res.checkConsistency();
+    return std::move(res);
 }
 
 struct RawSeg {

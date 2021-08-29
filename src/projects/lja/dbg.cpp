@@ -249,7 +249,7 @@ int main(int argc, char **argv) {
     }
 
     if(parser.getCheck("mult-correct")) {
-        MultCorrect(dbg, logger, dir, readStorage, 50000,threads, parser.getCheck("diploid"), parser.getCheck("dump"));
+        MultCorrect(dbg, logger, dir, readStorage, 50000,threads, parser.getCheck("diploid"));
     }
 
     if(parser.getCheck("initial-correct")) {
@@ -327,7 +327,7 @@ int main(int argc, char **argv) {
     if(parser.getCheck("split")) {
         std::experimental::filesystem::path subdatasets_dir = dir / "subdatasets";
         ensure_dir_existance(subdatasets_dir);
-        RepeatResolver rr(dbg, {&readStorage}, subdatasets_dir);
+        RepeatResolver rr(dbg, {&readStorage}, subdatasets_dir, true);
         logger.info() << "Extracting subdatasets for connected components" << std::endl;
         std::function<bool(const Edge &)> is_unique = [](const Edge &){return false;};
         std::vector<RepeatResolver::Subdataset> subdatasets = rr.SplitDataset(is_unique);
@@ -445,6 +445,8 @@ int main(int argc, char **argv) {
     if(parser.getValue("dbg") == "none") {
         logger.info() << "Printing graph to fasta file " << (dir / "graph.fasta") << std::endl;
         printFasta(dir / "graph.fasta", Component(dbg));
+        logger.info() << "Printing assembly to fasta file " << (dir / "assembly.fasta") << std::endl;
+        printAssembly(dir / "assembly.fasta", Component(dbg));
         logger.info() << "Printing graph to gfa file " << (dir / "graph.gfa") << std::endl;
         printGFA(dir / "graph.gfa", Component(dbg), calculate_coverage);
         logger.info() << "Printing graph to dot file " << (dir / "graph.dot") << std::endl;

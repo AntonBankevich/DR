@@ -6,6 +6,7 @@
 #include "../dbg/graph_printing.hpp"
 #include "../dbg/visualization.hpp"
 #include "common/hash_utils.hpp"
+#include "multi_graph.hpp"
 #include <utility>
 
 class RepeatResolver {
@@ -38,6 +39,7 @@ public:
     std::vector<Contig> CollectResults(logging::Logger &logger, size_t threads, const std::vector<Contig> &contigs,
                                        const std::experimental::filesystem::path &merging,
                                        const std::function<bool(const Edge &)> &is_unique = [](const Edge &){return false;});
+    multigraph::MultiGraph ConstructMultiGraph(const std::vector<Contig> &contigs);
 };
 
 void PrintFasta(const std::vector<Contig> &contigs, const std::experimental::filesystem::path &path);

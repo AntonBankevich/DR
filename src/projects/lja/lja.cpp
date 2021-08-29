@@ -1,3 +1,4 @@
+#include "multi_graph.hpp"
 #include "subdataset_processing.hpp"
 #include "gap_closing.hpp"
 #include "error_correction/mult_correction.hpp"
@@ -221,6 +222,13 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         logger.info()<< "Printing partial repeat resolution results to " << (dir / "partial.fasta") << std::endl;
         PrintFasta(partial_contigs, dir / "partial.fasta");
         std::vector<Contig> contigs = rr.CollectResults(logger, threads, partial_contigs, dir / "merging.txt", is_unique);
+        multigraph::MultiGraph mg = rr.ConstructMultiGraph(partial_contigs);
+        mg.printGFA(dir / "partial.gfa");
+        mg.printDot(dir / "partial.dot");
+        multigraph::MultiGraph mmg = mg.Merge();
+        mmg.printGFA(dir / "merged.gfa");
+        mmg.printDot(dir / "merged.dot");
+        mmg.printCutEdges(dir / "cut.fasta");
         PrintAlignments(logger, threads, contigs, readStorage, k, dir / "uncompressing");
         readStorage.printFasta(logger, dir / "corrected.fasta");
     };
@@ -363,9 +371,7 @@ int main(int argc, char **argv) {
         logger << argv[i] << " ";
     }
     logger << std::endl;
-    std::string version = logging::logGit(logger, dir / "version.txt");
-    if(!version.empty())
-        logger.info() << version << std::endl;
+    logging::logGit(logger, dir / "version.txt");
     bool diplod = parser.getCheck("diploid");
     std::string first_stage = parser.getValue("restart-from");
     bool skip = first_stage != "none";

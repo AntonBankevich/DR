@@ -224,13 +224,19 @@ namespace logging {
         }
     };
 
-    inline std::string logGit(Logger &logger, const std::experimental::filesystem::path &out) {
+    inline void logGit(Logger &logger, const std::experimental::filesystem::path &out) {
         int code = system(("bash -c \"git rev-parse HEAD;git diff\" 2> /dev/null > " + out.string()).c_str());
         std::ifstream is;
         is.open(out);
         std::string res;
         is >> res;
+        if(!res.empty())
+            logger.info() << res << std::endl;
+        res = "";
+        logger.trace() << "Git diff:" << std::endl;
+        while (getline(is,res)) {
+            logger << res << '\n';
+        }
         is.close();
-        return res;
     }
 }

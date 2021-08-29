@@ -409,7 +409,8 @@ void RecordStorage::reroute(AlignedRead &alignedRead, const GraphAlignment &corr
 }
 
 void RecordStorage::applyCorrections(logging::Logger &logger, size_t threads) {
-    logger.info() << "Applying corrections to reads" << std::endl;
+    if(size() > 10000)
+        logger.info() << "Applying corrections to reads" << std::endl;
     omp_set_num_threads(threads);
     ParallelCounter cnt(threads);
 #pragma omp parallel for default(none) schedule(dynamic, 100) shared(cnt)
@@ -418,7 +419,8 @@ void RecordStorage::applyCorrections(logging::Logger &logger, size_t threads) {
             cnt += 1;
     }
     flush();
-    logger.info() << "Applied correction to " << cnt.get() << " reads" << std::endl;
+    if(size() > 10000)
+        logger.info() << "Applied correction to " << cnt.get() << " reads" << std::endl;
 }
 
 void RecordStorage::printAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const {

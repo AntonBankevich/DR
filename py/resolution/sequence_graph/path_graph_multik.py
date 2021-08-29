@@ -821,6 +821,15 @@ def main():
     lpdb.write_dot(params.outdir, compact=True,
                    reffn=params.ref, refhpc=params.refhpc)
     logger.info(f'Finished writing final graph (dot)')
+    out = open(outdot + ".graph", "w")
+    for edge in lpdb.nx_graph.edges(keys=True):
+        index = lpdb.edge2index[edge]
+        seq = lpdb.edge2seq[index]
+        out.write(">" + "_".join([str(index), str(edge[0]), str(lpdb.node2len[edge[0]]), str(edge[1]), str(lpdb.node2len[edge[1]])]) + "\n")
+        out.write("".join(seq))
+        out.write("\n")
+    out.close()
+
 
 
 if __name__ == "__main__":

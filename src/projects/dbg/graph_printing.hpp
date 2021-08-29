@@ -16,6 +16,19 @@ namespace dbg {
         }
     }
 
+    inline void printAssembly(std::ostream &out, const Component &component) {
+        size_t cnt = 0;
+        for (Edge &edge : component.edgesUnique()) {
+            Sequence edge_seq = edge.start()->seq + edge.seq;
+            Vertex &end = *edge.end();
+            out << ">" << cnt << "_" << edge.start()->hash() << int(edge.start()->isCanonical()) <<
+                        "_" << end.hash() << int(end.isCanonical()) << "_" << edge.size()
+                        << "_" << edge.getCoverage() << "\n";
+            out << edge_seq << "\n";
+            cnt++;
+        }
+    }
+
     inline Sequence cheatingCutStart(Sequence seq, unsigned char c, size_t min_size, size_t k) {
         size_t pos = seq.size() - min_size;
         while(pos > 0 && seq[pos + k] != c)
@@ -51,6 +64,13 @@ namespace dbg {
         std::ofstream out;
         out.open(outf);
         printFasta(out, component);
+        out.close();
+    }
+
+    inline void printAssembly(const std::experimental::filesystem::path &outf, const Component &component) {
+        std::ofstream out;
+        out.open(outf);
+        printAssembly(out, component);
         out.close();
     }
 

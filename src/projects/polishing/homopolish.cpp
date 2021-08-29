@@ -719,7 +719,7 @@ struct AssemblyInfo {
             cur_compressed = cur_align.read_id;
         }
         processBatch(logger, contig_batch, align_batch);
-        logger.info() << "Processed final batch of " << align_batch.size() << " compressed reads " << endl;
+        logger.trace() << "Processed final batch of " << align_batch.size() << " compressed reads " << endl;
         vector<Contig> res;
         for (auto& contig: contigs){
             logger.info() << "Generating consensus for contig " << contig.first << endl;
