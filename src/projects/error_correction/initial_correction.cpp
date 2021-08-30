@@ -510,11 +510,6 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage, Rec
             collapsable_cnt.emplace_back(&rcEdge);
             bool edge_supp = rec.countStartsWith(Sequence(std::vector<char>({char(edge.seq[0])}))) > 0;
             bool alt_supp = rec.countStartsWith(Sequence(std::vector<char>({char(alt.seq[0])}))) > 0;
-#pragma omp critical
-            {
-                logger << edge.size() << " " << edge.getCoverage() << " " << edge_supp << std::endl;
-                logger << alt.size() << " " << alt.getCoverage() << " " << alt_supp << std::endl;
-            };
             if(edge_supp != alt_supp) {
                 genome_cnt.emplace_back(&edge);
                 genome_cnt.emplace_back(&rcEdge);

@@ -6,6 +6,7 @@
 #include <experimental/filesystem>
 #include <fstream>
 #include <common/string_utils.hpp>
+#include <sequences/contigs.hpp>
 
 namespace multigraph {
     class Edge;
@@ -167,7 +168,6 @@ namespace multigraph {
             }
             for(Vertex *vertex : vertices) {
                 if(vertex->inDeg() == 0 && vertex->outDeg() == 0 && vertex->seq <= !vertex->seq) {
-                    std::cout << "Isolated vertex " << vertex->seq.size() << " " << vertex->seq.Subseq(0, 20) << std::endl;
                     res.addVertex(vertex->seq);
                 }
             }
@@ -175,7 +175,7 @@ namespace multigraph {
             return std::move(res);
         }
 
-        void printCutEdges(const std::experimental::filesystem::path &f) {
+        std::vector<Contig> getCutEdges() {
             std::unordered_map<Vertex *, size_t> cut;
             for(Vertex *v : vertices) {
                 if(v->seq <= !v->seq) {
@@ -187,8 +187,7 @@ namespace multigraph {
                     cut[v->rc] = 1 - cut[v];
                 }
             }
-            std::ofstream os;
-            os.open(f);
+            std::vector<Contig> res;
             size_t cnt = 1;
             for(Edge *edge : edges) {
                 if(edge->seq <= !edge->seq) {
@@ -197,8 +196,17 @@ namespace multigraph {
                     if(cut_left + cut_right + 1000 >= edge->seq.size()) {
                         continue;
                     }
-                    os << ">" << cnt << "\n" << edge->seq.Subseq(cut_left, edge->seq.size() - cut_right) << "\n";
+                    res.emplace_back(edge->seq.Subseq(cut_left, edge->seq.size() - cut_right), itos(cnt));
                 }
+            }
+            return std::move(res);
+        }
+
+        void printCutEdges(const std::experimental::filesystem::path &f) {
+            std::ofstream os;
+            os.open(f);
+            for(const Contig &contig : getCutEdges()) {
+                os << ">" << contig.id << "\n" << contig.seq << "\n";
             }
             os.close();
         }

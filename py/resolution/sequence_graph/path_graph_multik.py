@@ -58,6 +58,8 @@ class PathMultiKGraph:
         self.assert_validity()
 
     def assert_validity(self):
+        if len(self.index2edge) == 0:
+            return
         self.max_edge_index == 1 + max(self.index2edge)
         self.max_node_index == 1 + max(self.nx_graph.nodes)
         edges = set(self.nx_graph.edges(keys=True))

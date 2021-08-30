@@ -144,7 +144,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
         RecordStorage &storage = *sit;
         if(new_extension_size == 0)
             new_extension_size = storage.getMaxLen();
-        RecordStorage new_storage(subgraph, storage.getMinLen(), new_extension_size, threads, "/dev/null", storage.getTrackCov());
+        RecordStorage new_storage(subgraph, storage.getMinLen(), new_extension_size, threads, storage.getLogger(), storage.getTrackCov(), false);
         for(AlignedRead &al : storage) {
             new_storage.addRead(AlignedRead(al.id));
         }
@@ -158,6 +158,7 @@ inline void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::Sparse
             new_storage.reroute(new_storage[i], realignRead(al, embedding), "Remapping");
             new_storage.apply(new_storage[i]);
         }
+        new_storage.log_changes = storage.log_changes;
         storage = std::move(new_storage);
     }
     dbg = std::move(subgraph);
@@ -221,7 +222,7 @@ inline void AddConnections(logging::Logger &logger, size_t threads, dbg::SparseD
     logger.trace() << "Realigning reads to the new graph" << std::endl;
     for(RecordStorage* sit : storages) {
         RecordStorage &storage = *sit;
-        RecordStorage new_storage(subgraph, storage.getMinLen(), storage.getMaxLen(), threads, "/dev/null", storage.getTrackCov());
+        RecordStorage new_storage(subgraph, storage.getMinLen(), storage.getMaxLen(), threads, storage.getLogger(), storage.getTrackCov(), false);
         for(AlignedRead &al : storage) {
             new_storage.addRead(AlignedRead(al.id));
         }
@@ -250,6 +251,7 @@ inline void AddConnections(logging::Logger &logger, size_t threads, dbg::SparseD
             new_storage.reroute(new_read, new_al, "Remapping");
             new_storage.apply(new_read);
         }
+        new_storage.log_changes = storage.log_changes;
         storage = std::move(new_storage);
     }
     logger.trace() << "Adding new edges" << std::endl;

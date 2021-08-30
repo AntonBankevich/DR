@@ -154,7 +154,8 @@ void UniqueClassificator::markPseudoHets() const {
 void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
                                    const std::experimental::filesystem::path &dir) {
     logger.info() << "Looking for unique edges" << std::endl;
-    recreate_dir(dir);
+    if(debug)
+        recreate_dir(dir);
     size_t cnt = 0;
     for(Edge &edge : dbg.edges()) {
         edge.is_reliable = true;
@@ -180,8 +181,8 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
     logger.info() << "Processing components" << std::endl;
     for(Component &component : split) {
         cnt += 1;
-        std::experimental::filesystem::path out_file = dir / (std::to_string(cnt) + ".dot");
-        printDot(out_file, component, reads_storage.labeler());
+        if(debug)
+            printDot(dir / (std::to_string(cnt) + ".dot"), component, reads_storage.labeler());
         //TODO make parallel trace
         logger.trace() << "Component parameters: size=" << component.size() << " border=" << component.countBorderEdges() <<
                       " tips=" << component.countTips() <<
@@ -192,7 +193,8 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         }
         std::vector<const Edge *> new_unique = processComponent(logger, component);
         addUnique(new_unique.begin(), new_unique.end());
-        logger.trace() << "Printing component to " << out_file << std::endl;
+        if(debug)
+            logger.trace() << "Printing component to " << (dir / (std::to_string(cnt) + ".dot")) << std::endl;
         const std::function<std::string(Edge &)> labeler = [](Edge &) {return "";};
         const std::function<std::string(Edge &)> colorer = [this](Edge &edge) {
             if(isUnique(edge)) {
@@ -203,7 +205,8 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
             }
             return "blue";
         };
-        printDot(out_file, component, reads_storage.labeler(), colorer);
+        if(debug)
+            printDot(dir / (std::to_string(cnt) + ".dot"), component, reads_storage.labeler(), colorer);
     }
     logger.info() << "Finished unique edges search. Found " << size() << " unique edges" << std::endl;
 }
@@ -404,9 +407,8 @@ std::pair<Edge *, Edge *> CheckLoopComponent(const Component &component) {
 }
 
 RecordStorage ResolveLoops(logging::Logger &logger, size_t threads, SparseDBG &dbg, RecordStorage &reads_storage,
-                           const std::experimental::filesystem::path &extra_read_log,
                            const AbstractUniquenessStorage &more_unique) {
-    RecordStorage res(dbg, 0, 10000000000ull, threads, extra_read_log, false);
+    RecordStorage res(dbg, 0, 10000000000ull, threads, reads_storage.getLogger(), false, reads_storage.log_changes);
     for(const Component &comp : UniqueSplitter(more_unique).splitGraph(dbg)) {
         std::pair<Edge *, Edge *> check = CheckLoopComponent(comp);
         if(check.first == nullptr)

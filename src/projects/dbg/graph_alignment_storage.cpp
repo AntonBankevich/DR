@@ -296,8 +296,8 @@ void RecordStorage::processPath(const CompactPath &cpath, const std::function<vo
 
 //TODO Remove threads parameter
 RecordStorage::RecordStorage(SparseDBG &dbg, size_t _min_len, size_t _max_len, size_t threads,
-                             const std::experimental::filesystem::path &logFile, bool _track_cov) :
-        min_len(_min_len), max_len(_max_len), track_cov(_track_cov), readLogger(threads, logFile) {
+                             ReadLogger &readLogger, bool _track_cov, bool log_changes) :
+        min_len(_min_len), max_len(_max_len), track_cov(_track_cov), readLogger(&readLogger), log_changes(log_changes) {
     for(auto &it : dbg) {
         data.emplace(&it.second, VertexRecord(it.second));
         data.emplace(&it.second.rc(), VertexRecord(it.second.rc()));
@@ -323,7 +323,8 @@ void RecordStorage::addRead(AlignedRead &&read) {
 }
 
 void RecordStorage::invalidateRead(AlignedRead &read, const std::string &message) { // NOLINT(readability-convert-member-functions-to-static)
-    readLogger.logInvalidate(read, message);
+    if(log_changes)
+        readLogger->logInvalidate(read, message);
     removeSubpath(read.path);
     removeSubpath(read.path.RC());
     read.invalidate();
@@ -400,7 +401,8 @@ bool RecordStorage::apply(AlignedRead &alignedRead) {
 
 void RecordStorage::reroute(AlignedRead &alignedRead, const GraphAlignment &initial, const GraphAlignment &corrected,
                             const string &message) {
-    readLogger.logRerouting(alignedRead, initial, corrected, message);
+    if(log_changes)
+        readLogger->logRerouting(alignedRead, initial, corrected, message);
     alignedRead.correct(CompactPath(corrected));
 }
 

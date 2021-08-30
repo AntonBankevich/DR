@@ -381,19 +381,23 @@ void DrawMult(const std::experimental::filesystem::path &dir, dbg::SparseDBG &db
 RecordStorage MultCorrect(dbg::SparseDBG &dbg, logging::Logger &logger,
                  const std::experimental::filesystem::path &dir,
                  RecordStorage &reads_storage, size_t unique_threshold,
-                 size_t threads, bool diploid) {
-    const std::experimental::filesystem::path multiplicity_figures = dir / "mult_figs";
-    const std::experimental::filesystem::path extra_read_log = dir / "extra_reads.txt";
-    const std::experimental::filesystem::path dump_dir = dir / "mult";
-    recreate_dir(multiplicity_figures);
-    recreate_dir(dump_dir);
-    UniqueClassificator classificator(dbg, reads_storage, diploid);
+                 size_t threads, bool diploid, bool debug) {
+        const std::experimental::filesystem::path multiplicity_figures = dir / "mult_figs";
+        const std::experimental::filesystem::path dump_dir = dir / "mult";
+    if(debug) {
+        recreate_dir(multiplicity_figures);
+        recreate_dir(dump_dir);
+    }
+    UniqueClassificator classificator(dbg, reads_storage, diploid, debug);
     classificator.classify(logger, unique_threshold, multiplicity_figures/"ongoing");
-    DrawMult(multiplicity_figures / "round1", dbg, unique_threshold, reads_storage, classificator);
+    if(debug)
+        DrawMult(multiplicity_figures / "round1", dbg, unique_threshold, reads_storage, classificator);
     CorrectBasedOnUnique(logger, threads, dbg, reads_storage, classificator, dump_dir/"round1.txt");
     SetUniquenessStorage more_unique = PathUniquenessClassifier(logger, threads, dbg, reads_storage, classificator);
-    DrawMult(multiplicity_figures / "round2", dbg, unique_threshold, reads_storage, more_unique);
+    if(debug)
+        DrawMult(multiplicity_figures / "round2", dbg, unique_threshold, reads_storage, more_unique);
     CorrectBasedOnUnique(logger, threads, dbg, reads_storage, more_unique, dump_dir/"round2.txt");
-    DrawMult(multiplicity_figures / "final", dbg, unique_threshold, reads_storage, more_unique);
-    return std::move(ResolveLoops(logger, threads, dbg, reads_storage, extra_read_log, more_unique));
+    if(debug)
+        DrawMult(multiplicity_figures / "final", dbg, unique_threshold, reads_storage, more_unique);
+    return std::move(ResolveLoops(logger, threads, dbg, reads_storage, more_unique));
 }

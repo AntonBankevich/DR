@@ -116,30 +116,24 @@ class RecordStorage {
 private:
     std::vector<AlignedRead> reads;
     std::unordered_map<const Vertex *, VertexRecord> data;
-    ReadLogger readLogger;
+    ReadLogger *readLogger;
 public:
     size_t min_len;
     size_t max_len;
     bool track_cov;
+    bool log_changes;
 
 private:
     void processPath(const CompactPath &cpath, const std::function<void(Vertex &, const Sequence &)> &task,
                             const std::function<void(Segment<Edge>)> &edge_task = [](Segment<Edge>){}) const;
 public:
     RecordStorage(SparseDBG &dbg, size_t _min_len, size_t _max_len, size_t threads,
-                  const std::experimental::filesystem::path &logFile, bool _track_cov = false);
+                  ReadLogger &readLogger, bool _track_cov = false, bool log_changes = false);
 
     typedef typename std::vector<AlignedRead>::iterator iterator;
     typedef typename std::vector<AlignedRead>::const_iterator const_iterator;
 
-    RecordStorage &operator=(RecordStorage &&other) noexcept {
-        reads = std::move(other.reads);
-        data = std::move(other.data);
-        std::swap(min_len, other.min_len);
-        std::swap(max_len, other.max_len);
-        std::swap(track_cov, other.track_cov);
-        return *this;
-    }
+    RecordStorage &operator=(RecordStorage &&other) = default;
     RecordStorage(RecordStorage &&other) = default;
 
     const VertexRecord &getRecord(const Vertex &v) const {return data.find(&v)->second;}
@@ -152,6 +146,7 @@ public:
     size_t getMinLen() const {return min_len;}
     size_t getMaxLen() const {return max_len;}
     bool getTrackCov() const {return track_cov;}
+
 
     size_t size() const {return reads.size();}
 
@@ -175,7 +170,8 @@ public:
     void printAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const;
     void printFasta(logging::Logger &logger, const std::experimental::filesystem::path &path) const;
     void printFullAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const;
-    void flush() {readLogger.flush();}
+    ReadLogger &getLogger() {return *readLogger;}
+    void flush() {readLogger->flush();}
 };
 
 template<class I>

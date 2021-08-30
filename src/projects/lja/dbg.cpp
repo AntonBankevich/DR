@@ -232,8 +232,9 @@ int main(int argc, char **argv) {
     if(parser.getValue("extension-size") != "none")
         extension_size = std::stoull(parser.getValue("extension-size"));
 
-    RecordStorage readStorage(dbg, 0, extension_size, threads, dir/"read_log.txt", true);
-    RecordStorage refStorage(dbg, 0, extension_size, threads, "/dev/null", false);
+    ReadLogger readLogger(threads, dir/"read_log.txt");
+    RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, true);
+    RecordStorage refStorage(dbg, 0, extension_size, threads, readLogger, false, false);
 
     if(calculate_alignments) {
         logger.info() << "Collecting read alignments" << std::endl;
@@ -249,7 +250,7 @@ int main(int argc, char **argv) {
     }
 
     if(parser.getCheck("mult-correct")) {
-        MultCorrect(dbg, logger, dir, readStorage, 50000,threads, parser.getCheck("diploid"));
+        MultCorrect(dbg, logger, dir, readStorage, 50000,threads, parser.getCheck("diploid"), debug);
     }
 
     if(parser.getCheck("initial-correct")) {

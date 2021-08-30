@@ -1,7 +1,7 @@
 #include "subdataset_processing.hpp"
 
 #include <utility>
-#include "stdio.h"
+#include <cstdio>
 #include "multi_graph.hpp"
 
 std::string RepeatResolver::COMMAND = "python3 py/resolution/sequence_graph/path_graph_multik.py -i {} -o {} > {}";
