@@ -197,6 +197,7 @@ namespace multigraph {
                         continue;
                     }
                     res.emplace_back(edge->seq.Subseq(cut_left, edge->seq.size() - cut_right), itos(cnt));
+                    cnt++;
                 }
             }
             return std::move(res);
