@@ -208,7 +208,7 @@ struct ContigInfo {
         string consensus = graph.GenerateConsensus(&coverages);
         size_t pref_remove = 0;
         int suf_remove = int(coverages.size()) - 1;
-        while (pref_remove < coverages.size() && coverages[pref_remove] < cov / 2 )
+/*        while (pref_remove < coverages.size() && coverages[pref_remove] < cov / 2 )
             pref_remove ++;
         while (suf_remove >= 0 && coverages[suf_remove] < cov / 2 )
             suf_remove --;
@@ -216,6 +216,12 @@ struct ContigInfo {
             return "";
         }
         return consensus.substr(pref_remove, suf_remove - pref_remove + 1);
+        */
+        string res = "";
+        for (auto i = 0; i < coverages.size(); i++)
+            if (coverages[pref_remove] >= cov/2)
+                res += consensus[i];
+        return res;
 
     }
 
