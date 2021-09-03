@@ -35,7 +35,7 @@ std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::
 void RepeatResolver::prepareDataset(const RepeatResolver::Subdataset &subdataset) {
     recreate_dir(subdataset.dir);
 //    printFasta(subdataset.dir / "graph.fasta", subdataset.component);
-    cheatingFasta(subdataset.dir / "graph.fasta", subdataset.component, 100000);
+    printFasta(subdataset.dir / "graph.fasta", subdataset.component);
     std::ofstream log;
     log.open(subdataset.dir / "dbg.log");
     log << "-k " << dbg.hasher().getK() << std::endl;

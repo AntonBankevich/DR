@@ -90,7 +90,7 @@ class PathMultiKGraph:
                     e_outdex = self.edge2index[out_edge]
                     out_seq = self.edge2seq[e_outdex]
                     outpref = out_seq[:nlen]
-                    assert insuf == outpref
+                    assert node in self.unresolved or insuf == outpref
 
     @classmethod
     def fromDB(cls, db, string_set,
@@ -302,7 +302,7 @@ class PathMultiKGraph:
             outdegree = self.nx_graph.out_degree(u)
             if indegree == 1 and outdegree == 1:
                 self_loop = in_indexes == out_indexes
-                assert self_loop
+                # assert self_loop
                 self.unresolved.add(u)
             elif indegree >= 2 and outdegree >= 2:
                 # do not process anything at all
