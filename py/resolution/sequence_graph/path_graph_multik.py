@@ -749,7 +749,7 @@ class PathMultiKGraph:
                            seq=seq)
         dotfile = f'{outfile}.dot'
         nx.drawing.nx_pydot.write_dot(graph, dotfile)
-        if export_pdf:
+        if export_pdf and self.nx_graph.size() < 500:
             pdffile = f'{outfile}.pdf'
             # https://stackoverflow.com/a/3516106
             cmd = ['dot', '-Tpdf', dotfile, '-o', pdffile]
