@@ -174,7 +174,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         std::vector<Contig> partial_contigs = rr.ResolveRepeats(logger, threads, is_unique);
         logger.info()<< "Printing partial repeat resolution results to " << (dir / "partial.fasta") << std::endl;
         PrintFasta(partial_contigs, dir / "partial.fasta");
-        std::vector<Contig> contigs = rr.CollectResults(logger, threads, partial_contigs, dir / "merging.txt", is_unique);
+//        std::vector<Contig> contigs = rr.CollectResults(logger, threads, partial_contigs, dir / "merging.txt", is_unique);
         multigraph::MultiGraph mg = rr.ConstructMultiGraph(partial_contigs);
         mg.printGFA(dir / "partial.gfa");
         mg.printDot(dir / "partial.dot");
@@ -182,7 +182,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         mmg.printGFA(dir / "merged.gfa");
         mmg.printDot(dir / "merged.dot");
         mmg.printCutEdges(dir / "cut.fasta");
-        contigs = mmg.getCutEdges();
+        std::vector<Contig> contigs = mmg.getCutEdges();
         PrintAlignments(logger, threads, contigs, readStorage, k, dir / "uncompressing");
         readStorage.printFasta(logger, dir / "corrected.fasta");
     };

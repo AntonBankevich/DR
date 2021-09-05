@@ -137,10 +137,10 @@ namespace logging {
 
         int overflow(int c) override {
             if(curlevel <= LogLevel::info)
-                std::cout.put(c);
+                std::cout << char(c);
             for(LogStream &os : oss) {
                 if(curlevel <= os.level)
-                    os.os->put(c);
+                    *os.os << char(c);
             }
             if(c == '\n') {
                 forceFlush();

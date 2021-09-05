@@ -336,6 +336,12 @@ multigraph::MultiGraph RepeatResolver::ConstructMultiGraph(const std::vector<Con
             std::pair<Sequence, std::string> &val1 = vertices[cur + 1];
             cur++;
             if(val.second[0] != '_') {
+                if(val1.second[0] != '_') {
+                    for(size_t i = 0; i <= cur; i++) {
+                        std::cout << i << " " << vertices[i].second << "\n" << vertices[i].first << "\n";
+                    }
+                    std::cout << std::endl;
+                }
                 VERIFY(val1.second[0] == '_');
                 vmap[val.second] = &res.addVertex(val.first);
                 vmap[val1.second.substr(1)] = vmap[val.second]->rc;

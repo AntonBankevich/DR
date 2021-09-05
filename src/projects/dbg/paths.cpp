@@ -456,9 +456,9 @@ dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq, dbg::Edge *edg
 }
 
 dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq) const {
-    std::vector<hashing::KWH> kmers = dbg.extractVertexPositions(seq);
+    std::vector<hashing::KWH> kmers = dbg.extractVertexPositions(seq, 1);
     size_t k = dbg.hasher().getK();
-    std::vector<Segment<Edge>> res;
+    GraphAlignment res;
     if (kmers.size() == 0) {
         hashing::KWH kwh(dbg.hasher(), seq, 0);
         while (true) {
@@ -476,7 +476,7 @@ dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq) const {
                     std::cout << seq << std::endl;
                     abort();
                 };
-                return {nullptr, std::move(res)};
+                return res;
             }
             kwh = kwh.next();
         }
@@ -495,27 +495,17 @@ dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq) const {
         Edge &edge = rcedge.rc();
         VERIFY(edge.size() >= kmers.front().pos);
         Segment<Edge> seg(edge, edge.size() - kmers.front().pos, edge.size());
-        res.emplace_back(seg);
+        res += seg;
     }
-    for (const hashing::KWH &kmer : kmers) {
-        if (kmer.pos + dbg.hasher().getK() < seq.size()) {
-            Vertex &vertex = dbg.getVertex(kmer);
-            if (!vertex.hasOutgoing(seq[kmer.pos + dbg.hasher().getK()])) {
-                std::cout << "No outgoing for middle" << std::endl << seq << std::endl <<
-                          kmer.pos << " " << size_t(seq[kmer.pos + k]) << std::endl
-                          << kmer.getSeq() << std::endl;
-                std::cout << vertex.hash() << " " << vertex.outDeg() << " " << vertex.inDeg() << std::endl;
-                for (const Edge &e : vertex) {
-                    std::cout << e.seq << std::endl;
-                }
-                VERIFY(false);
-            }
-            Edge &edge = vertex.getOutgoing(seq[kmer.pos + k]);
-            Segment<Edge> seg(edge, 0, std::min(seq.size() - kmer.pos - k, edge.size()));
-            res.emplace_back(seg);
-        }
+    size_t cpos = kmers.front().pos + k;
+    while(cpos < seq.size()) {
+        Edge &next = prestart->getOutgoing(seq[cpos]);
+        size_t len = std::min<size_t>(next.size(), seq.size() - cpos);
+        res += Segment<Edge>(next, 0, len);
+        cpos += len;
+        prestart = next.end();
     }
-    return {prestart, std::move(res)};
+    return std::move(res);
 }
 
 dbg::GraphAlignment dbg::GraphAligner::align(const dbg::EdgePosition &pos, const Sequence &seq) const {

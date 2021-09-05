@@ -202,7 +202,7 @@ namespace dbg {
         Vertex &addVertex(const Vertex &other_graph_vertex);
 
 
-        std::vector<hashing::KWH> extractVertexPositions(const Sequence &seq) const;
+        std::vector<hashing::KWH> extractVertexPositions(const Sequence &seq, size_t max = size_t(-1)) const;
         void printFastaOld(const std::experimental::filesystem::path &out);
 
         IterableStorage<ApplyingIterator<vertex_iterator_type, Vertex, 2>> vertices(bool unique = false);

@@ -559,14 +559,14 @@ EdgePosition SparseDBG::getAnchor(const hashing::KWH &kwh) {
         return anchors.find(kwh.hash())->second.RC();
 }
 
-std::vector<hashing::KWH> SparseDBG::extractVertexPositions(const Sequence &seq) const {
+std::vector<hashing::KWH> SparseDBG::extractVertexPositions(const Sequence &seq, size_t max) const {
     std::vector<hashing::KWH> res;
     hashing::KWH kwh(hasher(), seq, 0);
     while (true) {
         if (containsVertex(kwh.hash())) {
             res.emplace_back(kwh);
         }
-        if (!kwh.hasNext())
+        if (!kwh.hasNext() || res.size() == max)
             break;
         kwh = kwh.next();
     }
