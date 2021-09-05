@@ -491,7 +491,6 @@ dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq) const {
             VERIFY(false);
         }
         Edge &rcedge = rcstart.getOutgoing(seq[kmers.front().pos - 1] ^ 3);
-        prestart = &rcedge.end()->rc();
         Edge &edge = rcedge.rc();
         VERIFY(edge.size() >= kmers.front().pos);
         Segment<Edge> seg(edge, edge.size() - kmers.front().pos, edge.size());
