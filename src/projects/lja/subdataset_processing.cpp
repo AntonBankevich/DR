@@ -98,6 +98,13 @@ std::vector<Contig> RepeatResolver::ProcessSubdataset(logging::Logger &logger, c
         Contig contig = stringContig.makeContig();
         std::vector<std::string> s = split(contig.getId(), "_");
         GraphAlignment al = GraphAligner(subdataset.component.graph()).align(contig.seq);
+        if(al.size() > 1 && al.back().right < al.back().contig().size() &&
+                    !subdataset.component.contains(*al.back().contig().start())) {
+            al = al.subalignment(0, al.size() - 1);
+        }
+        if(al.size() > 1 && al.front().left > 0 && !subdataset.component.contains(*al.front().contig().end())) {
+            al = al.subalignment(1, al.size());
+        }
         if(al.front().left == 0 && !subdataset.component.contains(al.start())) {
             s[1] = al.front().contig().getId();
             s[2] = itos(al.front().contig().size() + al.start().seq.size());

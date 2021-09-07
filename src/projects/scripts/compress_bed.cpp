@@ -3,8 +3,7 @@
 #include <common/cl_parser.hpp>
 
 int main(int argc, char **argv) {
-    CLParser parser({"dimer-compress=1000000000,1000000000,1", "contigs=", "bed="},
-                    {"reads"}, {},"");
+    CLParser parser({"dimer-compress=1000000000,1000000000,1", "contigs=", "bed="}, {}, {},"");
     parser.parseCL(argc, argv);
     StringContig::homopolymer_compressing = true;
     StringContig::SetDimerParameters(parser.getValue("dimer-compress"));

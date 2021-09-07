@@ -3,14 +3,25 @@
 #include "component.hpp"
 #include "sparse_dbg.hpp"
 namespace dbg {
-    inline void printFasta(std::ostream &out, const Component &component) {
+    inline void printFasta(std::ostream &out, const Component &component, bool mask = false) {
         size_t cnt = 0;
+        size_t masked_cnt = 1;
         for (Edge &edge : component.edges()) {
             Sequence edge_seq = edge.start()->seq + edge.seq;
             Vertex &end = *edge.end();
-            out << ">" << cnt << "_" << edge.start()->hash() << int(edge.start()->isCanonical()) <<
-                "_" << end.hash() << int(end.isCanonical()) << "_" << edge.size()
-                << "_" << edge.getCoverage() << "\n";
+            out << ">" << cnt << "_";
+            if(mask && !component.contains(*edge.start())) {
+                out << masked_cnt << "0000";
+                masked_cnt++;
+            }
+            out << edge.start()->hash() << int(edge.start()->isCanonical());
+            out << "_";
+            if(mask && !component.contains(*edge.end())) {
+                out << masked_cnt << "0000";
+                masked_cnt++;
+            }
+            out << end.hash() << int(end.isCanonical());
+            out << "_" << edge.size() << "_" << edge.getCoverage() << "\n";
             out << edge_seq << "\n";
             cnt++;
         }
@@ -60,10 +71,10 @@ namespace dbg {
         out.close();
     }
 
-    inline void printFasta(const std::experimental::filesystem::path &outf, const Component &component) {
+    inline void printFasta(const std::experimental::filesystem::path &outf, const Component &component, bool mask = false) {
         std::ofstream out;
         out.open(outf);
-        printFasta(out, component);
+        printFasta(out, component, mask);
         out.close();
     }
 
