@@ -142,6 +142,9 @@ public:
                 Sequence seq2 = tips[rec.to]->kmerSeq(tips[rec.to]->size() - rec.match_size_to);
                 EdgePosition p1(*tips[rec.from], tips[rec.from]->size() - rec.match_size_from);
                 EdgePosition p2(tips[rec.to]->rc(), rec.match_size_to);
+                if((seq1[seq1.size() - 1] ^ seq2[seq2.size() - 1]) == 3u) {
+                    seq1 = seq1.Subseq(0, seq1.size() - 1);
+                }
                 Sequence seq = seq1 + !seq2;
                 Connection gap(p1, p2, seq);
                 gap = gap.shrink();
