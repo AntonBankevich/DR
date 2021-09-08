@@ -498,6 +498,15 @@ dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq) const {
     }
     size_t cpos = kmers.front().pos + k;
     while(cpos < seq.size()) {
+        if(!prestart->hasOutgoing(seq[cpos])) {
+            std::cout << "No outgoing for middle\n" << seq << "\n" << cpos << " " << prestart->getId() <<
+                " " << prestart->outDeg() << "\n" << seq.Subseq(cpos -k, cpos) << "\n" << prestart->seq << "\n" <<
+                size_t(seq[cpos]) << std::endl;
+            for(Edge &tmp : *prestart) {
+                std::cout << tmp.getId() << " " << tmp.size() << std::endl;
+            }
+            VERIFY(false);
+        }
         Edge &next = prestart->getOutgoing(seq[cpos]);
         size_t len = std::min<size_t>(next.size(), seq.size() - cpos);
         res += Segment<Edge>(next, 0, len);
@@ -571,9 +580,12 @@ dbg::GraphAligner::oldEdgeAlign(dbg::Edge
 
 std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> dbg::GraphAligner::carefulAlign(Contig &contig) const {
     Sequence seq = contig.seq;
+    size_t k = dbg.hasher().getK();
+    if(contig.size() < k) {
+        return {};
+    }
     std::vector<PerfectAlignment<Contig, Edge>> res;
     hashing::KWH kwh(dbg.hasher(), seq, 0);
-    size_t k = dbg.hasher().getK();
     while (true) {
         if (res.empty() || kwh.pos >= res.back().seg_from.right) {
             if (dbg.containsVertex(kwh.hash())) {

@@ -5,6 +5,7 @@
 #include "dbg/compact_path.hpp"
 #include "error_correction/tip_correction.hpp"
 #include <sequences/sequence.hpp>
+#include <random>
 
 class GapCloser {
 private:
@@ -107,26 +108,36 @@ public:
         }
         __gnu_parallel::sort(pairs.begin(), pairs.end());
         pairs.erase(std::unique(pairs.begin(), pairs.end()), pairs.end());
-        logger.info() << "Found " << pairs.size() << " potential overlaps. Aligning." << std::endl;
+        shuffle(pairs.begin(), pairs.end(), std::default_random_engine(0)); // NOLINT(cert-msc51-cpp)
+        std::vector<size_t> deg(tips.size());
+        logger.info() << "Found " << pairs.size() / 2 << " potential overlaps. Aligning." << std::endl;
         ParallelRecordCollector<OverlapRecord> filtered_pairs(threads);
-#pragma omp parallel for default(none) shared(pairs, tips, filtered_pairs)
-        for (size_t i = 0; i < pairs.size(); i++) {
+#pragma omp parallel for default(none) shared(pairs, tips, filtered_pairs, deg)
+        for(size_t i = 0; i < pairs.size(); i++) {
+            size_t m1, m2;
+            size_t &d1 = deg[pairs[i].first];
+            size_t &d2 = deg[pairs[i].second];
+#pragma omp atomic read
+            m1 = d1;
+#pragma omp atomic read
+            m2 = d2;
+            if(m1 >= 2 && m2 >= 2)
+                continue;
             Sequence s1 = tips[pairs[i].first]->seq;
             Sequence s2 = tips[pairs[i].second]->seq;
             std::pair<size_t, size_t> overlap = CheckOverlap(s1, !s2);
-            if(overlap.first > 0) {
+            if (overlap.first > 0) {
+#pragma omp atomic update
+                d1++;
+#pragma omp atomic update
+                d2++;
                 filtered_pairs.emplace_back(pairs[i].first, pairs[i].second, overlap.first, overlap.second);
             }
         }
         logger.info() << "Collected " << filtered_pairs.size() << " overlaps. Looking for unique overlaps" << std::endl;
-        std::vector<size_t> degs(tips.size(), 0);
-        for(OverlapRecord &rec : filtered_pairs) {
-            degs[rec.from]++;
-            degs[rec.to]++;
-        }
         std::vector<Connection> res;
         for(OverlapRecord &rec : filtered_pairs) {
-            if(degs[rec.from] == 1 && degs[rec.to] == 1) {
+            if(deg[rec.from] == 1 && deg[rec.to] == 1) {
                 Sequence seq1 = tips[rec.from]->suffix(tips[rec.from]->size() - rec.match_size_from);
                 Sequence seq2 = tips[rec.to]->kmerSeq(tips[rec.to]->size() - rec.match_size_to);
                 EdgePosition p1(*tips[rec.from], tips[rec.from]->size() - rec.match_size_from);

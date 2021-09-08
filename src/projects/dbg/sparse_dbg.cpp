@@ -294,7 +294,7 @@ Edge &Vertex::getOutgoing(unsigned char c) const {
         }
     }
     std::cout << seq << std::endl;
-    std::cout << c << std::endl;
+    std::cout << size_t(c) << std::endl;
     for (const Edge &edge : outgoing_) {
         std::cout << edge.seq << std::endl;
     }

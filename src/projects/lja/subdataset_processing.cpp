@@ -4,7 +4,7 @@
 #include <cstdio>
 #include "multi_graph.hpp"
 
-std::string RepeatResolver::COMMAND = "python3 py/resolution/sequence_graph/path_graph_multik.py -i {} -o {} > {}";
+std::string RepeatResolver::COMMAND = "python3 py/resolution/sequence_graph/path_graph_multik.py -i {} -o {} -K 25000 > {}";
 
 std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::function<bool(const Edge &)> &is_unique) {
     size_t k = dbg.hasher().getK();

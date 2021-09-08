@@ -190,7 +190,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         runInFork(ic_task);
     std::experimental::filesystem::path res;
     res = dir / "corrected.fasta";
-    logger.info() << "Second phase results with k = " << k << " printed to " << res << std::endl;
+    logger.info() << "Second phase results with k = " << k << " printed to "    << res << std::endl;
     return {res, dir / "uncompressing"};
 }
 

@@ -286,7 +286,7 @@ std::pair<double, double> minmaxCov(const Component &subcomponent, const RecordS
     return {min_cov, max_cov};
 }
 
-Edge &UniqueClassificator::getStart(const Component &component) const {
+Edge &getStart(const Component &component) {
     for(Edge &edge : component.edges()) {
         if(!component.contains(*edge.end()))
             return edge.rc();
@@ -294,43 +294,73 @@ Edge &UniqueClassificator::getStart(const Component &component) const {
     VERIFY(false);
 }
 
-void UniqueClassificator::processSimpleComponent(logging::Logger &logger, const Component &component) const {
-    logger.trace() << "Collapsing acyclic component" << std::endl;
-    typedef std::pair<size_t, Edge *> StoredValue;
-    std::priority_queue<StoredValue> queue;
-    queue.emplace(0, &getStart(component));
-    std::unordered_map<Vertex *, Edge *> prev;
-    Edge *end = nullptr;
-    while(!queue.empty()) {
-        auto tmp = queue.top();
-        queue.pop();
-        size_t score = tmp.first;
-        Edge *last = tmp.second;
-        Vertex *vert = last->end();
-        if(prev.find(vert) != prev.end()) {
+std::vector<Vertex *> topSort(const Component &component) {
+    std::vector<Vertex *> stack;
+    std::vector<Vertex *> res;
+    std::unordered_set<Vertex *> visited;
+    stack.emplace_back(getStart(component).end());
+    while(!stack.empty()) {
+        Vertex *cur = stack.back();
+        if(visited.find(cur) != visited.end()) {
+            stack.pop_back();
             continue;
         }
-        prev[vert] = last;
-        for(Edge &edge : *vert) {
-            if(!component.contains(*edge.end())) {
-                end = last;
-                break;
-            }
-            queue.emplace(score + edge.intCov(), &edge);
+        bool ok = true;
+        for(Edge &e : *cur) {
+            if(component.contains(*e.end()) && visited.find(e.end()) == visited.end())
+                ok = false;
         }
-        if(end != nullptr)
-            break;
+        if(ok) {
+            visited.emplace(cur);
+            stack.pop_back();
+            res.emplace_back(&cur->rc());
+        } else {
+            for(Edge &e : *cur) {
+                VERIFY(component.contains(*e.end()));
+                if(visited.find(e.end()) == visited.end())
+                    stack.emplace_back(e.end());
+            }
+        }
     }
-    if(end == nullptr) {
+    return std::move(res);
+}
+void UniqueClassificator::processSimpleComponent(logging::Logger &logger, const Component &component) const {
+    logger.trace() << "Collapsing acyclic component" << std::endl;
+    std::vector<Vertex *> order = topSort(component);
+    if(order.size() != component.size()) {
         logger.trace() << "Failed to collapse acyclic component" << std::endl;
         return;
+    }
+    VERIFY(order.front()->inDeg() == 1);
+    VERIFY(!component.contains(*order.front()->rc()[0].end()));
+    VERIFY(order.back()->outDeg() == 1);
+    VERIFY(!component.contains(*order.back()->operator[](0).end()));
+    std::unordered_map<Vertex *, std::pair<Edge *, size_t>> prev;
+    for(Vertex *cur : order) {
+        Edge *pedge = nullptr;
+        size_t val = 0;
+        for(Edge &edge : cur->rc()) {
+            if(!component.contains(*edge.end())) {
+                break;
+            }
+            VERIFY(prev.find(&edge.end()->rc()) != prev.end());
+            size_t score = edge.intCov() + prev[&edge.end()->rc()].second;
+            if(score > val) {
+                pedge = &edge.rc();
+                val = score;
+            }
+        }
+        VERIFY(val > 0 || pedge == nullptr);
+        prev[cur] = {pedge, val};
     }
     for(Edge &edge : component.edgesInner()) {
         edge.is_reliable = false;
     }
-    while(component.contains(*end->start())) {
-        end->is_reliable = true;
-        end = prev[end->start()];
+    Vertex *end = order.back();
+    while(prev[end].first != nullptr) {
+        prev[end].first->is_reliable = true;
+        prev[end].first->rc().is_reliable = true;
+        end = prev[end].first->start();
     }
 }
 

@@ -24,8 +24,8 @@ int main(int argc, char **argv) {
         size_t start = std::stoull(s[1]);
         size_t end = std::stoull(s[2]);
         std::string &seq = contigs[s[0]];
-        start = StringContig("c1", seq.substr(0, start)).makeContig().size();
-        end = StringContig("c2", seq.substr(0, end)).makeContig().size();
+        start = StringContig(seq.substr(0, start), "c1").makeContig().size();
+        end = StringContig(seq.substr(0, end), "c2").makeContig().size();
         std::cout << s[0] << "\t" << start << "\t" << end << "\n";
     }
     is.close();

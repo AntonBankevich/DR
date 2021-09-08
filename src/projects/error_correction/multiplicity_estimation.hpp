@@ -39,7 +39,6 @@ private:
     bool diploid;
     bool debug;
 
-    Edge &getStart(const Component &component) const;
 public:
     const RecordStorage &reads_storage;
 
