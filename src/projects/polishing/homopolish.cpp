@@ -310,8 +310,8 @@ struct ContigInfo {
                 i++;
             }
         }
-        logger.info() <<"Contig " << name << " uncompressed length: " << sequence.length() << " processed." << endl;
-        logger.info() << "Zero covered (after filtering) " << zero_covered << endl;
+        logger.trace() <<"Contig " << name << " uncompressed length: " << sequence.length() << " processed." << endl;
+        logger.trace() << "Zero covered (after filtering) " << zero_covered << endl;
 //Constants;
         for (size_t i = 0; i < 20; i++) {
             logger.debug() << i << " " << quantities[i] << endl;
@@ -671,7 +671,7 @@ struct AssemblyInfo {
         string cur_read;
         string cur_seq;
         StringContig cur;
-        logger.info() << "Reading initial reads from " << lib << "\n";
+        logger.info() << "Reading and processing initial reads from " << lib << "\n";
         size_t reads_count = 0;
         size_t aln_count = 1;
         vector<AlignmentInfo> align_batch;
@@ -702,10 +702,10 @@ struct AssemblyInfo {
                 cur_align = readAlignment(compressed_reads);
                 aln_count ++;
                 if (aln_count % BATCH_SIZE == 0) {
-                    logger.info() << "Batch of size " <<BATCH_SIZE <<" created, processing" << endl;
+                    logger.trace() << "Batch of size " <<BATCH_SIZE <<" created, processing" << endl;
                     processBatch(logger, contig_batch, align_batch);
 
-                    logger.info() << "Processed " << aln_count << " compressed mappings " << endl;
+                    logger.trace() << "Processed " << aln_count << " compressed mappings " << endl;
                     contig_batch.resize(0);
                     align_batch.resize(0);
                     //exit(0);
@@ -722,7 +722,7 @@ struct AssemblyInfo {
         logger.trace() << "Processed final batch of " << align_batch.size() << " compressed reads " << endl;
         vector<Contig> res;
         for (auto& contig: contigs){
-            logger.info() << "Generating consensus for contig " << contig.first << endl;
+            logger.trace() << "Generating consensus for contig " << contig.first << endl;
             res.emplace_back(Sequence(contig.second.GenerateConsensus(logger)), contig.first);
         }
         size_t total_zero_covered = 0;

@@ -178,7 +178,7 @@ namespace logging {
 
         Logger & debug() {
             curlevel = LogLevel::debug;
-            *this << time.get() << " TRACE: ";
+            *this << time.get() << " DEBUG: ";
             return *this;
         }
 

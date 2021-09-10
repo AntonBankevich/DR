@@ -234,7 +234,7 @@ std::experimental::filesystem::path CrudeCorrection(logging::Logger &logger, con
 
 int main(int argc, char **argv) {
     CLParser parser({"output-dir=", "threads=16", "k-mer-size=511", "window=2000", "K-mer-size=5001", "Window=500",
-                     "cov-threshold=3", "rel-threshold=7", "Cov-threshold=3", "Rel-threshold=6",
+                     "cov-threshold=3", "rel-threshold=10", "Cov-threshold=3", "Rel-threshold=7",
                      "unique-threshold=40000", "dump", "dimer-compress=30,30,1", "restart-from=none", "load",
                      "alternative", "diploid", "debug"},
                     {"reads", "paths", "ref"},
