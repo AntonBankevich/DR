@@ -107,10 +107,30 @@ int main(int argc, char **argv) {
                 for(; j < segs[i].size() && tmp < len * 95 / 100; j++)
                     tmp += segs[i][j].size();
                 if(tmp >= len * 95 / 100) {
-                    std::cout << name << "\t" << interest[i].id << "\t" << interest[i].left << "\t" << interest[i].right << "\t" << j << std::endl;
+                    std::cout << name << "\t" << interest[i].id << "\t" << interest[i].left << "\t" << interest[i].right << "\t" << j << "\t";
                 } else {
-                    std::cout << name << "\t" << interest[i].id << "\t" << interest[i].left << "\t" << interest[i].right << "\t" << "NA" << std::endl;
+                    std::cout << name << "\t" << interest[i].id << "\t" << interest[i].left << "\t" << interest[i].right << "\t" << "NA" << "\t";
                 }
+                std::vector<std::pair<size_t, int>> change;
+                size_t max = 0;
+                for(RawSegment &rawSegment : segs[i]) {
+                    max = std::max(rawSegment.size(), max);
+                    change.emplace_back(rawSegment.left, 1);
+                    change.emplace_back(rawSegment.right, -1);
+                }
+                std::sort(change.begin(), change.end());
+                change.emplace_back(interest[i].right, 0);
+                int cov = 0;
+                size_t prev = interest[i].left;
+                size_t cov_len = 0;
+                for(std::pair<size_t, int> &ch : change) {
+                    if(cov > 0) {
+                        cov_len += ch.first - prev;
+                    }
+                    cov += ch.second;
+                    prev = ch.first;
+                }
+                std::cout << max << "\t" << cov_len << "\t" << interest[i].size() << std::endl;
             }
         }
     }

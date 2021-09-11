@@ -235,7 +235,7 @@ std::experimental::filesystem::path CrudeCorrection(logging::Logger &logger, con
 int main(int argc, char **argv) {
     CLParser parser({"output-dir=", "threads=16", "k-mer-size=511", "window=2000", "K-mer-size=5001", "Window=500",
                      "cov-threshold=3", "rel-threshold=10", "Cov-threshold=3", "Rel-threshold=7",
-                     "unique-threshold=40000", "dump", "dimer-compress=30,30,1", "restart-from=none", "load",
+                     "unique-threshold=40000", "dump", "dimer-compress=32,32,1", "restart-from=none", "load",
                      "alternative", "diploid", "debug"},
                     {"reads", "paths", "ref"},
                     {"o=output-dir", "t=threads", "k=k-mer-size","w=window", "K=K-mer-size","W=Window"},
@@ -311,7 +311,7 @@ int main(int argc, char **argv) {
                             lib, StringContig::max_dimer_size / 2, skip);
     if(first_stage == "polishing")
         load = false;
-    logger.info() << "Final corrected reads can be found here: " << corrected2.first << std::endl;
+    logger.info() << "Final homopolymer compressed and corrected reads can be found here: " << corrected2.first << std::endl;
     logger.info() << "Final homopolymer compressed contigs can be found here: " << (corrected2.second / "contigs.fasta") << std::endl;
 //    logger.info() << "Subdatasets for connected components can be found here: " << corrected2.second << std::endl;
     logger.info() << "Final assembly can be found here: " << final_contigs << std::endl;

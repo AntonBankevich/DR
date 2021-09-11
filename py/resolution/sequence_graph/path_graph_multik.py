@@ -656,8 +656,7 @@ class PathMultiKGraph:
             return True
 
         n_iter_wo_complex = self.get_niter_wo_complex()
-        logger.info(f'iter={self.niter}, simple_iter={n_iter_wo_complex}, K = {self.init_k + self.niter}, '
-                    f'V = {nx.number_of_nodes(self.nx_graph)}, E = {nx.number_of_edges(self.nx_graph)}')
+        logger.info(f'iter={self.niter}, simple_iter={n_iter_wo_complex}, V = {nx.number_of_nodes(self.nx_graph)}, E = {nx.number_of_edges(self.nx_graph)}')
 
         if n_iter_wo_complex > 0:
             self._transform_simple_N(N=n_iter_wo_complex)
