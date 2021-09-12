@@ -93,3 +93,13 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
     }
 }
 
+inline void coverageStats(logging::Logger &logger, dbg::SparseDBG &dbg, size_t max_cov = 200) {
+    logger.trace() << "Kmer coverage statistics:\n";
+    std::vector<size_t> hist(max_cov + 1);
+    for(Edge &edge : dbg.edgesUnique()) {
+        hist[std::min<size_t>(edge.getCoverage(), max_cov)] += edge.size();
+    }
+    for(size_t i = 0; i < hist.size(); i++) {
+        logger << i << " " << hist[i] << std::endl;
+    }
+}

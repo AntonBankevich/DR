@@ -79,8 +79,10 @@ AlternativeCorrection(logging::Logger &logger, const std::experimental::filesyst
         RecordStorage refStorage(dbg, 0, extension_size, threads, readLogger, false, false);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
-        if(debug)
-            PrintPaths(logger, dir/ "state_dump", "initial", dbg, readStorage, paths_lib, true);
+        if(debug) {
+            coverageStats(logger, dbg);
+            PrintPaths(logger, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
+        }
 //        CorrectDimers(logger, readStorage, k, threads, reliable_coverage);
         correctAT(logger, readStorage, k, threads);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 800, 4, threads);

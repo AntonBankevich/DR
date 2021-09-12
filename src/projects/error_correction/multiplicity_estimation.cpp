@@ -174,6 +174,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
             }
         }
     }
+    logger.info() << "Marked " << size() << " long edges as unique" << std::endl;
     logger.trace() << "Marking bulges to collapse" << std::endl;
     markPseudoHets();
     logger.info() << "Splitting graph with unique edges" << std::endl;
