@@ -113,7 +113,7 @@ AlternativeCorrection(logging::Logger &logger, const std::experimental::filesyst
     return {res, dir / "graph.fasta"};
 }
 
-std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> SecondPhase(
+std::vector<std::experimental::filesystem::path> SecondPhase(
         logging::Logger &logger, const std::experimental::filesystem::path &dir,
         const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
         const io::Library &paths_lib, size_t threads, size_t k, size_t w,
@@ -182,9 +182,9 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         mg.printEdgeGFA(dir / "partial.gfa");
         mg.printDot(dir / "partial.dot");
         multigraph::MultiGraph mmg = mg.Merge();
-        mmg.printEdgeGFA(dir / "merged.gfa");
-        mmg.printDot(dir / "merged.dot");
-        mmg.printCutEdges(dir / "cut.fasta");
+        mmg.printEdgeGFA(dir / "compressed.gfa");
+        mmg.printDot(dir / "compressed.dot");
+        mmg.printCutEdges(dir / "compressed.fasta");
         std::vector<Contig> contigs = mmg.getCutEdges();
         PrintAlignments(logger, threads, contigs, readStorage, k, dir / "uncompressing");
         readStorage.printFasta(logger, dir / "corrected.fasta");
@@ -194,7 +194,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
     std::experimental::filesystem::path res;
     res = dir / "corrected.fasta";
     logger.info() << "Second phase results with k = " << k << " printed to "    << res << std::endl;
-    return {res, dir / "uncompressing"};
+    return {res, dir / "uncompressing", dir / "compressed.gfa"};
 }
 
 std::experimental::filesystem::path PolishingPhase(
@@ -234,18 +234,33 @@ std::experimental::filesystem::path CrudeCorrection(logging::Logger &logger, con
     return res;
 }
 
+std::string constructMessage() {
+    std::stringstream ss;
+    ss << "LJA: genome assembler for PacBio HiFi reads based on de Bruijn graph.\n";
+    ss << "Usage: lja [options] -o <output-dir>\n\n";
+    ss << "Basic options:\n";
+    ss << "  -o <file_name> (or --output-dir <file_name>)  Name of output folder. Resulting graph will be stored there.\n";
+    ss << "  --reads <file_name>                           Name of file that contains reads in fasta or fastq format. This option can be used any number of times in the same command line. In this case reads from all specified files will be used as an input.\n";
+    ss << "  -h (or --help)                                Print this help message.\n";
+    ss << "\nAdvanced options:\n";
+    ss << "  -t <int> (or --threads <int>)                 Number of threads. The default value is 16.\n";
+    ss << "  -k <int>                                      Value of k used for initial error correction.\n";
+    ss << "  -K <int>                                      Value of k used for final error correction and initialization of multiDBG.\n";
+    ss << "  --diploid                                     Use this option for diploid genomes. By default LJA assumes that the genome is haploid or inbread.\n";
+    return ss.str();
+}
 
 int main(int argc, char **argv) {
-    CLParser parser({"output-dir=", "threads=16", "k-mer-size=511", "window=2000", "K-mer-size=5001", "Window=500",
+    CLParser parser({"output-dir=", "threads=16", "k-mer-size=501", "window=2000", "K-mer-size=5001", "Window=500",
                      "cov-threshold=3", "rel-threshold=10", "Cov-threshold=3", "Rel-threshold=7",
                      "unique-threshold=40000", "dump", "dimer-compress=32,32,1", "restart-from=none", "load",
                      "alternative", "diploid", "debug"},
                     {"reads", "paths", "ref"},
                     {"o=output-dir", "t=threads", "k=k-mer-size","w=window", "K=K-mer-size","W=Window"},
-                    "Error message not implemented");
+                    constructMessage());
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
-        std::cout << "Incorrect parameters:" << std::endl;
+        std::cout << "Failed to parse command line parameters." << std::endl;
         std::cout << parser.check() << "\n" << std::endl;
         std::cout << parser.message() << std::endl;
         return 1;
@@ -263,6 +278,7 @@ int main(int argc, char **argv) {
         logger << argv[i] << " ";
     }
     logger << std::endl;
+    logger.info() << "Hello. You are running La Jolla Assembler (LJA), a tool for genome assembly from PacBio HiFi reads\n";
     logging::logGit(logger, dir / "version.txt");
     bool diplod = parser.getCheck("diploid");
     std::string first_stage = parser.getValue("restart-from");
@@ -303,7 +319,7 @@ int main(int argc, char **argv) {
     std::experimental::filesystem::path executable(argv[0]);
     std::experimental::filesystem::path py_path = executable.parent_path() / "run_rr.py";
     logger.trace() << "py_path set to " << py_path.string() << std::endl;
-    std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected2 =
+    std::vector<std::experimental::filesystem::path> corrected2 =
             SecondPhase(logger, dir / "phase2", {corrected1.first}, {corrected1.second}, paths,
                         threads, K, W, Threshold, Reliable_coverage, unique_threshold, py_path, diplod, skip, debug, load);
     if(first_stage == "phase2")
@@ -312,14 +328,13 @@ int main(int argc, char **argv) {
         skip = false;
     std::experimental::filesystem::path final_contigs =
             PolishingPhase(logger, threads, dir / "assembly.fasta",
-                           corrected2.second / "contigs.fasta",
-                           corrected2.second / "good_alignments.txt",
+                           corrected2[1] / "contigs.fasta",
+                           corrected2[1] / "good_alignments.txt",
                             lib, StringContig::max_dimer_size / 2, skip);
     if(first_stage == "polishing")
         load = false;
-    logger.info() << "Final homopolymer compressed and corrected reads can be found here: " << corrected2.first << std::endl;
-    logger.info() << "Final homopolymer compressed contigs can be found here: " << (corrected2.second / "contigs.fasta") << std::endl;
-//    logger.info() << "Subdatasets for connected components can be found here: " << corrected2.second << std::endl;
+    logger.info() << "Final homopolymer compressed and corrected reads can be found here: " << corrected2[0] << std::endl;
+    logger.info() << "Final graph with homopolymer compressed edges can be found here: " << corrected2[2] << std::endl;
     logger.info() << "Final assembly can be found here: " << final_contigs << std::endl;
     logger.info() << "LJA pipeline finished" << std::endl;
     return 0;

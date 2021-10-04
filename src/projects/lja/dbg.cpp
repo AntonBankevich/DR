@@ -127,14 +127,15 @@ void LoadCoverage(const std::experimental::filesystem::path &fname, logging::Log
     is.close();
     logger.info() << "Finished loading edge coverages." << std::endl;
 }
+
 std::string constructMessage() {
     std::stringstream ss;
-    ss << "JumboDB version 1.0\n\n";
-    ss << "Usage dbg [options] -o <output-dir> -k <int>\n\n";
+    ss << "JumboDB: a tool for constructing de Bruijn graph for arbitrarily large value of k\n";
+    ss << "Usage: dbg [options] -o <output-dir> -k <int>\n\n";
     ss << "Basic options:\n";
     ss << "  -o <file_name> (or --output-dir <file_name>)  Name of output folder. Resulting graph will be stored there.\n";
     ss << "  -k <int>                                      Value of k (vertex size) to be used for de Bruijn graph construction. k should be odd (otherwise k + 1 is used instead).\n";
-    ss << "  --reads <file_name>                           Name of file that contains reads in fasta or fastq format. This option can be used any number of times in the same command line resulting in collecting reads from multiple files.\n";
+    ss << "  --reads <file_name>                           Name of file that contains reads in fasta or fastq format. This option can be used any number of times in the same command line. In this case reads from all specified files will be used as an input.\n";
     ss << "  -h (or --help)                                Print this help message.\n";
     ss << "\nAdvanced options:\n";
     ss << "  -t <int> (or --threads <int>)                 Number of threads. The default value is 16.\n";
@@ -143,6 +144,7 @@ std::string constructMessage() {
     ss << "  --coverage                                    Calculate edge coverage of edges in the constructed de Bruijn graph.\n";
     return ss.str();
 }
+
 int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "coverages=none", "dbg=none", "output-dir=",
                      "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
@@ -159,7 +161,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     if (!parser.check().empty()) {
-        std::cout << "Incorrect parameters:" << std::endl;
+        std::cout << "Failed to parse command line parameters." << std::endl;
         std::cout << parser.check() << "\n" << std::endl;
         std::cout << parser.message() << std::endl;
         return 1;
@@ -176,17 +178,19 @@ int main(int argc, char **argv) {
     for(size_t i = 0; i < argc; i++) {
         logger << argv[i] << " ";
     }
+    size_t k = std::stoi(parser.getValue("k-mer-size"));
+    const size_t w = std::stoi(parser.getValue("window"));
     logger << std::endl;
+    logger.info() << "Hello. You are running jumboDBG, a tool for construction of de Bruijn graphs for arbitrarily large values of k\n";
+    logger.info() << "Note that jumboDB does not perform any error correction and ignores all reads shorter than k + w = " << k + w << std::endl;
     if(parser.getCheck("extract-subdatasets")) {
         logger.info() << "Enabled subdataset extraction" << std::endl;
     }
-    size_t k = std::stoi(parser.getValue("k-mer-size"));
     if (k % 2 == 0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
         k += 1;
     }
     hashing::RollingHash hasher(k, std::stoi(parser.getValue("base")));
-    const size_t w = std::stoi(parser.getValue("window"));
     io::Library pseudo_reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("pseudo-reads"));
     io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     io::Library paths_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("paths"));
@@ -447,10 +451,15 @@ int main(int argc, char **argv) {
     }
 
     if(parser.getValue("dbg") == "none") {
-        logger.info() << "Printing graph to fasta file " << (dir / "graph.fasta") << std::endl;
-        printFasta(dir / "graph.fasta", Component(dbg));
-        logger.info() << "Printing assembly to fasta file " << (dir / "assembly.fasta") << std::endl;
-        printAssembly(dir / "assembly.fasta", Component(dbg));
+        if(debug) {
+            logger.info() << "Printing graph to fasta file " << (dir / "graph.fasta") << std::endl;
+            printFasta(dir / "graph.fasta", Component(dbg));
+            logger.info() << "Printing assembly to fasta file " << (dir / "assembly.fasta") << std::endl;
+            printAssembly(dir / "assembly.fasta", Component(dbg));
+        } else {
+            logger.info() << "Printing graph to fasta file " << (dir / "graph.fasta") << std::endl;
+            printAssembly(dir / "graph.fasta", Component(dbg));
+        }
         logger.info() << "Printing graph to gfa file " << (dir / "graph.gfa") << std::endl;
         printGFA(dir / "graph.gfa", Component(dbg), calculate_coverage);
         logger.info() << "Printing graph to dot file " << (dir / "graph.dot") << std::endl;
@@ -550,5 +559,6 @@ int main(int argc, char **argv) {
         printDot(dir / "simp_graph.dot", Component(simp_dbg));
     }
     logger.info() << "DBG construction finished" << std::endl;
+    logger.info() << "Please cite our paper if you use jumboDBG in your research: https://www.biorxiv.org/content/10.1101/2020.12.10.420448" << std::endl;
     return 0;
 }
