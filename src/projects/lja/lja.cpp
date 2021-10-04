@@ -118,6 +118,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
         const io::Library &paths_lib, size_t threads, size_t k, size_t w,
         double threshold, double reliable_coverage, size_t unique_threshold,
+        const std::experimental::filesystem::path &py_path,
         bool diploid, bool skip, bool debug, bool load) {
     logger.info() << "Performing second phase of correction with k = " << k << std::endl;
     if (k % 2 == 0) {
@@ -127,7 +128,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
     ensure_dir_existance(dir);
     hashing::RollingHash hasher(k, 239);
     std::function<void()> ic_task = [&dir, &logger, &hasher, load, k, w, &reads_lib, &pseudo_reads_lib, &paths_lib,
-                                     threads, threshold, reliable_coverage, debug, unique_threshold, diploid] {
+                                     threads, threshold, reliable_coverage, debug, unique_threshold, diploid, py_path] {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
         SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
                         DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
@@ -167,7 +168,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
             PrintPaths(logger, dir / "state_dump", "gap2", dbg, readStorage, paths_lib, false);
             DrawSplit(Component(dbg), dir / "split_figs", readStorage.labeler());
         }
-        RepeatResolver rr(dbg, {&readStorage, &extra_reads}, dir / "split", debug);
+        RepeatResolver rr(dbg, {&readStorage, &extra_reads}, dir / "split", py_path, debug);
         std::function<bool(const dbg::Edge &)> is_unique = [unique_threshold](const Edge &edge) {
             return edge.size() > unique_threshold;
         };
@@ -299,9 +300,12 @@ int main(int argc, char **argv) {
 
     if(first_stage == "phase2")
         skip = false;
+    std::experimental::filesystem::path executable(argv[0]);
+    std::experimental::filesystem::path py_path = executable.parent_path() / "run_rr.py";
+    logger.trace() << "py_path set to " << py_path.string() << std::endl;
     std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected2 =
             SecondPhase(logger, dir / "phase2", {corrected1.first}, {corrected1.second}, paths,
-                        threads, K, W, Threshold, Reliable_coverage, unique_threshold, diplod, skip, debug, load);
+                        threads, K, W, Threshold, Reliable_coverage, unique_threshold, py_path, diplod, skip, debug, load);
     if(first_stage == "phase2")
         load = false;
     if(first_stage == "polishing")

@@ -763,6 +763,7 @@ def main():
     parser.add_argument("-o", "--outdir", required=True)
     parser.add_argument("--ref")
     parser.add_argument("--refhpc", action='store_true')
+    parser.add_argument("--no_export_pdf", action='store_true')
     parser.add_argument("-K", type=int, default=40002)
     params = parser.parse_args()
 
@@ -821,7 +822,7 @@ def main():
     write_bio_seqs(outfasta, edges)
 
     lpdb.write_dot(params.outdir, compact=True,
-                   reffn=params.ref, refhpc=params.refhpc)
+                   reffn=params.ref, refhpc=params.refhpc, export_pdf=not params.no_export_pdf)
     logger.info(f'Finished writing final graph (dot)')
     out = open(outdot + ".graph", "w")
     for edge in lpdb.nx_graph.edges(keys=True):

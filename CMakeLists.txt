@@ -7,9 +7,13 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
+set(CMAKE_INSTALL_PREFIX ${CMAKE_CURRENT_SOURCE_DIR})
+
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+set(PYTHON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/py)
 
 find_package(OpenMP)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -lstdc++fs -ggdb3 ${OpenMP_CXX_FLAGS}" )
@@ -23,7 +27,7 @@ set(CMAKE_SHARED_LINKER_FLAGS "-Wall -Wc++-compat -O2 -msse4.1 -DHAVE_KALLOC -DK
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/tools)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/lib)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/projects)
-add_subdirectory(src/tests)
+#add_subdirectory(src/tests)
 add_subdirectory(src/tools)
 add_subdirectory(src/lib/spoa)
 add_subdirectory(src/lib/ksw2)

@@ -4,7 +4,7 @@
 #include <cstdio>
 #include "multi_graph.hpp"
 
-std::string RepeatResolver::COMMAND = "python3 py/resolution/sequence_graph/path_graph_multik.py -i {} -o {} > {}";
+std::string RepeatResolver::COMMAND = "{} {} -i {} -o {} > {}";
 
 std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::function<bool(const Edge &)> &is_unique) {
     size_t k = dbg.hasher().getK();
@@ -74,7 +74,7 @@ std::vector<Contig> RepeatResolver::ProcessSubdataset(logging::Logger &logger, c
     prepareDataset(subdataset);
     std::experimental::filesystem::path outdir = subdataset.dir / "mltik";
     recreate_dir(outdir);
-    std::string command = COMMAND;
+    std::string command = command_pattern;
     command.replace(command.find("{}"), 2, subdataset.dir.string());
     command.replace(command.find("{}"), 2, outdir.string());
     command.replace(command.find("{}"), 2, "/dev/null");
@@ -132,7 +132,7 @@ std::vector<Contig> RepeatResolver::ProcessSubdataset(logging::Logger &logger, c
 }
 
 std::vector<Contig> RepeatResolver::ResolveRepeats(logging::Logger &logger, size_t threads,
-                              const std::function<bool(const Edge &)> &is_unique) {
+                                                   const std::function<bool(const Edge &)> &is_unique) {
     logger.info() << "Splitting dataset" << std::endl;
     std::vector<Subdataset> subdatasets = SplitDataset(is_unique);
     logger.info() << "Dataset splitted into " << subdatasets.size() << " parts. Starting resolution." << std::endl;

@@ -12,3 +12,4 @@ tests/run_tests
 **/__pycache__
 src/tests/googletest-master/googletest/generated/*
 .idea
+bin
