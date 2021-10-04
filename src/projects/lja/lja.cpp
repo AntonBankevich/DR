@@ -178,10 +178,10 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         PrintFasta(partial_contigs, dir / "partial.fasta");
 //        std::vector<Contig> contigs = rr.CollectResults(logger, threads, partial_contigs, dir / "merging.txt", is_unique);
         multigraph::MultiGraph mg = rr.ConstructMultiGraph(partial_contigs);
-        mg.printGFA(dir / "partial.gfa");
+        mg.printEdgeGFA(dir / "partial.gfa");
         mg.printDot(dir / "partial.dot");
         multigraph::MultiGraph mmg = mg.Merge();
-        mmg.printGFA(dir / "merged.gfa");
+        mmg.printEdgeGFA(dir / "merged.gfa");
         mmg.printDot(dir / "merged.dot");
         mmg.printCutEdges(dir / "cut.fasta");
         std::vector<Contig> contigs = mmg.getCutEdges();

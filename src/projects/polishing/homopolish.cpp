@@ -721,6 +721,7 @@ struct AssemblyInfo {
         processBatch(logger, contig_batch, align_batch);
         logger.trace() << "Processed final batch of " << align_batch.size() << " compressed reads " << endl;
         vector<Contig> res;
+        logger.info() << "Uncompressing homopolymers in contigs" << endl;
         for (auto& contig: contigs){
             logger.trace() << "Generating consensus for contig " << contig.first << endl;
             res.emplace_back(Sequence(contig.second.GenerateConsensus(logger)), contig.first);

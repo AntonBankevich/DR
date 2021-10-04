@@ -8,7 +8,7 @@
 #include <vector>
 
 int main(int argc, char **argv) {
-    CLParser parser({"contigs=", "min-contig=", "genome-size="}, {},
+    CLParser parser({"contigs=", "min-contig=0", "genome-size="}, {},
                     {"t=threads"});
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
             lens.push_back(contig.size());
     }
     std::cout << "Number of contigs " << lens.size() << std::endl;
-    std::sort(lens.begin(), lens.end());
+    std::sort(lens.rbegin(), lens.rend());
     size_t sum = 0;
     for(unsigned long len : lens) {
         sum += len;
