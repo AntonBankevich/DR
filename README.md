@@ -10,7 +10,7 @@ LJA consists of three modules each of which addresses a computational challenge 
 (ii) mowerDBG module for almost perfect error correction and
 (iii) multiDBG module for using variable values of k in different parts of the genome and using the full length of HiFi reads for repeat resolution.
 In addition, since LJA compresses homopolimers in reads to avoid frequent errors in homopolimers, LJA uses LJApolisher tool for uncompressing and polishing final contigs.
-For more details please refer to our [paper](https://www.biorxiv.org/content/10.1101/2020.12.10.420448v1).
+For more details please refer to our [paper](https://www.biorxiv.org/content/10.1101/2020.12.10.420448).
 
 Please note that LJA software is still a work in progress.
 In current version diploid assembly is an experimental feature and for now we can not combine HiFI reads with other technologies.
@@ -31,6 +31,6 @@ This tool is distributed under a BSD license. See the [LICENSE file](LICENSE) fo
 
 Credits
 -------
-If you use this software in your research please cite our [paper](https://www.biorxiv.org/content/10.1101/2020.12.10.420448v1).
+If you use this software in your research please cite our [paper](https://www.biorxiv.org/content/10.1101/2020.12.10.420448).
 LJA is developed by Anton Bankevich and Andrey Bzikadze in [Pavel Pevzner's lab at UCSD](http://cseweb.ucsd.edu/~ppevzner/)
 and Dmitry Antipov in [Center for Algorithmic Biology at SPbSU](https://cab.spbu.ru/).
