@@ -27,7 +27,7 @@ To build from source code run the following commands from code directory.
 
 Binary files will be stored in the bin subdirectory.
 We will further assume that you added bin directory to your PATH variable.
-Otherwise you need to use full path to the executable instead of lja in the command line.
+Otherwise, you need to use full path to the executable instead of lja in the command line.
 
 Running La Jolla Assembler
 =================
@@ -68,7 +68,7 @@ Value of k (vertex size) to be used for the initial error correction. k should b
 Value of k (vertex size) to be used for the final error correction and initialization of multiDBG. K should be odd (otherwise K + 1 is used instead).
 
 `--diploid`
-Use this option for diploid genome. By default LJA assumes that the genome is haploid or inbred.
+Use this option for diploid genome. By default, LJA assumes that the genome is haploid or inbred.
 
 Output of de Bruijn graph construction
 =================
@@ -76,14 +76,16 @@ Output of de Bruijn graph construction
 All output files are stored in <output_dir> `, which is set by the user.
 
 -   `<output_dir>/graph.fasta` sequences of all edges of de Bruijn graph in fasta format
--   `<output_dir>/graph.gfa` sequences of all edges of de Bruijn graph in gfa format. Note that gfa format is ill suited for de Bruijn graph storage since it does not represent some vertices such as vertices with indegree 2 and out degree 0. 
+-   `<output_dir>/graph.gfa` sequences of all edges of de Bruijn graph in gfa format. Note that gfa format is ill-suited for de Bruijn graph storage since it does not represent some vertices such as vertices with indegree 2 and outdegree 0. 
 -   `<output_dir>/graph.dot` sequences of all edges of de Bruijn graph
 -   `<output_dir>/dbg.log` log file for the run
 
 Feedback and bug reports
 =================
 
-Your comments, bug reports, and suggestions are very welcomed. They will help us to further improve de Bruijn graph construction tool. If you have any troubles running graph construction, please send us `dbg.log` file from the directory `<output_dir>`.
+Your comments, bug reports, and suggestions are very welcomed.
+They will help us to further improve La Jolla Assembler.
+If you have any troubles  LJA, please send us `dbg.log` file from the directory `<output_dir>`.
 
-You can send your comments and bug reports via e-mail: <anton.bankevich@gmail.com>.
+You can send your comments and bug reports via e-mail: [anton.bankevich@gmail.com](mailto:anton.bankevich@gmail.com).
 

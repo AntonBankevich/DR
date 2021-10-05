@@ -15,7 +15,7 @@ E.g. uncompressed fasta reads are expected to be stored in files with name exten
 Command line
 -------------------------------------
 Here we assume that you added bin subdirectory from installation directory to your PATH variable.
-Otherwise you need to use full path to the executable instead of jumboDBG in the command line.
+Otherwise, you need to use full path to the executable instead of jumboDBG in the command line.
 
 ``` bash
 
@@ -43,7 +43,7 @@ Number of threads. The default value is 16.
 `-w <int>` (or `--window <int>`)
 The window size to be used for sparse de Bruijn graph construction. The default value is 2000. Note that all reads of length less than k + w are ignored during graph construction.
 
-`--compress` Compress all homolopymers in reads.
+`--compress` Compress all homopolimers in reads.
 
 `--coverage`
 Calculate edge coverage of edges in the constructed de Bruijn graph.
@@ -54,7 +54,7 @@ Output of de Bruijn graph construction
 All output files are stored in <output_dir> `, which is set by the user.
 
 -   `<output_dir>/graph.fasta` sequences of all edges of de Bruijn graph in fasta format
--   `<output_dir>/graph.gfa` sequences of all edges of de Bruijn graph in gfa format. Note that gfa format is ill suited for de Bruijn graph storage since it does not represent some vertices such as vertices with indegree 2 and out degree 0.
+-   `<output_dir>/graph.gfa` sequences of all edges of de Bruijn graph in gfa format. Note that gfa format is ill-suited for de Bruijn graph storage since it does not represent some vertices such as vertices with indegree 2 and out degree 0.
 -   `<output_dir>/graph.dot` sequences of all edges of de Bruijn graph
 -   `<output_dir>/dbg.log` log file for the run
 
@@ -65,5 +65,5 @@ Your comments, bug reports, and suggestions are very welcomed.
 They will help us to further improve de Bruijn graph construction tool.
 If you have any trouble running graph construction, please send us `dbg.log` file from the directory `<output_dir>`.
 
-You can send your comments and bug reports via e-mail: [anton.bankevich@gmail.com](emailto:anton.bankevich@gmail.com).
+You can send your comments and bug reports via e-mail: [anton.bankevich@gmail.com](mailto:anton.bankevich@gmail.com).
 
