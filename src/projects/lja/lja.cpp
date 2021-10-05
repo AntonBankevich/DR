@@ -2,19 +2,17 @@
 #include "subdataset_processing.hpp"
 #include "gap_closing.hpp"
 #include "error_correction/mult_correction.hpp"
+#include "error_correction/mitochondria_rescue.hpp"
+#include "error_correction/initial_correction.hpp"
+#include "error_correction/manyk_correction.hpp"
+#include "sequences/seqio.hpp"
 #include "dbg/dbg_construction.hpp"
 #include "common/rolling_hash.hpp"
-#include "error_correction/mitochondria_rescue.hpp"
-#include "error_correction/crude_correct.hpp"
-#include "error_correction/initial_correction.hpp"
-#include "sequences/seqio.hpp"
 #include "common/dir_utils.hpp"
 #include "common/cl_parser.hpp"
 #include "common/logging.hpp"
-#include "error_correction/manyk_correction.hpp"
 #include <iostream>
 #include <queue>
-#include <unordered_set>
 #include <wait.h>
 #include <error_correction/dimer_correction.hpp>
 #include <polishing/homopolish.hpp>
@@ -211,33 +209,10 @@ std::experimental::filesystem::path PolishingPhase(
     return output_file;
 }
 
-std::experimental::filesystem::path CrudeCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
-                     const io::Library &reads_lib, size_t threads, size_t k, size_t w,
-                     double threshold, bool skip) {
-    logger.info() << "Performing crude correction with k = " << k << std::endl;
-    if (k % 2 == 0) {
-        logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
-        k += 1;
-    }
-    ensure_dir_existance(dir);
-    hashing::RollingHash hasher(k, 239);
-    std::function<void()> cc_task = [&dir, &logger, &hasher, w, &reads_lib, threads, threshold] {
-        SparseDBG dbg = DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
-        dbg.fillAnchors(w, logger, threads);
-        CalculateCoverage(dir, hasher, w, reads_lib, threads, logger, dbg);
-        CrudeCorrect(logger, dbg, dir, w, reads_lib, threads, threshold);
-    };
-    if(!skip)
-        runInFork(cc_task);
-    std::experimental::filesystem::path res = dir / "corrected.fasta";
-    logger.info() << "Crude correction results with k = " << k << " printed to " << res << std::endl;
-    return res;
-}
-
 std::string constructMessage() {
     std::stringstream ss;
     ss << "LJA: genome assembler for PacBio HiFi reads based on de Bruijn graph.\n";
-    ss << "Usage: lja [options] -o <output-dir>\n\n";
+    ss << "Usage: lja [options] -o <output-dir> --reads <reads_file> [--reads <reads_file2> ...]\n\n";
     ss << "Basic options:\n";
     ss << "  -o <file_name> (or --output-dir <file_name>)  Name of output folder. Resulting graph will be stored there.\n";
     ss << "  --reads <file_name>                           Name of file that contains reads in fasta or fastq format. This option can be used any number of times in the same command line. In this case reads from all specified files will be used as an input.\n";
@@ -246,7 +221,7 @@ std::string constructMessage() {
     ss << "  -t <int> (or --threads <int>)                 Number of threads. The default value is 16.\n";
     ss << "  -k <int>                                      Value of k used for initial error correction.\n";
     ss << "  -K <int>                                      Value of k used for final error correction and initialization of multiDBG.\n";
-    ss << "  --diploid                                     Use this option for diploid genomes. By default LJA assumes that the genome is haploid or inbread.\n";
+    ss << "  --diploid                                     Use this option for diploid genomes. By default LJA assumes that the genome is haploid or inbred.\n";
     return ss.str();
 }
 
@@ -259,6 +234,10 @@ int main(int argc, char **argv) {
                     {"o=output-dir", "t=threads", "k=k-mer-size","w=window", "K=K-mer-size","W=Window"},
                     constructMessage());
     parser.parseCL(argc, argv);
+    if (parser.getCheck("help")) {
+        std::cout << parser.message() << std::endl;
+        return 0;
+    }
     if (!parser.check().empty()) {
         std::cout << "Failed to parse command line parameters." << std::endl;
         std::cout << parser.check() << "\n" << std::endl;
@@ -303,7 +282,7 @@ int main(int argc, char **argv) {
     std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected1;
     if (first_stage == "alternative")
         skip = false;
-    corrected1 = AlternativeCorrection(logger, dir / "alternative", lib, {}, paths, threads, k, w,
+    corrected1 = AlternativeCorrection(logger, dir / ("k" + itos(k)), lib, {}, paths, threads, k, w,
                                   threshold, reliable_coverage, false, false, skip, debug, load);
     if (first_stage == "alternative" || first_stage == "none")
         load = false;
@@ -320,7 +299,7 @@ int main(int argc, char **argv) {
     std::experimental::filesystem::path py_path = executable.parent_path() / "run_rr.py";
     logger.trace() << "py_path set to " << py_path.string() << std::endl;
     std::vector<std::experimental::filesystem::path> corrected2 =
-            SecondPhase(logger, dir / "phase2", {corrected1.first}, {corrected1.second}, paths,
+            SecondPhase(logger, dir / ("k" + itos(K)), {corrected1.first}, {corrected1.second}, paths,
                         threads, K, W, Threshold, Reliable_coverage, unique_threshold, py_path, diplod, skip, debug, load);
     if(first_stage == "phase2")
         load = false;

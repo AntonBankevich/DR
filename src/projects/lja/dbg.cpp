@@ -14,7 +14,6 @@
 #include "dbg/sparse_dbg.hpp"
 #include "common/rolling_hash.hpp"
 #include "common/hash_utils.hpp"
-#include "error_correction/crude_correct.hpp"
 #include "common/hash_utils.hpp"
 #include "error_correction/initial_correction.hpp"
 #include "sequences/seqio.hpp"
@@ -131,7 +130,7 @@ void LoadCoverage(const std::experimental::filesystem::path &fname, logging::Log
 std::string constructMessage() {
     std::stringstream ss;
     ss << "JumboDB: a tool for constructing de Bruijn graph for arbitrarily large value of k\n";
-    ss << "Usage: dbg [options] -o <output-dir> -k <int>\n\n";
+    ss << "Usage: dbg [options] -o <output-dir> -k <int> --reads <reads_file> [--reads <reads_file2> ...]\n\n";
     ss << "Basic options:\n";
     ss << "  -o <file_name> (or --output-dir <file_name>)  Name of output folder. Resulting graph will be stored there.\n";
     ss << "  -k <int>                                      Value of k (vertex size) to be used for de Bruijn graph construction. k should be odd (otherwise k + 1 is used instead).\n";
@@ -148,7 +147,7 @@ std::string constructMessage() {
 int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "coverages=none", "dbg=none", "output-dir=",
                      "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
-                     "correct", "simplify", "coverage", "cov-threshold=2", "rel-threshold=10", "tip-correct", "crude-correct",
+                     "correct", "simplify", "coverage", "cov-threshold=2", "rel-threshold=10", "tip-correct",
                      "initial-correct", "mult-correct", "mult-analyse", "compress", "dimer-compress=1000000000,1000000000,1", "help", "genome-path",
                      "dump", "extension-size=none", "print-all", "extract-subdatasets", "print-alignments", "subdataset-radius=10000",
                      "split", "diploid"},
@@ -210,11 +209,11 @@ int main(int argc, char **argv) {
                     DBGPipeline(logger, hasher, w, construction_lib, dir, threads, disjointigs_file, vertices_file) :
                     LoadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
 
-    bool calculate_alignments = parser.getCheck("crude-correct") || parser.getCheck("initial-correct") ||
+    bool calculate_alignments = parser.getCheck("initial-correct") ||
             parser.getCheck("mult-correct") || parser.getCheck("print-alignments") || parser.getCheck("split");
     bool calculate_coverage = parser.getCheck("coverage") || parser.getCheck("simplify") ||
             parser.getCheck("correct") || parser.getValue("reference") != "none" ||
-            parser.getCheck("tip-correct") || parser.getCheck("crude-correct") ||
+            parser.getCheck("tip-correct") ||
             parser.getCheck("initial-correct") || parser.getCheck("mult-correct") || !paths_lib.empty();
     calculate_coverage = calculate_coverage && !calculate_alignments;
     if (!parser.getListValue("align").empty() || parser.getCheck("print-alignments") ||
@@ -497,11 +496,6 @@ int main(int argc, char **argv) {
             os << ">" << rec.id << "\n" << rec.seq << "\n";
         }
         os.close();
-    }
-
-    if (parser.getCheck("crude-correct")) {
-        size_t threshold = std::__cxx11::stoull(parser.getValue("cov-threshold"));
-        CrudeCorrect(logger, dbg, dir, w, reads_lib, threads, threshold);
     }
 
     if (!parser.getListValue("align").empty()) {
